@@ -1,4 +1,5 @@
 import os
+
 from dotenv import load_dotenv
 
 # Load environment variables from the .env file
@@ -27,9 +28,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-f#jp2g-7cod-*_a9h((lnz#wy#)m_-&5=)*h9s4en_t&_*-amo'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = os.getenv('DEBUG') == 'True'
 
-ALLOWED_HOSTS = ['.vercel.app']
+ALLOWED_HOSTS = ['.vercel.app', '127.0.0.1']
 LOGIN_URL = 'superadmin:login'
 LOGIN_REDIRECT_URL = 'superadmin:dashboard'
 LOGOUT_REDIRECT_URL = 'superadmin:login'
@@ -86,7 +87,6 @@ WSGI_APPLICATION = 'kiems.wsgi.application'
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
 
-
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
 
@@ -121,22 +121,28 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 # Database settings from .env
-
-DATABASES = {
-    'default': {
-        'ENGINE': os.getenv('DATABASE_ENGINE', 'django.db.backends.postgresql'),
-        'NAME': os.getenv('DATABASE_NAME'),
-        'USER': os.getenv('DATABASE_USER'),
-        'PASSWORD': os.getenv('DATABASE_PASSWORD'),
-        'HOST': os.getenv('DATABASE_HOST'),
-        'PORT': os.getenv('DATABASE_PORT'),
+if DEBUG:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': os.getenv('DATABASE_ENGINE', 'django.db.backends.postgresql'),
+            'NAME': os.getenv('DATABASE_NAME'),
+            'USER': os.getenv('DATABASE_USER'),
+            'PASSWORD': os.getenv('DATABASE_PASSWORD'),
+            'HOST': os.getenv('DATABASE_HOST'),
+            'PORT': os.getenv('DATABASE_PORT'),
+        }
+    }
 
 CSRF_TRUSTED_ORIGINS = ['https://*.vercel.app']

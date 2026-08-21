@@ -4,7 +4,7 @@
 {% block extra_css %}
 <style>
     .form-container {
-        max-width: 700px;
+        max-width: 760px;
         margin: 0 auto;
     }
 
@@ -12,104 +12,213 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 24px;
+        margin-bottom: 20px;
     }
 
     .form-header h2 {
-        font-size: 24px;
+        font-size: 22px;
         font-weight: 700;
+        color: #000;
     }
 
     .form-header a {
         color: #5856d6;
         text-decoration: none;
         font-weight: 500;
+        font-size: 14px;
+    }
+
+    .form-header a:hover {
+        text-decoration: underline;
     }
 
     .form-card {
         background: #fff;
-        border-radius: 16px;
+        border-radius: 14px;
         border: 0.5px solid rgba(0,0,0,0.06);
-        padding: 28px;
+        padding: 24px 28px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
 
     .form-group {
-        margin-bottom: 18px;
+        margin-bottom: 14px;
     }
 
     .form-group label {
         display: block;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 600;
         color: #3a3a3c;
-        margin-bottom: 4px;
+        margin-bottom: 3px;
+        letter-spacing: 0.2px;
+    }
+
+    .form-group label .required {
+        color: #ff3b30;
+        margin-left: 2px;
     }
 
     .form-group .form-input {
         width: 100%;
-        padding: 12px 16px;
+        padding: 8px 12px;
         border: 0.5px solid rgba(0,0,0,0.08);
-        border-radius: 10px;
-        font-size: 16px;
+        border-radius: 8px;
+        font-size: 13px;
         background: #f9f9fb;
         transition: all 0.2s;
         font-family: inherit;
+        color: #1c1c1e;
     }
 
     .form-group .form-input:focus {
         outline: none;
         border-color: #90EE90;
         background: #fff;
-        box-shadow: 0 0 0 3px rgba(144,238,144,0.15);
+        box-shadow: 0 0 0 3px rgba(144,238,144,0.12);
     }
 
     .form-group select.form-input {
         appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238e8e93' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%238e8e93' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
         background-repeat: no-repeat;
-        background-position: right 16px center;
-        padding-right: 40px;
+        background-position: right 12px center;
+        padding-right: 32px;
     }
 
     .form-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 16px;
+        gap: 14px;
+    }
+
+    .form-row-3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 14px;
+    }
+
+    .form-hint {
+        font-size: 11px;
+        color: #8e8e93;
+        margin-top: 2px;
+    }
+
+    .section-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #000;
+        margin: 16px 0 12px 0;
+        padding-bottom: 6px;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .section-title .badge {
+        background: #f2f2f7;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 500;
+        color: #8e8e93;
+        margin-left: 8px;
+    }
+
+    .gender-grid {
+        background: #f9f9fb;
+        border-radius: 10px;
+        padding: 16px;
+        border: 0.5px solid rgba(0,0,0,0.04);
+    }
+
+    .gender-grid .form-group {
+        margin-bottom: 0;
+    }
+
+    .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-top: 6px;
+    }
+
+    .checkbox-group label {
+        margin-bottom: 0;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        color: #1c1c1e;
+    }
+
+    .form-checkbox {
+        width: 18px;
+        height: 18px;
+        accent-color: #90EE90;
+        cursor: pointer;
     }
 
     .btn-submit {
         width: 100%;
-        padding: 14px;
+        padding: 12px;
         background: #90EE90;
         border: none;
-        border-radius: 12px;
-        font-size: 17px;
+        border-radius: 10px;
+        font-size: 15px;
         font-weight: 600;
         cursor: pointer;
         transition: all 0.2s;
-        margin-top: 8px;
+        margin-top: 16px;
+        color: #000;
     }
 
     .btn-submit:hover {
         background: #7fe07f;
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(144,238,144,0.3);
+        box-shadow: 0 4px 12px rgba(144,238,144,0.25);
     }
 
-    .form-hint {
-        font-size: 12px;
-        color: #8e8e93;
+    .total-display {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        background: #e8f5e9;
+        border-radius: 8px;
         margin-top: 4px;
     }
 
+    .total-display .label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #2e7d32;
+    }
+
+    .total-display .value {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1b5e20;
+    }
+
+    .error-text {
+        font-size: 12px;
+        color: #ff3b30;
+        margin-top: 2px;
+    }
+
     @media (max-width: 600px) {
-        .form-row {
+        .form-row,
+        .form-row-3 {
             grid-template-columns: 1fr;
         }
 
         .form-card {
-            padding: 20px;
+            padding: 16px 18px;
+        }
+
+        .form-header h2 {
+            font-size: 20px;
+        }
+
+        .gender-grid {
+            padding: 12px;
         }
     }
 </style>
@@ -119,72 +228,140 @@
 <div class="form-container">
     <div class="form-header">
         <h2>{{ title }}</h2>
-        <a href="{% url 'home:entry_list' %}">← Back to Entries</a>
+        <a href="{% url 'superadmin:entry_list' %}">← Back to Entries</a>
     </div>
 
     <div class="form-card">
-        <form method="post">
+        <form method="post" id="entryForm">
             {% csrf_token %}
 
+            {% if form.non_field_errors %}
+                <div style="background:#fff5f5; border:1px solid #ff3b30; border-radius:8px; padding:10px 14px; margin-bottom:16px;">
+                    {% for error in form.non_field_errors %}
+                        <p style="color:#ff3b30; margin:0; font-size:13px;">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <!-- Kit & Phase -->
             <div class="form-row">
                 <div class="form-group">
-                    <label for="{{ form.kiems_kit.id_for_label }}">KIEMS Kit</label>
+                    <label for="{{ form.kiems_kit.id_for_label }}">KIEMS Kit <span class="required">*</span></label>
                     {{ form.kiems_kit }}
+                    {% if form.kiems_kit.errors %}
+                        <div class="error-text">{{ form.kiems_kit.errors.0 }}</div>
+                    {% endif %}
                 </div>
                 <div class="form-group">
-                    <label for="{{ form.phase.id_for_label }}">Phase</label>
+                    <label for="{{ form.phase.id_for_label }}">Phase <span class="required">*</span></label>
                     {{ form.phase }}
+                    {% if form.phase.errors %}
+                        <div class="error-text">{{ form.phase.errors.0 }}</div>
+                    {% endif %}
                 </div>
             </div>
 
+            <!-- Ward & VRA -->
             <div class="form-row">
                 <div class="form-group">
-                    <label for="{{ form.ward.id_for_label }}">Ward</label>
+                    <label for="{{ form.ward.id_for_label }}">Ward <span class="required">*</span></label>
                     {{ form.ward }}
+                    {% if form.ward.errors %}
+                        <div class="error-text">{{ form.ward.errors.0 }}</div>
+                    {% endif %}
                 </div>
                 <div class="form-group">
-                    <label for="{{ form.vra.id_for_label }}">VRA</label>
+                    <label for="{{ form.vra.id_for_label }}">VRA <span class="required">*</span></label>
                     {{ form.vra }}
+                    {% if form.vra.errors %}
+                        <div class="error-text">{{ form.vra.errors.0 }}</div>
+                    {% endif %}
                 </div>
             </div>
 
+            <!-- Date & Venue -->
             <div class="form-row">
                 <div class="form-group">
-                    <label for="{{ form.entry_date.id_for_label }}">Entry Date</label>
+                    <label for="{{ form.entry_date.id_for_label }}">Entry Date <span class="required">*</span></label>
                     {{ form.entry_date }}
+                    {% if form.entry_date.errors %}
+                        <div class="error-text">{{ form.entry_date.errors.0 }}</div>
+                    {% endif %}
                 </div>
                 <div class="form-group">
-                    <label for="{{ form.venue.id_for_label }}">Venue</label>
+                    <label for="{{ form.venue.id_for_label }}">Venue <span class="required">*</span></label>
                     {{ form.venue }}
+                    {% if form.venue.errors %}
+                        <div class="error-text">{{ form.venue.errors.0 }}</div>
+                    {% endif %}
                 </div>
             </div>
 
+            <!-- Gender Breakdown -->
+            <div class="section-title">
+                Gender Breakdown
+                <span class="badge">Registered Voters</span>
+            </div>
+
+            <div class="gender-grid">
+                <div class="form-row-3">
+                    <div class="form-group">
+                        <label for="{{ form.registered_male.id_for_label }}">👨 Male</label>
+                        {{ form.registered_male }}
+                        {% if form.registered_male.errors %}
+                            <div class="error-text">{{ form.registered_male.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.registered_female.id_for_label }}">👩 Female</label>
+                        {{ form.registered_female }}
+                        {% if form.registered_female.errors %}
+                            <div class="error-text">{{ form.registered_female.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.registered_other.id_for_label }}">👤 Other</label>
+                        {{ form.registered_other }}
+                        {% if form.registered_other.errors %}
+                            <div class="error-text">{{ form.registered_other.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="total-display" id="totalDisplay">
+                    <span class="label">Total Registered:</span>
+                    <span class="value" id="totalRegistered">0</span>
+                </div>
+                <div class="form-hint">Enter the number of voters registered by gender</div>
+            </div>
+
+            <!-- Transfers & Deletions -->
             <div class="form-row">
                 <div class="form-group">
-                    <label for="{{ form.total_registered.id_for_label }}">Registered</label>
-                    {{ form.total_registered }}
-                    <div class="form-hint">New voters registered</div>
-                </div>
-                <div class="form-group">
-                    <label for="{{ form.total_transferred.id_for_label }}">Transferred</label>
+                    <label for="{{ form.total_transferred.id_for_label }}">🔄 Transferred</label>
                     {{ form.total_transferred }}
+                    {% if form.total_transferred.errors %}
+                        <div class="error-text">{{ form.total_transferred.errors.0 }}</div>
+                    {% endif %}
                     <div class="form-hint">Voters transferred from other wards</div>
                 </div>
+                <div class="form-group">
+                    <label for="{{ form.total_deleted.id_for_label }}">🗑️ Deleted</label>
+                    {{ form.total_deleted }}
+                    {% if form.total_deleted.errors %}
+                        <div class="error-text">{{ form.total_deleted.errors.0 }}</div>
+                    {% endif %}
+                    <div class="form-hint">Voters removed/deleted from this ward</div>
+                </div>
             </div>
 
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="{{ form.total_deleted.id_for_label }}">Deleted</label>
-                    {{ form.total_deleted }}
-                    <div class="form-hint">Voters removed/deleted</div>
-                </div>
-                <div class="form-group" style="display:flex; align-items:center; gap:12px; padding-top:8px;">
-                    <label style="margin:0; cursor:pointer; display:flex; align-items:center; gap:8px;">
-                        {{ form.uploaded }}
-                        <span>Uploaded</span>
-                    </label>
-                </div>
+            <!-- Upload Status -->
+            <div class="checkbox-group">
+                {{ form.uploaded }}
+                <label for="{{ form.uploaded.id_for_label }}">Mark as Uploaded</label>
             </div>
+            {% if form.uploaded.errors %}
+                <div class="error-text">{{ form.uploaded.errors.0 }}</div>
+            {% endif %}
 
             <button type="submit" class="btn-submit">
                 {% if form.instance.pk %}Update{% else %}Create{% endif %} Entry
@@ -192,4 +369,53 @@
         </form>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-calculate total
+    const maleField = document.getElementById('{{ form.registered_male.id_for_label }}');
+    const femaleField = document.getElementById('{{ form.registered_female.id_for_label }}');
+    const otherField = document.getElementById('{{ form.registered_other.id_for_label }}');
+    const totalDisplay = document.getElementById('totalRegistered');
+
+    function updateTotal() {
+        const male = parseInt(maleField.value) || 0;
+        const female = parseInt(femaleField.value) || 0;
+        const other = parseInt(otherField.value) || 0;
+        const total = male + female + other;
+        totalDisplay.textContent = total;
+    }
+
+    if (maleField && femaleField && otherField) {
+        maleField.addEventListener('input', updateTotal);
+        femaleField.addEventListener('input', updateTotal);
+        otherField.addEventListener('input', updateTotal);
+        updateTotal();
+    }
+
+    // Filter VRAs by ward
+    const wardField = document.getElementById('{{ form.ward.id_for_label }}');
+    const vraField = document.getElementById('{{ form.vra.id_for_label }}');
+
+    if (wardField && vraField) {
+        wardField.addEventListener('change', function() {
+            const wardId = this.value;
+            if (wardId) {
+                fetch(`/superadmin/api/get-vras-by-ward/?ward_id=${wardId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        vraField.innerHTML = '<option value="">---------</option>';
+                        data.vras.forEach(vra => {
+                            const option = document.createElement('option');
+                            option.value = vra.id;
+                            option.textContent = vra.name;
+                            vraField.appendChild(option);
+                        });
+                    })
+                    .catch(error => console.error('Error fetching VRAs:', error));
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

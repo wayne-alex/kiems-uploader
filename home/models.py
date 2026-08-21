@@ -15,10 +15,7 @@ class Ward(models.Model):
 
 class VRA(models.Model):
     """
-    Voter Registration Assistant — assigned to one ward.
-    device_token/fingerprint identify the VRA's browser across sessions
-    (no login), so a returning VRA is recognized and can edit rather
-    than duplicate their own entries.
+    Voter Registration Assistant – assigned to one ward.
     """
     name = models.CharField(max_length=150)
     ward = models.ForeignKey(Ward, on_delete=models.PROTECT, related_name="vras")
@@ -52,12 +49,7 @@ class Clerk(models.Model):
 
 
 class KIEMSKit(models.Model):
-    """
-    A physical KIEMS kit assigned to a ward, and to one or more clerks
-    (e.g. shared across shifts, or rotated between clerks over the phase).
-    `status` = True means working/active, False means faulty/inactive.
-    """
-    kit_name = models.CharField(max_length=50)   # e.g. "Kit 19"
+    kit_name = models.CharField(max_length=50)
     serial_no = models.CharField(max_length=100, unique=True)
     status = models.BooleanField(default=True)
     ward = models.ForeignKey(Ward, on_delete=models.PROTECT, related_name="kits")
@@ -69,14 +61,10 @@ class KIEMSKit(models.Model):
         indexes = [models.Index(fields=["ward", "status"])]
 
     def __str__(self):
-        return f"{self.kit_name} — {self.serial_no}"
+        return f"{self.kit_name} – {self.serial_no}"
 
 
 class Phase(models.Model):
-    """
-    The name of the program/exercise, e.g. Continuous Voter Registration (CVR),
-    Mass Voter Registration (MVR), Enhanced CVR, etc.
-    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
     start_date = models.DateField()
@@ -100,10 +88,12 @@ class DailyKIEMSEntry(models.Model):
     entry_date = models.DateField()
     venue = models.CharField(max_length=150)
 
-    # VRA-editable (field data)
+    # Gender breakdown - Male & Female only
+    registered_male = models.PositiveIntegerField(default=0)
+    registered_female = models.PositiveIntegerField(default=0)
     total_registered = models.PositiveIntegerField(default=0)
 
-    # Office-only — VRA can see but never edit
+    # Office-only fields
     total_transferred = models.PositiveIntegerField(default=0)
     total_deleted = models.PositiveIntegerField(default=0)
 
@@ -112,7 +102,6 @@ class DailyKIEMSEntry(models.Model):
     edit_count = models.PositiveIntegerField(default=0)
     uploaded = models.BooleanField(default=False)
 
-    # who last touched the office-only fields, for audit
     office_updated_by = models.CharField(max_length=150, blank=True)
     office_updated_at = models.DateTimeField(null=True, blank=True)
 
@@ -129,5 +118,10 @@ class DailyKIEMSEntry(models.Model):
             models.Index(fields=["phase", "entry_date"]),
         ]
 
+    def save(self, *args, **kwargs):
+        # Auto-calculate total from male + female
+        self.total_registered = self.registered_male + self.registered_female
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"{self.kiems_kit.kit_name} — {self.entry_date}"
+        return f"{self.kiems_kit.kit_name} – {self.entry_date}"

@@ -1,18 +1,18 @@
-from django.contrib.auth import logout, authenticate, login
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib import messages
-from django.db.models import Count, Sum, Q
-from django.utils import timezone
-from django.http import HttpResponse, JsonResponse
-from django.core.paginator import Paginator
-from django.views.decorators.http import require_POST, require_GET
 import csv
 import io
-import openpyxl
 from datetime import datetime, timedelta
-import json
 
+import openpyxl
+from django.contrib import messages
+from django.contrib.auth import logout, authenticate, login
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.models import User
+from django.core.paginator import Paginator
+from django.db.models import Count, Sum, Q
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.utils import timezone
+from django.views.decorators.http import require_POST, require_GET
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import letter
@@ -28,7 +28,9 @@ from .forms import (
     WardForm, VRAForm, ClerkForm, KIEMSKitForm, PhaseForm,
     DailyKIEMSEntryForm, DailyEntryFilterForm, ImportForm, ExportForm
 )
-from .models import AuditLog
+
+
+# Removed: from .models import AuditLog
 
 
 def is_superadmin(user):
@@ -51,6 +53,7 @@ def login_view(request):
     if request.method == 'POST':
         email = request.POST.get('email', '').strip()
         password = request.POST.get('password', '')
+        print(email)
 
         # Validate inputs
         if not email or not password:
@@ -58,39 +61,14 @@ def login_view(request):
             return render(request, 'superadmin/login.html', {'email': email})
 
         # Attempt authentication
-        user = authenticate(request, username=email, password=password)
+        username = User.objects.filter(email=email).first()
+
+        user = authenticate(request, username=username, password=password)
 
         if user is not None:
             if user.is_superuser:
                 # Login successful
                 login(request, user)
-
-                # Update last login IP
-                if request.META.get('HTTP_X_FORWARDED_FOR'):
-                    ip = request.META.get('HTTP_X_FORWARDED_FOR').split(',')[0]
-                else:
-                    ip = request.META.get('REMOTE_ADDR')
-
-                # Log the login
-                AuditLog.objects.create(
-                    user=user,
-                    action='login',
-                    model_type='clerk',
-                    object_id=user.id,
-                    object_repr=user.username,
-                    ip_address=ip,
-                    user_agent=request.META.get('HTTP_USER_AGENT', ''),
-                    changes={'login_time': str(timezone.now())}
-                )
-
-                # Update clerk last login if exists
-                try:
-                    clerk = Clerk.objects.get(user=user)
-                    clerk.last_login_ip = ip
-                    clerk.save(update_fields=['last_login_ip'])
-                except Clerk.DoesNotExist:
-                    pass
-
                 messages.success(request, f'Welcome back, {user.get_full_name() or user.username}!')
                 return redirect('superadmin:dashboard')
             else:
@@ -98,17 +76,7 @@ def login_view(request):
         else:
             # Failed login attempt
             messages.error(request, 'Invalid email or password. Please try again.')
-
-            # Log failed attempt
-            AuditLog.objects.create(
-                user=None,
-                action='login',
-                model_type='clerk',
-                object_id=0,
-                object_repr=f'Failed login attempt for {email}',
-                ip_address=request.META.get('REMOTE_ADDR', ''),
-                changes={'email': email}
-            )
+            # Audit logging removed
 
         return render(request, 'superadmin/login.html', {'email': email})
 
@@ -121,16 +89,7 @@ def logout_view(request):
     Logout view for SuperAdmin panel
     """
     if request.user.is_authenticated:
-        # Log the logout
-        AuditLog.objects.create(
-            user=request.user,
-            action='logout',
-            model_type='clerk',
-            object_id=request.user.id,
-            object_repr=request.user.username,
-            changes={'logout_time': str(timezone.now())}
-        )
-
+        # Audit logging removed
         messages.info(request, 'You have been logged out successfully.')
         logout(request)
 
@@ -161,6 +120,7 @@ def password_reset_request(request):
             messages.error(request, 'Please provide your email address.')
 
     return render(request, 'superadmin/password_reset.html')
+
 
 # ==================== DASHBOARD ====================
 
@@ -233,7 +193,7 @@ def phase_create(request):
         if form.is_valid():
             phase = form.save()
             messages.success(request, f'Phase "{phase.name}" created successfully!')
-            return redirect('home:phase_list')
+            return redirect('superadmin:phase_list')
     else:
         form = PhaseForm()
     return render(request, 'superadmin/phase_form.html', {'form': form, 'title': 'Create Phase'})
@@ -249,7 +209,7 @@ def phase_edit(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, f'Phase "{phase.name}" updated successfully!')
-            return redirect('home:phase_list')
+            return redirect('superadmin:phase_list')
     else:
         form = PhaseForm(instance=phase)
     return render(request, 'superadmin/phase_form.html', {'form': form, 'title': 'Edit Phase'})
@@ -264,7 +224,7 @@ def phase_delete(request, pk):
     phase_name = phase.name
     phase.delete()
     messages.success(request, f'Phase "{phase_name}" deleted successfully!')
-    return redirect('home:phase_list')
+    return redirect('superadmin:phase_list')
 
 
 # ==================== WARD CRUD ====================
@@ -286,7 +246,7 @@ def ward_create(request):
         if form.is_valid():
             ward = form.save()
             messages.success(request, f'Ward "{ward.name}" created successfully!')
-            return redirect('home:ward_list')
+            return redirect('superadmin:ward_list')
     else:
         form = WardForm()
     return render(request, 'superadmin/ward_form.html', {'form': form, 'title': 'Create Ward'})
@@ -302,7 +262,7 @@ def ward_edit(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, f'Ward "{ward.name}" updated successfully!')
-            return redirect('home:ward_list')
+            return redirect('superadmin:ward_list')
     else:
         form = WardForm(instance=ward)
     return render(request, 'superadmin/ward_form.html', {'form': form, 'title': 'Edit Ward'})
@@ -317,114 +277,206 @@ def ward_delete(request, pk):
     ward_name = ward.name
     ward.delete()
     messages.success(request, f'Ward "{ward_name}" deleted successfully!')
-    return redirect('home:ward_list')
+    return redirect('superadmin:ward_list')
 
 
-# ==================== VRA CRUD ====================
+
+
+# ==================== STAFF CRUD ====================
 
 @login_required
 @user_passes_test(is_superadmin)
-def vra_list(request):
-    """List all VRAs"""
+def staff_list(request):
+    """List all clerks and VRAs"""
+    clerks = Clerk.objects.select_related('ward').all().order_by('ward__name', 'name')
     vras = VRA.objects.select_related('ward').all().order_by('ward__name', 'name')
-    return render(request, 'superadmin/vra_list.html', {'vras': vras})
+
+    # Combine both with a type indicator
+    staff_list = []
+    for clerk in clerks:
+        staff_list.append({
+            'id': clerk.id,
+            'type': 'clerk',
+            'name': clerk.name,
+            'ward': clerk.ward,
+            'active': clerk.active,
+            'created_at': clerk.created_at,
+            'details': {
+                'role': 'Clerk',
+                'type_label': 'Clerk'
+            }
+        })
+
+    for vra in vras:
+        staff_list.append({
+            'id': vra.id,
+            'type': 'vra',
+            'name': vra.name,
+            'ward': vra.ward,
+            'active': vra.active,
+            'created_at': vra.created_at,
+            'details': {
+                'role': 'VRA',
+                'type_label': 'VRA',
+                'device_token': vra.device_token,
+                'device_fingerprint': vra.device_fingerprint
+            }
+        })
+
+    # Sort combined list by ward name, then name
+    staff_list.sort(key=lambda x: (x['ward'].name if x['ward'] else '', x['name']))
+
+    # Statistics
+    stats = {
+        'total_clerks': clerks.count(),
+        'total_vras': vras.count(),
+        'active_clerks': clerks.filter(active=True).count(),
+        'active_vras': vras.filter(active=True).count(),
+        'total_staff': staff_list.__len__(),
+    }
+
+    return render(request, 'superadmin/staff_list.html', {
+        'staff_list': staff_list,
+        'stats': stats,
+        'clerks_count': clerks.count(),
+        'vras_count': vras.count(),
+    })
 
 
 @login_required
 @user_passes_test(is_superadmin)
-def vra_create(request):
-    """Create a new VRA"""
+def staff_create(request):
+    """Create a new clerk or VRA"""
+    staff_type = request.GET.get('type', request.POST.get('type', 'clerk'))
+
     if request.method == 'POST':
-        form = VRAForm(request.POST)
-        if form.is_valid():
-            vra = form.save()
-            messages.success(request, f'VRA "{vra.name}" created successfully!')
-            return redirect('home:vra_list')
+        staff_type = request.POST.get('type', 'clerk')
+
+        # Debug: print what type we're getting
+        print(f"Creating staff of type: {staff_type}")
+
+        if staff_type == 'clerk':
+            form = ClerkForm(request.POST)
+            if form.is_valid():
+                clerk = form.save()
+                messages.success(request, f'Clerk "{clerk.name}" created successfully!')
+                return redirect('superadmin:staff_list')
+            else:
+                # Print form errors for debugging
+                print(f"Clerk form errors: {form.errors}")
+        else:  # VRA
+            form = VRAForm(request.POST)
+            if form.is_valid():
+                vra = form.save()
+                messages.success(request, f'VRA "{vra.name}" created successfully!')
+                return redirect('superadmin:staff_list')
+            else:
+                # Print form errors for debugging
+                print(f"VRA form errors: {form.errors}")
     else:
-        form = VRAForm()
-    return render(request, 'superadmin/vra_form.html', {'form': form, 'title': 'Create VRA'})
+        # GET request - instantiate the correct form based on type
+        if staff_type == 'clerk':
+            form = ClerkForm()
+        else:
+            form = VRAForm()
+
+    return render(request, 'superadmin/staff_form.html', {
+        'form': form,
+        'staff_type': staff_type,
+        'title': f'Create {staff_type.upper()}'
+    })
 
 
 @login_required
 @user_passes_test(is_superadmin)
-def vra_edit(request, pk):
-    """Edit a VRA"""
-    vra = get_object_or_404(VRA, pk=pk)
-    if request.method == 'POST':
-        form = VRAForm(request.POST, instance=vra)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f'VRA "{vra.name}" updated successfully!')
-            return redirect('home:vra_list')
-    else:
-        form = VRAForm(instance=vra)
-    return render(request, 'superadmin/vra_form.html', {'form': form, 'title': 'Edit VRA'})
+def staff_edit(request, pk, staff_type):
+    """Edit a clerk or VRA"""
+    if staff_type == 'clerk':
+        staff = get_object_or_404(Clerk, pk=pk)
+        if request.method == 'POST':
+            form = ClerkForm(request.POST, instance=staff)
+            if form.is_valid():
+                form.save()
+                messages.success(request, f'Clerk "{staff.name}" updated successfully!')
+                return redirect('superadmin:staff_list')
+        else:
+            form = ClerkForm(instance=staff)
+    else:  # VRA
+        staff = get_object_or_404(VRA, pk=pk)
+        if request.method == 'POST':
+            form = VRAForm(request.POST, instance=staff)
+            if form.is_valid():
+                form.save()
+                messages.success(request, f'VRA "{staff.name}" updated successfully!')
+                return redirect('superadmin:staff_list')
+        else:
+            form = VRAForm(instance=staff)
 
+    return render(request, 'superadmin/staff_form.html', {
+        'form': form,
+        'staff': staff,
+        'staff_type': staff_type,
+        'title': f'Edit {staff_type.upper()}'
+    })
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def staff_edit(request, pk, staff_type):
+    """Edit a clerk or VRA"""
+    if staff_type == 'clerk':
+        staff = get_object_or_404(Clerk, pk=pk)
+        if request.method == 'POST':
+            form = ClerkForm(request.POST, instance=staff)
+            if form.is_valid():
+                form.save()
+                messages.success(request, f'Clerk "{staff.name}" updated successfully!')
+                return redirect('superadmin:staff_list')
+        else:
+            form = ClerkForm(instance=staff)
+    else:  # VRA
+        staff = get_object_or_404(VRA, pk=pk)
+        if request.method == 'POST':
+            form = VRAForm(request.POST, instance=staff)
+            if form.is_valid():
+                form.save()
+                messages.success(request, f'VRA "{staff.name}" updated successfully!')
+                return redirect('superadmin:staff_list')
+        else:
+            form = VRAForm(instance=staff)
+
+    return render(request, 'superadmin/staff_form.html', {
+        'form': form,
+        'staff': staff,
+        'staff_type': staff_type,
+        'title': f'Edit {staff_type.upper()}'
+    })
 
 @login_required
 @user_passes_test(is_superadmin)
 @require_POST
-def vra_delete(request, pk):
-    """Delete a VRA"""
-    vra = get_object_or_404(VRA, pk=pk)
-    vra_name = vra.name
-    vra.delete()
-    messages.success(request, f'VRA "{vra_name}" deleted successfully!')
-    return redirect('home:vra_list')
+def staff_delete(request, pk, staff_type):
+    """Delete a clerk or VRA"""
+    if staff_type == 'clerk':
+        staff = get_object_or_404(Clerk, pk=pk)
+        staff_name = staff.name
+        staff.delete()
+        messages.success(request, f'Clerk "{staff_name}" deleted successfully!')
+    else:  # VRA
+        staff = get_object_or_404(VRA, pk=pk)
+        staff_name = staff.name
+        staff.delete()
+        messages.success(request, f'VRA "{staff_name}" deleted successfully!')
 
+    return redirect('superadmin:staff_list')
 
-# ==================== CLERK CRUD ====================
 
 @login_required
 @user_passes_test(is_superadmin)
-def clerk_list(request):
-    """List all clerks"""
+def clerk_list_old(request):
+    """List all clerks (legacy)"""
     clerks = Clerk.objects.select_related('ward').all().order_by('ward__name', 'name')
     return render(request, 'superadmin/clerk_list.html', {'clerks': clerks})
-
-
-@login_required
-@user_passes_test(is_superadmin)
-def clerk_create(request):
-    """Create a new clerk"""
-    if request.method == 'POST':
-        form = ClerkForm(request.POST)
-        if form.is_valid():
-            clerk = form.save()
-            messages.success(request, f'Clerk "{clerk.name}" created successfully!')
-            return redirect('home:clerk_list')
-    else:
-        form = ClerkForm()
-    return render(request, 'superadmin/clerk_form.html', {'form': form, 'title': 'Create Clerk'})
-
-
-@login_required
-@user_passes_test(is_superadmin)
-def clerk_edit(request, pk):
-    """Edit a clerk"""
-    clerk = get_object_or_404(Clerk, pk=pk)
-    if request.method == 'POST':
-        form = ClerkForm(request.POST, instance=clerk)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f'Clerk "{clerk.name}" updated successfully!')
-            return redirect('home:clerk_list')
-    else:
-        form = ClerkForm(instance=clerk)
-    return render(request, 'superadmin/clerk_form.html', {'form': form, 'title': 'Edit Clerk'})
-
-
-@login_required
-@user_passes_test(is_superadmin)
-@require_POST
-def clerk_delete(request, pk):
-    """Delete a clerk"""
-    clerk = get_object_or_404(Clerk, pk=pk)
-    clerk_name = clerk.name
-    clerk.delete()
-    messages.success(request, f'Clerk "{clerk_name}" deleted successfully!')
-    return redirect('home:clerk_list')
-
 
 # ==================== KIEMS KIT CRUD ====================
 
@@ -446,7 +498,7 @@ def kit_create(request):
         if form.is_valid():
             kit = form.save()
             messages.success(request, f'KIEMS Kit "{kit.kit_name}" created successfully!')
-            return redirect('home:kit_list')
+            return redirect('superadmin:kit_list')
     else:
         form = KIEMSKitForm()
     return render(request, 'superadmin/kit_form.html', {'form': form, 'title': 'Create KIEMS Kit'})
@@ -462,7 +514,7 @@ def kit_edit(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, f'KIEMS Kit "{kit.kit_name}" updated successfully!')
-            return redirect('home:kit_list')
+            return redirect('superadmin:kit_list')
     else:
         form = KIEMSKitForm(instance=kit)
     return render(request, 'superadmin/kit_form.html', {'form': form, 'title': 'Edit KIEMS Kit'})
@@ -477,12 +529,11 @@ def kit_delete(request, pk):
     kit_name = kit.kit_name
     kit.delete()
     messages.success(request, f'KIEMS Kit "{kit_name}" deleted successfully!')
-    return redirect('home:kit_list')
+    return redirect('superadmin:kit_list')
 
 
 # ==================== DAILY ENTRY CRUD ====================
 
-# Update the entry_list view in home/views.py
 @login_required
 @user_passes_test(is_superadmin)
 def entry_list(request):
@@ -492,35 +543,52 @@ def entry_list(request):
     ).all()
 
     form = DailyEntryFilterForm(request.GET or None)
+    filter_params = {}
 
     if form.is_valid():
         if form.cleaned_data.get('phase'):
             entries = entries.filter(phase=form.cleaned_data['phase'])
+            filter_params['phase'] = form.cleaned_data['phase'].id
         if form.cleaned_data.get('ward'):
             entries = entries.filter(ward=form.cleaned_data['ward'])
+            filter_params['ward'] = form.cleaned_data['ward'].id
         if form.cleaned_data.get('kit'):
             entries = entries.filter(kiems_kit=form.cleaned_data['kit'])
+            filter_params['kit'] = form.cleaned_data['kit'].id
         if form.cleaned_data.get('vra'):
             entries = entries.filter(vra=form.cleaned_data['vra'])
+            filter_params['vra'] = form.cleaned_data['vra'].id
         if form.cleaned_data.get('date_from'):
             entries = entries.filter(entry_date__gte=form.cleaned_data['date_from'])
+            filter_params['date_from'] = form.cleaned_data['date_from'].isoformat()
         if form.cleaned_data.get('date_to'):
             entries = entries.filter(entry_date__lte=form.cleaned_data['date_to'])
+            filter_params['date_to'] = form.cleaned_data['date_to'].isoformat()
         if form.cleaned_data.get('uploaded') == 'True':
             entries = entries.filter(uploaded=True)
+            filter_params['uploaded'] = 'True'
         elif form.cleaned_data.get('uploaded') == 'False':
             entries = entries.filter(uploaded=False)
+            filter_params['uploaded'] = 'False'
 
-    # Calculate total registered
+    # Calculate totals with gender breakdown
     total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
+    total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
+    total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
+    total_other = entries.aggregate(Sum('registered_other'))['registered_other__sum'] or 0
+    total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
+    total_deleted = entries.aggregate(Sum('total_deleted'))['total_deleted__sum'] or 0
 
-    # Today's statistics
+    # Today's statistics with gender breakdown
     today = timezone.now().date()
     today_entries = DailyKIEMSEntry.objects.filter(entry_date=today)
     today_stats = {
         'total_entries': today_entries.count(),
         'unique_kits': today_entries.values('kiems_kit').distinct().count(),
         'total_registered': today_entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0,
+        'registered_male': today_entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0,
+        'registered_female': today_entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0,
+        'registered_other': today_entries.aggregate(Sum('registered_other'))['registered_other__sum'] or 0,
         'total_transferred': today_entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0,
         'total_deleted': today_entries.aggregate(Sum('total_deleted'))['total_deleted__sum'] or 0,
     }
@@ -530,11 +598,17 @@ def entry_list(request):
     page_obj = paginator.get_page(page_number)
 
     context = {
-        'entries': page_obj,
+        'page_obj': page_obj,
         'form': form,
-        'is_filtered': bool(request.GET),
+        'is_filtered': bool(request.GET and any(request.GET.values())),
         'total_registered': total_registered,
+        'total_male': total_male,
+        'total_female': total_female,
+        'total_other': total_other,
+        'total_transferred': total_transferred,
+        'total_deleted': total_deleted,
         'today_stats': today_stats,
+        'filter_params': filter_params,
     }
     return render(request, 'superadmin/entry_list.html', context)
 
@@ -548,7 +622,7 @@ def entry_create(request):
         if form.is_valid():
             entry = form.save()
             messages.success(request, 'Daily entry created successfully!')
-            return redirect('home:entry_list')
+            return redirect('superadmin:entry_list')
     else:
         form = DailyKIEMSEntryForm()
     return render(request, 'superadmin/entry_form.html', {'form': form, 'title': 'Create Daily Entry'})
@@ -564,7 +638,7 @@ def entry_edit(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, 'Daily entry updated successfully!')
-            return redirect('home:entry_list')
+            return redirect('superadmin:entry_list')
     else:
         form = DailyKIEMSEntryForm(instance=entry)
     return render(request, 'superadmin/entry_form.html', {'form': form, 'title': 'Edit Daily Entry'})
@@ -578,7 +652,7 @@ def entry_delete(request, pk):
     entry = get_object_or_404(DailyKIEMSEntry, pk=pk)
     entry.delete()
     messages.success(request, 'Daily entry deleted successfully!')
-    return redirect('home:entry_list')
+    return redirect('superadmin:entry_list')
 
 
 # ==================== IMPORT/EXPORT ====================
@@ -587,19 +661,37 @@ def entry_delete(request, pk):
 @user_passes_test(is_superadmin)
 @require_GET
 def export_data(request):
-    """Export data in CSV or Excel format"""
+    """Export data in CSV or Excel format with filters"""
     form = ExportForm(request.GET or None)
 
     if not form.is_valid():
         messages.error(request, 'Invalid export parameters')
-        return redirect('home:dashboard')
+        return redirect('superadmin:entry_list')
 
     model_type = form.cleaned_data['model_type']
     export_format = form.cleaned_data['format']
+
+    # Get filter parameters from request
+    filter_params = {}
+    if request.GET.get('phase'):
+        filter_params['phase'] = request.GET.get('phase')
+    if request.GET.get('ward'):
+        filter_params['ward'] = request.GET.get('ward')
+    if request.GET.get('kit'):
+        filter_params['kit'] = request.GET.get('kit')
+    if request.GET.get('vra'):
+        filter_params['vra'] = request.GET.get('vra')
+    if request.GET.get('date_from'):
+        filter_params['date_from'] = request.GET.get('date_from')
+    if request.GET.get('date_to'):
+        filter_params['date_to'] = request.GET.get('date_to')
+    if request.GET.get('uploaded'):
+        filter_params['uploaded'] = request.GET.get('uploaded')
+
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = f"export_{model_type}_{timestamp}"
 
-    # Map model types to data
+    # Map model types to data with filter support
     model_map = {
         'ward': {
             'queryset': Ward.objects.all(),
@@ -628,23 +720,63 @@ def export_data(request):
             'rows': lambda q: [[p.name, p.start_date, p.end_date, p.active] for p in q]
         },
         'entry': {
-            'queryset': DailyKIEMSEntry.objects.select_related('kiems_kit', 'phase', 'ward', 'vra').all(),
-            'headers': ['Kit', 'Phase', 'Ward', 'VRA', 'Date', 'Venue', 'Registered', 'Transferred', 'Deleted',
-                        'Uploaded'],
-            'rows': lambda q: [[e.kiems_kit.kit_name, e.phase.name, e.ward.name, e.vra.name,
-                                e.entry_date, e.venue, e.total_registered, e.total_transferred,
-                                e.total_deleted, e.uploaded] for e in q]
+            'queryset': DailyKIEMSEntry.objects.select_related(
+                'kiems_kit', 'phase', 'ward', 'vra'
+            ),
+            'headers': [
+                'Kit', 'Phase', 'Ward', 'VRA', 'Date', 'Venue',
+                'Male', 'Female', 'Other', 'Total Registered',
+                'Transferred', 'Deleted', 'Uploaded'
+            ],
+            'rows': lambda q: [[
+                e.kiems_kit.kit_name,
+                e.phase.name,
+                e.ward.name,
+                e.vra.name,
+                e.entry_date,
+                e.venue,
+                e.registered_male,
+                e.registered_female,
+                e.registered_other,
+                e.total_registered,
+                e.total_transferred,
+                e.total_deleted,
+                'Yes' if e.uploaded else 'No'
+            ] for e in q]
         }
     }
 
     data = model_map.get(model_type)
     if not data:
         messages.error(request, 'Invalid model type')
-        return redirect('home:dashboard')
+        return redirect('superadmin:entry_list')
 
+    # Apply filters for entry model
     queryset = data['queryset']
+    if model_type == 'entry' and filter_params:
+        if filter_params.get('phase'):
+            queryset = queryset.filter(phase_id=filter_params['phase'])
+        if filter_params.get('ward'):
+            queryset = queryset.filter(ward_id=filter_params['ward'])
+        if filter_params.get('kit'):
+            queryset = queryset.filter(kiems_kit_id=filter_params['kit'])
+        if filter_params.get('vra'):
+            queryset = queryset.filter(vra_id=filter_params['vra'])
+        if filter_params.get('date_from'):
+            queryset = queryset.filter(entry_date__gte=filter_params['date_from'])
+        if filter_params.get('date_to'):
+            queryset = queryset.filter(entry_date__lte=filter_params['date_to'])
+        if filter_params.get('uploaded') == 'True':
+            queryset = queryset.filter(uploaded=True)
+        elif filter_params.get('uploaded') == 'False':
+            queryset = queryset.filter(uploaded=False)
+
     headers = data['headers']
     rows = data['rows'](queryset)
+
+    # Add filter info to filename
+    if filter_params:
+        filename += "_filtered"
 
     if export_format == 'csv':
         response = HttpResponse(content_type='text/csv')
@@ -691,7 +823,7 @@ def import_data(request):
                         rows.append(dict(zip(headers, row)))
                 else:
                     messages.error(request, 'Unsupported file format. Please use CSV or Excel.')
-                    return redirect('home:import_data')
+                    return redirect('superadmin:import_data')
 
                 success_count = 0
                 error_count = 0
@@ -808,11 +940,11 @@ def import_data(request):
                             error_count += 1
 
                 messages.success(request, f'Import completed: {success_count} records imported, {error_count} errors.')
-                return redirect('home:dashboard')
+                return redirect('superadmin:dashboard')
 
             except Exception as e:
                 messages.error(request, f'Import failed: {str(e)}')
-                return redirect('home:import_data')
+                return redirect('superadmin:import_data')
     else:
         form = ImportForm()
 
@@ -920,55 +1052,100 @@ def get_chart_data(request):
 @login_required
 @user_passes_test(is_superadmin)
 def generate_report(request):
-    """Generate PDF report with IEBC logo"""
+    """Generate comprehensive PDF report with gender breakdown"""
 
-    # Get date range from request
+    # Get filter parameters from request
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
+    phase_id = request.GET.get('phase')
+    ward_id = request.GET.get('ward')
+    kit_id = request.GET.get('kit')
+    vra_id = request.GET.get('vra')
+    uploaded = request.GET.get('uploaded')
 
     # Default to today if no dates provided
     today = timezone.now().date()
     if not date_from:
         date_from = today - timezone.timedelta(days=30)
     else:
-        date_from = timezone.datetime.strptime(date_from, '%Y-%m-%d').date()
+        try:
+            date_from = timezone.datetime.strptime(date_from, '%Y-%m-%d').date()
+        except:
+            date_from = today - timezone.timedelta(days=30)
 
     if not date_to:
         date_to = today
     else:
-        date_to = timezone.datetime.strptime(date_to, '%Y-%m-%d').date()
+        try:
+            date_to = timezone.datetime.strptime(date_to, '%Y-%m-%d').date()
+        except:
+            date_to = today
 
-    # Get entries for the date range
+    # Get entries with filters
     entries = DailyKIEMSEntry.objects.filter(
         entry_date__gte=date_from,
         entry_date__lte=date_to
     ).select_related('kiems_kit', 'phase', 'ward', 'vra').order_by('entry_date')
 
-    # Calculate totals
+    if phase_id:
+        entries = entries.filter(phase_id=phase_id)
+    if ward_id:
+        entries = entries.filter(ward_id=ward_id)
+    if kit_id:
+        entries = entries.filter(kiems_kit_id=kit_id)
+    if vra_id:
+        entries = entries.filter(vra_id=vra_id)
+    if uploaded == 'True':
+        entries = entries.filter(uploaded=True)
+    elif uploaded == 'False':
+        entries = entries.filter(uploaded=False)
+
+    # Calculate totals with gender breakdown
     total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
+    total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
+    total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
+    total_other = entries.aggregate(Sum('registered_other'))['registered_other__sum'] or 0
     total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
     total_deleted = entries.aggregate(Sum('total_deleted'))['total_deleted__sum'] or 0
     total_entries = entries.count()
 
-    # Group by ward
+    # Group by ward with gender breakdown
     ward_summary = entries.values('ward__name').annotate(
         registered=Sum('total_registered'),
+        male=Sum('registered_male'),
+        female=Sum('registered_female'),
+        other=Sum('registered_other'),
         transferred=Sum('total_transferred'),
         deleted=Sum('total_deleted'),
         count=Count('id')
     ).order_by('-registered')
 
-    # Group by phase
+    # Group by phase with gender breakdown
     phase_summary = entries.values('phase__name').annotate(
         registered=Sum('total_registered'),
+        male=Sum('registered_male'),
+        female=Sum('registered_female'),
+        other=Sum('registered_other'),
         transferred=Sum('total_transferred'),
         deleted=Sum('total_deleted'),
         count=Count('id')
     ).order_by('-registered')
+
+    # Group by kit with gender breakdown
+    kit_summary = entries.values('kiems_kit__kit_name').annotate(
+        registered=Sum('total_registered'),
+        male=Sum('registered_male'),
+        female=Sum('registered_female'),
+        other=Sum('registered_other'),
+        transferred=Sum('total_transferred'),
+        deleted=Sum('total_deleted'),
+        count=Count('id')
+    ).order_by('-registered')[:20]
 
     # Create PDF response
     response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="KIEMS_Report_{date_from}_{date_to}.pdf"'
+    filename = f"KIEMS_Report_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
     # Create PDF document
     doc = SimpleDocTemplate(response, pagesize=letter,
@@ -978,14 +1155,14 @@ def generate_report(request):
     styles = getSampleStyleSheet()
     story = []
 
-    # Add title style
+    # Custom styles
     title_style = ParagraphStyle(
         'Title',
         parent=styles['Heading1'],
-        fontSize=18,
+        fontSize=20,
         alignment=TA_CENTER,
-        spaceAfter=12,
-        textColor=colors.black
+        spaceAfter=8,
+        textColor=colors.HexColor('#1a5a2a')
     )
 
     subtitle_style = ParagraphStyle(
@@ -1002,43 +1179,66 @@ def generate_report(request):
         parent=styles['Heading2'],
         fontSize=14,
         spaceAfter=8,
-        textColor=colors.black
+        textColor=colors.HexColor('#1a5a2a'),
+        fontName='Helvetica-Bold'
     )
 
-    # Logo (using base64 or URL)
+    section_header = ParagraphStyle(
+        'SectionHeader',
+        parent=styles['Heading3'],
+        fontSize=12,
+        spaceAfter=6,
+        textColor=colors.HexColor('#1a5a2a'),
+        fontName='Helvetica-Bold'
+    )
+
+    # IEBC Green color scheme
+    iebc_green = colors.HexColor('#1a5a2a')
+    iebc_light_green = colors.HexColor('#e8f5e9')
+    iebc_gold = colors.HexColor('#c9a84c')
+
+    # Header with Logo
     try:
-        # Try to use local logo or fetch from URL
-        logo_url = 'https://cvr.iebc.or.ke/images/logoiebc.png'
-        # For production, you'd want to download and embed the logo
-        # Using a placeholder for now
+        from reportlab.platypus import Image
         from reportlab.lib.utils import ImageReader
-        # If you have the logo locally:
-        # logo_path = os.path.join(settings.STATIC_ROOT, 'images/logoiebc.png')
-        # if os.path.exists(logo_path):
-        #     img = Image(logo_path, width=1.5*inch, height=1.5*inch)
-        #     story.append(img)
+        import os
+        from django.conf import settings
+
+        # Try to load logo from static
+        logo_path = os.path.join(settings.STATIC_ROOT, 'images/logoiebc.png')
+        if os.path.exists(logo_path):
+            img = Image(logo_path, width=1.2 * inch, height=1.2 * inch)
+            img.hAlign = 'CENTER'
+            story.append(img)
+        else:
+            # Alternative logo text
+            story.append(Paragraph("🏛️ IEBC", styles['Heading1']))
     except:
         pass
 
-    # Header
+    # Title
     story.append(Paragraph("INDEPENDENT ELECTORAL AND BOUNDARIES COMMISSION", title_style))
-    story.append(Paragraph("KIEMS Daily Report", subtitle_style))
+    story.append(Paragraph("KIEMS Daily Report - Comprehensive Summary", subtitle_style))
     story.append(Spacer(1, 0.1 * inch))
     story.append(Paragraph(f"Period: {date_from.strftime('%B %d, %Y')} - {date_to.strftime('%B %d, %Y')}",
                            styles['Normal']))
     story.append(Paragraph(f"Report Generated: {timezone.now().strftime('%B %d, %Y %H:%M')}",
                            styles['Normal']))
     story.append(Spacer(1, 0.2 * inch))
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.green))
+    story.append(HRFlowable(width="100%", thickness=2, color=iebc_green))
     story.append(Spacer(1, 0.2 * inch))
 
-    # Summary Section
-    story.append(Paragraph("SUMMARY STATISTICS", header_style))
+    # Executive Summary
+    story.append(Paragraph("EXECUTIVE SUMMARY", header_style))
 
     summary_data = [
         ['Metric', 'Value'],
         ['Total Entries', str(total_entries)],
         ['Total Registered', str(total_registered)],
+        ['Male', str(total_male)],
+        ['Female', str(total_female)],
+        ['Other', str(total_other)],
+        ['Gender Ratio (M:F)', f"{total_male}:{total_female}" if total_female > 0 else "N/A"],
         ['Total Transferred', str(total_transferred)],
         ['Total Deleted', str(total_deleted)],
         ['Net Change', str(total_registered + total_transferred - total_deleted)],
@@ -1046,85 +1246,226 @@ def generate_report(request):
 
     summary_table = Table(summary_data, colWidths=[2.5 * inch, 1.5 * inch])
     summary_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.green),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('BACKGROUND', (0, 0), (-1, 0), iebc_green),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('BACKGROUND', (0, 1), (-1, -1), iebc_light_green),
+        ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
     story.append(summary_table)
+    story.append(Spacer(1, 0.2 * inch))
+
+    # Gender Breakdown Section
+    story.append(Paragraph("GENDER BREAKDOWN", header_style))
+
+    gender_data = [
+        ['Gender', 'Count', 'Percentage'],
+        ['Male', str(total_male), f"{(total_male / total_registered * 100):.1f}%" if total_registered > 0 else "0%"],
+        ['Female', str(total_female),
+         f"{(total_female / total_registered * 100):.1f}%" if total_registered > 0 else "0%"],
+        ['Other', str(total_other), f"{(total_other / total_registered * 100):.1f}%" if total_registered > 0 else "0%"],
+        ['Total', str(total_registered), '100%'],
+    ]
+
+    gender_table = Table(gender_data, colWidths=[1.5 * inch, 1.5 * inch, 1.5 * inch])
+    gender_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), iebc_green),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('BACKGROUND', (0, 1), (-1, -2), iebc_light_green),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#c8e6c9')),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    story.append(gender_table)
     story.append(Spacer(1, 0.2 * inch))
 
     # Ward Summary
     if ward_summary:
         story.append(Paragraph("WARD SUMMARY", header_style))
 
-        ward_data = [['Ward', 'Entries', 'Registered', 'Transferred', 'Deleted']]
+        ward_data = [['Ward', 'Entries', 'Male', 'Female', 'Other', 'Total', 'Transferred', 'Deleted']]
+        total_ward_entries = 0
+        total_ward_male = 0
+        total_ward_female = 0
+        total_ward_other = 0
+        total_ward_registered = 0
+
         for w in ward_summary:
             ward_data.append([
                 w['ward__name'] or 'Unknown',
                 str(w['count']),
+                str(w['male'] or 0),
+                str(w['female'] or 0),
+                str(w['other'] or 0),
                 str(w['registered'] or 0),
                 str(w['transferred'] or 0),
                 str(w['deleted'] or 0)
             ])
+            total_ward_entries += w['count']
+            total_ward_male += w['male'] or 0
+            total_ward_female += w['female'] or 0
+            total_ward_other += w['other'] or 0
+            total_ward_registered += w['registered'] or 0
 
-        ward_table = Table(ward_data, colWidths=[1.8 * inch, 0.8 * inch, 0.8 * inch, 0.8 * inch, 0.8 * inch])
+        # Add total row
+        ward_data.append([
+            'TOTAL',
+            str(total_ward_entries),
+            str(total_ward_male),
+            str(total_ward_female),
+            str(total_ward_other),
+            str(total_ward_registered),
+            '',
+            ''
+        ])
+
+        ward_table = Table(ward_data, colWidths=[1.2 * inch, 0.6 * inch, 0.6 * inch, 0.6 * inch, 0.6 * inch, 0.6 * inch,
+                                                 0.6 * inch, 0.6 * inch])
         ward_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.green),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), iebc_green),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+            ('BACKGROUND', (0, 1), (-1, -2), colors.whitesmoke),
+            ('BACKGROUND', (0, -1), (-1, -1), iebc_light_green),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
         ]))
         story.append(ward_table)
-        story.append(Spacer(1, 0.2 * inch))
+        story.append(Spacer(1, 0.15 * inch))
 
     # Phase Summary
     if phase_summary:
         story.append(Paragraph("PHASE SUMMARY", header_style))
 
-        phase_data = [['Phase', 'Entries', 'Registered', 'Transferred', 'Deleted']]
+        phase_data = [['Phase', 'Entries', 'Male', 'Female', 'Other', 'Total', 'Transferred', 'Deleted']]
         for p in phase_summary:
             phase_data.append([
                 p['phase__name'] or 'Unknown',
                 str(p['count']),
+                str(p['male'] or 0),
+                str(p['female'] or 0),
+                str(p['other'] or 0),
                 str(p['registered'] or 0),
                 str(p['transferred'] or 0),
                 str(p['deleted'] or 0)
             ])
 
-        phase_table = Table(phase_data, colWidths=[1.8 * inch, 0.8 * inch, 0.8 * inch, 0.8 * inch, 0.8 * inch])
+        phase_table = Table(phase_data,
+                            colWidths=[1.2 * inch, 0.6 * inch, 0.6 * inch, 0.6 * inch, 0.6 * inch, 0.6 * inch,
+                                       0.6 * inch, 0.6 * inch])
         phase_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.green),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), iebc_green),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
             ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
         ]))
         story.append(phase_table)
+        story.append(Spacer(1, 0.15 * inch))
+
+    # Kit Summary (Top 20)
+    if kit_summary:
+        story.append(Paragraph("TOP 20 KIT PERFORMANCE", header_style))
+
+        kit_data = [['Kit', 'Male', 'Female', 'Other', 'Total']]
+        for k in kit_summary:
+            kit_data.append([
+                k['kiems_kit__kit_name'] or 'Unknown',
+                str(k['male'] or 0),
+                str(k['female'] or 0),
+                str(k['other'] or 0),
+                str(k['registered'] or 0)
+            ])
+
+        kit_table = Table(kit_data, colWidths=[1.5 * inch, 0.8 * inch, 0.8 * inch, 0.8 * inch, 0.8 * inch])
+        kit_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), iebc_green),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(kit_table)
 
     # Footer
     story.append(Spacer(1, 0.3 * inch))
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.green))
+    story.append(HRFlowable(width="100%", thickness=1, color=iebc_green))
     story.append(Spacer(1, 0.1 * inch))
-    story.append(Paragraph("This report is generated automatically by the KIEMS System",
-                           styles['Normal']))
-    story.append(Paragraph(f"Page 1 of 1 • {timezone.now().strftime('%Y-%m-%d %H:%M')}",
-                           styles['Normal']))
+
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=colors.grey,
+        alignment=TA_CENTER
+    )
+
+    story.append(Paragraph("This report is generated automatically by the KIEMS System", footer_style))
+    story.append(Paragraph(f"© Independent Electoral and Boundaries Commission {timezone.now().year}", footer_style))
+    story.append(Paragraph(f"Generated: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}", footer_style))
 
     # Build PDF
     doc.build(story)
     return response
+
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_GET
+def get_clerks_by_ward(request):
+    """API endpoint to get clerks for a specific ward"""
+    ward_id = request.GET.get('ward_id')
+    if not ward_id:
+        return JsonResponse({'clerks': [], 'error': 'No ward specified'}, status=400)
+
+    try:
+        clerks = Clerk.objects.filter(ward_id=ward_id, active=True).values('id', 'name').order_by('name')
+        return JsonResponse({'clerks': list(clerks)})
+    except Exception as e:
+        return JsonResponse({'clerks': [], 'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_GET
+def get_vras_by_ward(request):
+    """API endpoint to get VRAs for a specific ward"""
+    ward_id = request.GET.get('ward_id')
+    if not ward_id:
+        return JsonResponse({'vras': [], 'error': 'No ward specified'}, status=400)
+
+    try:
+        vras = VRA.objects.filter(ward_id=ward_id, active=True).values('id', 'name').order_by('name')
+        return JsonResponse({'vras': list(vras)})
+    except Exception as e:
+        return JsonResponse({'vras': [], 'error': str(e)}, status=500)

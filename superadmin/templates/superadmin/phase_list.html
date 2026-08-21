@@ -1,4 +1,4 @@
-{% extends "home/base.html" %}
+{% extends "superadmin/base.html" %}
 {% block title %}Phases | KIEMS Admin{% endblock %}
 
 {% block content %}
@@ -7,7 +7,7 @@
         <h2 style="font-size:24px; font-weight:700;">Election Phases</h2>
         <p style="color:#8e8e93; font-size:14px;">Manage all election phases and timelines</p>
     </div>
-    <a href="{% url 'home:phase_create' %}" style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
+    <a href="{% url 'superadmin:phase_create' %}" style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
         <span style="font-size:20px; line-height:1;">+</span> Add Phase
     </a>
 </div>
@@ -27,8 +27,8 @@
             </div>
         </div>
         <div style="display:flex; gap:8px;">
-            <a href="{% url 'home:phase_edit' phase.id %}" style="background:#5856d6; padding:6px 14px; border-radius:6px; color:#fff; text-decoration:none; font-size:13px;">✎ Edit</a>
-            <form method="post" action="{% url 'home:phase_delete' phase.id %}" style="display:inline;" onsubmit="return confirm('Delete this phase?')">
+            <a href="{% url 'superadmin:phase_edit' phase.id %}" style="background:#5856d6; padding:6px 14px; border-radius:6px; color:#fff; text-decoration:none; font-size:13px;">✎ Edit</a>
+            <form method="post" action="{% url 'superadmin:phase_delete' phase.id %}" style="display:inline;" onsubmit="return confirm('Delete this phase?')">
                 {% csrf_token %}
                 <button type="submit" style="background:#ff3b30; padding:6px 14px; border-radius:6px; color:#fff; border:none; cursor:pointer; font-size:13px;">✕ Delete</button>
             </form>
@@ -39,7 +39,7 @@
         <div style="font-size:48px; margin-bottom:16px;">📅</div>
         <h3 style="color:#000; margin-bottom:8px;">No Phases Found</h3>
         <p style="margin-bottom:20px;">Create your first election phase</p>
-        <a href="{% url 'home:phase_create' %}" style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600;">+ Create Phase</a>
+        <a href="{% url 'superadmin:phase_create' %}" style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600;">+ Create Phase</a>
     </div>
     {% endfor %}
 </div>

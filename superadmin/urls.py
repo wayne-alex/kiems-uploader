@@ -21,17 +21,11 @@ urlpatterns = [
     path('wards/<int:pk>/edit/', views.ward_edit, name='ward_edit'),
     path('wards/<int:pk>/delete/', views.ward_delete, name='ward_delete'),
 
-    # VRAs
-    path('vras/', views.vra_list, name='vra_list'),
-    path('vras/create/', views.vra_create, name='vra_create'),
-    path('vras/<int:pk>/edit/', views.vra_edit, name='vra_edit'),
-    path('vras/<int:pk>/delete/', views.vra_delete, name='vra_delete'),
-
-    # Clerks
-    path('clerks/', views.clerk_list, name='clerk_list'),
-    path('clerks/create/', views.clerk_create, name='clerk_create'),
-    path('clerks/<int:pk>/edit/', views.clerk_edit, name='clerk_edit'),
-    path('clerks/<int:pk>/delete/', views.clerk_delete, name='clerk_delete'),
+    # Staff management (combined)
+    path('staff/', views.staff_list, name='staff_list'),
+    path('staff/create/', views.staff_create, name='staff_create'),
+    path('staff/edit/<int:pk>/<str:staff_type>/', views.staff_edit, name='staff_edit'),
+    path('staff/delete/<int:pk>/<str:staff_type>/', views.staff_delete, name='staff_delete'),
 
     # KIEMS Kits
     path('kits/', views.kit_list, name='kit_list'),
@@ -52,4 +46,8 @@ urlpatterns = [
 
     # API
     path('api/chart-data/', views.get_chart_data, name='chart_data'),
+    path('api/get-clerks-by-ward/', views.get_clerks_by_ward, name='get_clerks_by_ward'),
+    path('api/get-vras-by-ward/', views.get_vras_by_ward, name='get_vras_by_ward'),
+    path('generate-report/', views.generate_report, name='generate_report'),
+
 ]

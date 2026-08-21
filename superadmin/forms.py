@@ -50,9 +50,20 @@ class KIEMSKitForm(forms.ModelForm):
         widgets = {
             'kit_name': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'e.g., Kit 19'}),
             'serial_no': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Serial number'}),
-            'status': forms.Select(attrs={'class': 'form-input'}),
+            'status': forms.Select(attrs={'class': 'form-input'}, choices=((True, 'Active'), (False, 'Inactive'))),
             'ward': forms.Select(attrs={'class': 'form-input'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'ward' in self.data:
+            try:
+                ward_id = int(self.data.get('ward'))
+                self.fields['assigned_clerks'].queryset = Clerk.objects.filter(ward_id=ward_id, active=True)
+            except (ValueError, TypeError):
+                pass
+        elif self.instance.pk and self.instance.ward:
+            self.fields['assigned_clerks'].queryset = Clerk.objects.filter(ward=self.instance.ward, active=True)
 
 
 class PhaseForm(forms.ModelForm):
@@ -69,42 +80,54 @@ class PhaseForm(forms.ModelForm):
 class DailyKIEMSEntryForm(forms.ModelForm):
     class Meta:
         model = DailyKIEMSEntry
-        fields = ['kiems_kit', 'phase', 'ward', 'vra', 'entry_date', 'venue',
-                  'total_registered', 'total_transferred', 'total_deleted', 'uploaded']
+        fields = [
+            'kiems_kit', 'phase', 'ward', 'vra', 'entry_date', 'venue',
+            'registered_male', 'registered_female',
+            'total_transferred', 'total_deleted', 'uploaded'
+        ]
         widgets = {
-            'kiems_kit': forms.Select(attrs={'class': 'form-input'}),
-            'phase': forms.Select(attrs={'class': 'form-input'}),
-            'ward': forms.Select(attrs={'class': 'form-input'}),
-            'vra': forms.Select(attrs={'class': 'form-input'}),
-            'entry_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
-            'venue': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Venue location'}),
-            'total_registered': forms.NumberInput(attrs={'class': 'form-input', 'min': 0}),
-            'total_transferred': forms.NumberInput(attrs={'class': 'form-input', 'min': 0}),
-            'total_deleted': forms.NumberInput(attrs={'class': 'form-input', 'min': 0}),
+            'kiems_kit': forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}),
+            'phase': forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}),
+            'ward': forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}),
+            'vra': forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}),
+            'entry_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-input', 'style': 'font-size:13px;'}),
+            'venue': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Venue location', 'style': 'font-size:13px;'}),
+            'registered_male': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
+            'registered_female': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
+            'total_transferred': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
+            'total_deleted': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
+            'uploaded': forms.CheckboxInput(attrs={'class': 'form-checkbox', 'style': 'width:18px;height:18px;'})
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter VRAs by ward
+        if 'ward' in self.data:
+            try:
+                ward_id = int(self.data.get('ward'))
+                self.fields['vra'].queryset = VRA.objects.filter(ward_id=ward_id, active=True)
+            except (ValueError, TypeError):
+                pass
+        elif self.instance.pk and self.instance.ward:
+            self.fields['vra'].queryset = VRA.objects.filter(ward=self.instance.ward, active=True)
 
 
 class DailyEntryFilterForm(forms.Form):
     phase = forms.ModelChoiceField(queryset=Phase.objects.all(), required=False,
-                                   widget=forms.Select(attrs={'class': 'form-input'}))
+                                   widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}))
     ward = forms.ModelChoiceField(queryset=Ward.objects.all(), required=False,
-                                  widget=forms.Select(attrs={'class': 'form-input'}))
+                                  widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}))
     kit = forms.ModelChoiceField(queryset=KIEMSKit.objects.all(), required=False,
-                                 widget=forms.Select(attrs={'class': 'form-input'}))
+                                 widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}))
     vra = forms.ModelChoiceField(queryset=VRA.objects.all(), required=False,
-                                 widget=forms.Select(attrs={'class': 'form-input'}))
-    date_from = forms.DateField(widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}), required=False)
-    date_to = forms.DateField(widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}), required=False)
+                                 widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}))
+    date_from = forms.DateField(widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-input', 'style': 'font-size:13px;'}), required=False)
+    date_to = forms.DateField(widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-input', 'style': 'font-size:13px;'}), required=False)
     uploaded = forms.ChoiceField(choices=[('', 'All'), ('True', 'Uploaded'), ('False', 'Not Uploaded')],
-                                 required=False, widget=forms.Select(attrs={'class': 'form-input'}))
+                                 required=False, widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}))
 
 
 class ImportForm(forms.Form):
-    FILE_TYPES = [
-        ('csv', 'CSV'),
-        ('xlsx', 'Excel'),
-    ]
-
     MODEL_CHOICES = [
         ('ward', 'Wards'),
         ('vra', 'VRAs'),
@@ -120,12 +143,12 @@ class ImportForm(forms.Form):
 
 class ExportForm(forms.Form):
     MODEL_CHOICES = [
+        ('entry', 'Daily Entries'),
         ('ward', 'Wards'),
         ('vra', 'VRAs'),
         ('clerk', 'Clerks'),
         ('kiemskit', 'KIEMS Kits'),
         ('phase', 'Phases'),
-        ('entry', 'Daily Entries'),
     ]
 
     FORMAT_CHOICES = [
@@ -133,6 +156,7 @@ class ExportForm(forms.Form):
         ('xlsx', 'Excel'),
     ]
 
-    model_type = forms.ChoiceField(choices=MODEL_CHOICES, widget=forms.Select(attrs={'class': 'form-input'}))
+    model_type = forms.ChoiceField(choices=MODEL_CHOICES, initial='entry',
+                                   widget=forms.Select(attrs={'class': 'form-input'}))
     format = forms.ChoiceField(choices=FORMAT_CHOICES, initial='csv',
                                widget=forms.Select(attrs={'class': 'form-input'}))

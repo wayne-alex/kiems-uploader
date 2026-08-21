@@ -1,4 +1,4 @@
-{% extends "home/base.html" %}
+{% extends "superadmin/base.html" %}
 {% block title %}KIEMS Kits | KIEMS Admin{% endblock %}
 
 {% block content %}
@@ -7,7 +7,7 @@
         <h2 style="font-size:24px; font-weight:700;">KIEMS Kits</h2>
         <p style="color:#8e8e93; font-size:14px;">Manage all KIEMS kits inventory</p>
     </div>
-    <a href="{% url 'home:kit_create' %}" style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
+    <a href="{% url 'superadmin:kit_create' %}" style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
         <span style="font-size:20px; line-height:1;">+</span> Add Kit
     </a>
 </div>
@@ -43,8 +43,8 @@
                     {% endfor %}
                 </td>
                 <td style="padding:14px 20px; text-align:right;">
-                    <a href="{% url 'home:kit_edit' kit.id %}" style="color:#5856d6; text-decoration:none; margin-right:12px;">Edit</a>
-                    <form method="post" action="{% url 'home:kit_delete' kit.id %}" style="display:inline;" onsubmit="return confirm('Delete this kit?')">
+                    <a href="{% url 'superadmin:kit_edit' kit.id %}" style="color:#5856d6; text-decoration:none; margin-right:12px;">Edit</a>
+                    <form method="post" action="{% url 'superadmin:kit_delete' kit.id %}" style="display:inline;" onsubmit="return confirm('Delete this kit?')">
                         {% csrf_token %}
                         <button type="submit" style="background:none; border:none; color:#ff3b30; cursor:pointer;">Delete</button>
                     </form>
@@ -55,7 +55,7 @@
                 <td colspan="6" style="padding:60px 20px; text-align:center; color:#8e8e93;">
                     <div style="font-size:48px; margin-bottom:16px;">📱</div>
                     <h3 style="color:#000; margin-bottom:8px;">No KIEMS Kits Found</h3>
-                    <a href="{% url 'home:kit_create' %}" style="color:#90EE90; text-decoration:none; font-weight:600;">Create your first kit</a>
+                    <a href="{% url 'superadmin:kit_create' %}" style="color:#90EE90; text-decoration:none; font-weight:600;">Create your first kit</a>
                 </td>
             </tr>
             {% endfor %}

@@ -1,11 +1,11 @@
-{% extends "home/base.html" %}
+{% extends "superadmin/base.html" %}
 {% block title %}{{ title }} | KIEMS Admin{% endblock %}
 
 {% block content %}
 <div style="max-width:600px; margin:0 auto;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
         <h2 style="font-size:24px; font-weight:700;">{{ title }}</h2>
-        <a href="{% url 'home:phase_list' %}" style="color:#5856d6; text-decoration:none;">← Back</a>
+        <a href="{% url 'superadmin:phase_list' %}" style="color:#5856d6; text-decoration:none;">← Back</a>
     </div>
     
     <div style="background:#fff; border-radius:12px; border:0.5px solid rgba(0,0,0,0.08); padding:24px;">

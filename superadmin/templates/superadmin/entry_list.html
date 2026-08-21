@@ -3,70 +3,69 @@
 
 {% block extra_css %}
 <style>
-    /* Modern Entry List Styles */
     .page-header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        margin-bottom: 24px;
+        margin-bottom: 20px;
         flex-wrap: wrap;
-        gap: 16px;
+        gap: 12px;
     }
 
     .page-header-left h2 {
-        font-size: 28px;
+        font-size: 22px;
         font-weight: 700;
         color: #000;
-        letter-spacing: -0.5px;
+        letter-spacing: -0.3px;
     }
 
     .page-header-left p {
         color: #8e8e93;
-        font-size: 15px;
-        margin-top: 4px;
+        font-size: 13px;
+        margin-top: 2px;
     }
 
     .page-actions {
         display: flex;
-        gap: 10px;
+        gap: 8px;
         flex-wrap: wrap;
     }
 
     .btn-primary {
         background: #90EE90;
-        padding: 10px 20px;
-        border-radius: 10px;
+        padding: 8px 16px;
+        border-radius: 8px;
         border: none;
         color: #000;
         font-weight: 600;
-        font-size: 14px;
+        font-size: 13px;
         cursor: pointer;
         text-decoration: none;
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         transition: all 0.2s;
     }
 
     .btn-primary:hover {
         background: #7fe07f;
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(144, 238, 144, 0.3);
+        box-shadow: 0 4px 12px rgba(144, 238, 144, 0.25);
     }
 
     .btn-secondary {
         background: #f2f2f7;
-        padding: 10px 20px;
-        border-radius: 10px;
-        border: 0.5px solid rgba(0,0,0,0.08);
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: 0.5px solid rgba(0,0,0,0.06);
         color: #000;
         font-weight: 500;
-        font-size: 14px;
+        font-size: 13px;
         cursor: pointer;
         text-decoration: none;
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         transition: all 0.2s;
     }
 
@@ -74,14 +73,36 @@
         background: #e5e5ea;
     }
 
+    .btn-pdf {
+        background: #ff3b30;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: none;
+        color: #fff;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+
+    .btn-pdf:hover {
+        background: #e0352b;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(255, 59, 48, 0.25);
+    }
+
     .btn-danger {
         background: #ff3b30;
-        padding: 6px 14px;
+        padding: 4px 12px;
         border-radius: 6px;
         border: none;
         color: #fff;
         font-weight: 500;
-        font-size: 13px;
+        font-size: 12px;
         cursor: pointer;
         transition: all 0.2s;
     }
@@ -92,12 +113,12 @@
 
     .btn-edit {
         background: #5856d6;
-        padding: 6px 14px;
+        padding: 4px 12px;
         border-radius: 6px;
         border: none;
         color: #fff;
         font-weight: 500;
-        font-size: 13px;
+        font-size: 12px;
         cursor: pointer;
         text-decoration: none;
         display: inline-block;
@@ -108,66 +129,70 @@
         background: #4846c6;
     }
 
-    /* Today's Counter */
-    .today-counter {
-        background: linear-gradient(135deg, #90EE90 0%, #6fd86f 100%);
-        border-radius: 16px;
-        padding: 20px 24px;
-        margin-bottom: 24px;
+    /* Today's Stats */
+    .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 20px;
-        box-shadow: 0 4px 20px rgba(144, 238, 144, 0.3);
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
     }
 
-    .counter-item {
+    .stat-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        padding: 14px 16px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.03);
         text-align: center;
     }
 
-    .counter-item .number {
-        font-size: 32px;
+    .stat-card .number {
+        font-size: 26px;
         font-weight: 700;
         color: #000;
-        line-height: 1;
+        line-height: 1.1;
     }
 
-    .counter-item .label {
-        font-size: 13px;
-        font-weight: 500;
-        color: rgba(0,0,0,0.7);
-        margin-top: 4px;
-    }
-
-    .counter-item .sub-label {
+    .stat-card .label {
         font-size: 11px;
-        color: rgba(0,0,0,0.5);
+        font-weight: 500;
+        color: #8e8e93;
+        margin-top: 3px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .stat-card .sub {
+        font-size: 10px;
+        color: #aeaeae;
+        margin-top: 1px;
     }
 
     /* Filters */
     .filters-bar {
         background: #fff;
-        border-radius: 16px;
+        border-radius: 12px;
         border: 0.5px solid rgba(0,0,0,0.06);
-        padding: 20px;
-        margin-bottom: 24px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        padding: 16px 18px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.03);
     }
 
     .filters-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 10px;
         align-items: end;
     }
 
     .filter-group {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 2px;
     }
 
     .filter-group label {
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 600;
         color: #8e8e93;
         text-transform: uppercase;
@@ -176,14 +201,15 @@
 
     .filter-group input,
     .filter-group select {
-        padding: 10px 14px;
-        border: 0.5px solid rgba(0,0,0,0.08);
-        border-radius: 10px;
-        font-size: 14px;
+        padding: 6px 10px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        border-radius: 8px;
+        font-size: 13px;
         background: #f9f9fb;
         transition: all 0.2s;
         font-family: inherit;
         width: 100%;
+        color: #1c1c1e;
     }
 
     .filter-group input:focus,
@@ -191,23 +217,29 @@
         outline: none;
         border-color: #90EE90;
         background: #fff;
-        box-shadow: 0 0 0 3px rgba(144, 238, 144, 0.15);
+        box-shadow: 0 0 0 3px rgba(144, 238, 144, 0.1);
     }
 
     .filter-actions {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         padding-top: 4px;
+        flex-wrap: wrap;
     }
 
-    .filter-actions button {
-        padding: 10px 20px;
+    .filter-actions button,
+    .filter-actions a {
+        padding: 6px 16px;
         border: none;
-        border-radius: 10px;
+        border-radius: 8px;
         font-weight: 600;
-        font-size: 14px;
+        font-size: 12px;
         cursor: pointer;
         transition: all 0.2s;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
     }
 
     .btn-filter {
@@ -222,13 +254,6 @@
     .btn-clear {
         background: #f2f2f7;
         color: #3a3a3c;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        padding: 10px 20px;
-        border-radius: 10px;
-        font-weight: 600;
-        font-size: 14px;
     }
 
     .btn-clear:hover {
@@ -238,10 +263,10 @@
     /* Table */
     .table-container {
         background: #fff;
-        border-radius: 16px;
+        border-radius: 12px;
         border: 0.5px solid rgba(0,0,0,0.06);
         overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.03);
     }
 
     .table-wrapper {
@@ -252,7 +277,8 @@
     table {
         width: 100%;
         border-collapse: collapse;
-        min-width: 900px;
+        min-width: 800px;
+        font-size: 13px;
     }
 
     thead {
@@ -261,9 +287,9 @@
     }
 
     th {
-        padding: 14px 16px;
+        padding: 10px 14px;
         text-align: left;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
         color: #8e8e93;
         text-transform: uppercase;
@@ -272,9 +298,10 @@
     }
 
     td {
-        padding: 14px 16px;
-        border-bottom: 0.5px solid rgba(0,0,0,0.05);
+        padding: 10px 14px;
+        border-bottom: 0.5px solid rgba(0,0,0,0.04);
         vertical-align: middle;
+        font-size: 13px;
     }
 
     tr:last-child td {
@@ -288,35 +315,36 @@
     .entry-kit {
         font-weight: 600;
         color: #000;
+        font-size: 13px;
     }
 
     .entry-meta {
-        font-size: 12px;
+        font-size: 11px;
         color: #8e8e93;
         display: block;
-        margin-top: 2px;
+        margin-top: 1px;
     }
 
-    .entry-type {
+    .gender-badge {
         display: inline-flex;
-        padding: 4px 12px;
-        border-radius: 20px;
+        padding: 2px 8px;
+        border-radius: 4px;
         font-size: 11px;
         font-weight: 600;
+        margin: 1px 2px;
     }
 
-    .entry-type.new { background: #e8f5e9; color: #2e7d32; }
-    .entry-type.transfer { background: #e3f2fd; color: #1565c0; }
-    .entry-type.update { background: #fff8e1; color: #f57f17; }
-    .entry-type.delete { background: #ffebee; color: #c62828; }
+    .gender-badge.male { background: #e3f2fd; color: #1565c0; }
+    .gender-badge.female { background: #fce4ec; color: #c62828; }
+    .gender-badge.other { background: #f3e5f5; color: #6a1b9a; }
 
     .number-badge {
         display: inline-flex;
-        padding: 2px 10px;
+        padding: 2px 8px;
         border-radius: 4px;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 600;
-        margin: 2px;
+        margin: 1px 2px;
     }
 
     .number-badge.green { background: #e8f5e9; color: #2e7d32; }
@@ -326,9 +354,9 @@
 
     .status-badge {
         display: inline-flex;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 12px;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 11px;
         font-weight: 600;
     }
 
@@ -338,9 +366,31 @@
 
     .actions-cell {
         display: flex;
-        gap: 6px;
+        gap: 4px;
         justify-content: flex-end;
         flex-wrap: wrap;
+    }
+
+    /* Summary Bar */
+    .summary-bar {
+        display: flex;
+        gap: 16px;
+        padding: 8px 16px;
+        background: #f9f9fb;
+        border-bottom: 0.5px solid rgba(0,0,0,0.06);
+        flex-wrap: wrap;
+        font-size: 12px;
+        color: #3a3a3c;
+        align-items: center;
+    }
+
+    .summary-bar .highlight {
+        font-weight: 700;
+        color: #000;
+    }
+
+    .summary-bar .sep {
+        color: #d1d1d6;
     }
 
     /* Pagination */
@@ -348,16 +398,16 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        gap: 6px;
-        padding: 20px;
+        gap: 4px;
+        padding: 14px;
         border-top: 0.5px solid rgba(0,0,0,0.06);
     }
 
     .pagination a,
     .pagination span {
-        padding: 8px 14px;
-        border-radius: 8px;
-        font-size: 14px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 13px;
         text-decoration: none;
         color: #3a3a3c;
         transition: all 0.2s;
@@ -373,62 +423,38 @@
         font-weight: 600;
     }
 
-    .pagination .disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
     .empty-state {
-        padding: 60px 20px;
+        padding: 40px 20px;
         text-align: center;
         color: #8e8e93;
     }
 
     .empty-state .icon {
-        font-size: 48px;
-        margin-bottom: 16px;
+        font-size: 40px;
+        margin-bottom: 12px;
         display: block;
     }
 
     .empty-state h3 {
-        font-size: 18px;
+        font-size: 16px;
         font-weight: 600;
         color: #000;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
     }
 
     .empty-state p {
-        font-size: 14px;
-        color: #8e8e93;
-        margin-bottom: 20px;
-    }
-
-    .summary-bar {
-        display: flex;
-        gap: 24px;
-        padding: 12px 20px;
-        background: #f9f9fb;
-        border-bottom: 0.5px solid rgba(0,0,0,0.06);
-        flex-wrap: wrap;
         font-size: 13px;
-        color: #3a3a3c;
+        color: #8e8e93;
+        margin-bottom: 16px;
     }
 
-    .summary-bar .highlight {
-        font-weight: 700;
-        color: #000;
+    .report-actions {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
     }
 
     @media (max-width: 768px) {
-        .page-header {
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .page-actions {
-            flex-wrap: wrap;
-        }
-
         .filters-grid {
             grid-template-columns: 1fr 1fr;
         }
@@ -438,21 +464,26 @@
             justify-content: flex-end;
         }
 
-        .today-counter {
+        .stats-grid {
             grid-template-columns: repeat(2, 1fr);
-            padding: 16px;
         }
 
-        .counter-item .number {
-            font-size: 24px;
+        .stat-card .number {
+            font-size: 22px;
         }
 
-        td {
-            padding: 12px 12px;
+        .page-header {
+            flex-direction: column;
+            align-items: stretch;
         }
 
-        th {
-            padding: 12px 12px;
+        .page-actions {
+            flex-wrap: wrap;
+        }
+
+        .summary-bar {
+            font-size: 11px;
+            gap: 10px;
         }
     }
 
@@ -465,9 +496,83 @@
             grid-column: span 1;
         }
 
-        .today-counter {
+        .stats-grid {
             grid-template-columns: 1fr 1fr;
         }
+    }
+
+    .export-buttons {
+        display: flex;
+        gap: 4px;
+        margin-top: 4px;
+        flex-wrap: wrap;
+    }
+
+    .export-buttons .btn-sm {
+        padding: 4px 10px;
+        font-size: 11px;
+        border-radius: 6px;
+        background: #f2f2f7;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        color: #000;
+        text-decoration: none;
+        font-weight: 500;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+
+    .export-buttons .btn-sm:hover {
+        background: #e5e5ea;
+    }
+
+    .export-buttons .btn-sm.pdf {
+        background: #ff3b30;
+        color: #fff;
+        border-color: #ff3b30;
+    }
+
+    .export-buttons .btn-sm.pdf:hover {
+        background: #e0352b;
+    }
+
+    .filter-group .btn-sm {
+        padding: 4px 10px;
+        font-size: 11px;
+        border-radius: 6px;
+        background: #f2f2f7;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        color: #000;
+        text-decoration: none;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 4px;
+        cursor: pointer;
+    }
+
+    .filter-group .btn-sm:hover {
+        background: #e5e5ea;
+    }
+
+    .filter-group .btn-sm.primary {
+        background: #90EE90;
+        border-color: #90EE90;
+    }
+
+    .filter-group .btn-sm.primary:hover {
+        background: #7fe07f;
+    }
+
+    .filter-group .btn-sm.pdf {
+        background: #ff3b30;
+        color: #fff;
+        border-color: #ff3b30;
+    }
+
+    .filter-group .btn-sm.pdf:hover {
+        background: #e0352b;
     }
 </style>
 {% endblock %}
@@ -476,51 +581,47 @@
 <div class="page-header">
     <div class="page-header-left">
         <h2>Daily Entries</h2>
-        <p>Track all daily submissions across phases</p>
+        <p>Track daily submissions with gender breakdown</p>
     </div>
     <div class="page-actions">
+        <div class="report-actions">
+            <a href="{% url 'superadmin:generate_report' %}" class="btn-pdf" target="_blank">
+                📄 PDF Report
+            </a>
+        </div>
         <a href="{% url 'superadmin:entry_create' %}" class="btn-primary">
-            <span style="font-size:20px; line-height:1;">+</span> Add Entry
-        </a>
-        <a href="{% url 'superadmin:export_data' %}?model_type=entry&format=csv" class="btn-secondary">
-            📥 CSV
-        </a>
-        <a href="{% url 'superadmin:export_data' %}?model_type=entry&format=xlsx" class="btn-secondary">
-            📥 Excel
-        </a>
-        <a href="{% url 'superadmin:generate_report' %}" class="btn-secondary" target="_blank">
-            📄 Report PDF
+            + Add Entry
         </a>
     </div>
 </div>
 
-<!-- Today's Counter -->
-<div class="today-counter">
-    <div class="counter-item">
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="stat-card">
         <div class="number">{{ today_stats.total_entries|default:"0" }}</div>
-        <div class="label">Total Entries Today</div>
-        <div class="sub-label">{{ today_stats.unique_kits|default:"0" }} kits</div>
+        <div class="label">Today's Entries</div>
+        <div class="sub">{{ today_stats.unique_kits|default:"0" }} kits</div>
     </div>
-    <div class="counter-item">
+    <div class="stat-card" style="border-left:3px solid #34c759;">
         <div class="number">{{ today_stats.total_registered|default:"0" }}</div>
         <div class="label">Registered Today</div>
-        <div class="sub-label">👤 New voters</div>
+        <div class="sub">👨 {{ today_stats.registered_male|default:"0" }} 👩 {{ today_stats.registered_female|default:"0" }}</div>
     </div>
-    <div class="counter-item">
+    <div class="stat-card" style="border-left:3px solid #5856d6;">
         <div class="number">{{ today_stats.total_transferred|default:"0" }}</div>
         <div class="label">Transferred</div>
-        <div class="sub-label">🔄 From other wards</div>
+        <div class="sub">From other wards</div>
     </div>
-    <div class="counter-item">
+    <div class="stat-card" style="border-left:3px solid #ff3b30;">
         <div class="number">{{ today_stats.total_deleted|default:"0" }}</div>
         <div class="label">Deleted</div>
-        <div class="sub-label">❌ Removed entries</div>
+        <div class="sub">Removed entries</div>
     </div>
 </div>
 
 <!-- Filters -->
 <div class="filters-bar">
-    <form method="get" class="filters-grid">
+    <form method="get" class="filters-grid" id="filterForm">
         <div class="filter-group">
             <label for="id_phase">Phase</label>
             {{ form.phase }}
@@ -530,7 +631,7 @@
             {{ form.ward }}
         </div>
         <div class="filter-group">
-            <label for="id_kit">KIEMS Kit</label>
+            <label for="id_kit">Kit</label>
             {{ form.kit }}
         </div>
         <div class="filter-group">
@@ -538,20 +639,28 @@
             {{ form.vra }}
         </div>
         <div class="filter-group">
-            <label for="id_date_from">Date From</label>
+            <label for="id_date_from">From</label>
             {{ form.date_from }}
         </div>
         <div class="filter-group">
-            <label for="id_date_to">Date To</label>
+            <label for="id_date_to">To</label>
             {{ form.date_to }}
         </div>
         <div class="filter-group">
-            <label for="id_uploaded">Uploaded</label>
+            <label for="id_uploaded">Status</label>
             {{ form.uploaded }}
         </div>
-        <div class="filter-actions">
-            <button type="submit" class="btn-filter">Apply Filters</button>
-            <a href="{% url 'superadmin:entry_list' %}" class="btn-clear">Clear</a>
+        <div class="filter-group">
+            <label>Actions</label>
+            <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                <button type="submit" class="btn-sm primary">Apply</button>
+                <a href="{% url 'superadmin:entry_list' %}" class="btn-sm">Clear</a>
+                <div class="export-buttons">
+                    <button type="submit" formaction="{% url 'superadmin:export_data' %}?model_type=entry&format=csv" class="btn-sm">CSV</button>
+                    <button type="submit" formaction="{% url 'superadmin:export_data' %}?model_type=entry&format=xlsx" class="btn-sm">Excel</button>
+                    <button type="submit" formaction="{% url 'superadmin:generate_report' %}" class="btn-sm pdf" target="_blank">PDF</button>
+                </div>
+            </div>
         </div>
     </form>
 </div>
@@ -559,11 +668,23 @@
 <!-- Table -->
 <div class="table-container">
     <div class="summary-bar">
-        <span>Showing <span class="highlight">{{ entries|length }}</span> entries</span>
+        <span>📋 <span class="highlight">{{ page_obj|length }}</span> entries</span>
+        <span class="sep">|</span>
+        <span>Registered: <span class="highlight">{{ total_registered }}</span></span>
+        <span class="sep">|</span>
+        <span>👨 {{ total_male }} 👩 {{ total_female }}</span>
+        {% if total_other %}
+        <span class="sep">|</span>
+        <span>👤 {{ total_other }}</span>
+        {% endif %}
+        <span class="sep">|</span>
+        <span>🔄 {{ total_transferred }}</span>
+        <span class="sep">|</span>
+        <span>🗑️ {{ total_deleted }}</span>
         {% if is_filtered %}
+        <span class="sep">|</span>
         <span>🔍 Filtered</span>
         {% endif %}
-        <span style="margin-left:auto;">Total: {{ total_registered }} registered</span>
     </div>
 
     <div class="table-wrapper">
@@ -572,67 +693,82 @@
                 <tr>
                     <th>Kit / VRA</th>
                     <th>Phase / Date</th>
-                    <th>Venue</th>
-                    <th>Counts</th>
+                    <th>Registered</th>
+                    <th>Transferred</th>
+                    <th>Deleted</th>
                     <th>Status</th>
                     <th style="text-align:right;">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {% for entry in entries %}
+                {% for entry in page_obj %}
                 <tr>
                     <td>
                         <div class="entry-kit">{{ entry.kiems_kit.kit_name }}</div>
                         <span class="entry-meta">VRA: {{ entry.vra.name }}</span>
+                        <span class="entry-meta">Ward: {{ entry.ward.name }}</span>
                     </td>
                     <td>
                         <div>{{ entry.phase.name }}</div>
                         <span class="entry-meta">{{ entry.entry_date|date:"M d, Y" }}</span>
+                        <span class="entry-meta">{{ entry.venue|default:"—" }}</span>
                     </td>
-                    <td>{{ entry.venue|default:"—" }}</td>
                     <td>
-                        <div style="display:flex; flex-wrap:wrap; gap:4px;">
-                            {% if entry.total_registered %}
-                            <span class="number-badge green">+{{ entry.total_registered }}</span>
+                        <div>
+                            <span class="gender-badge male">👨 {{ entry.registered_male }}</span>
+                            <span class="gender-badge female">👩 {{ entry.registered_female }}</span>
+                            {% if entry.registered_other %}
+                            <span class="gender-badge other">👤 {{ entry.registered_other }}</span>
                             {% endif %}
-                            {% if entry.total_transferred %}
-                            <span class="number-badge blue">{{ entry.total_transferred }}↗</span>
-                            {% endif %}
-                            {% if entry.total_deleted %}
-                            <span class="number-badge red">{{ entry.total_deleted }}✕</span>
-                            {% endif %}
+                        </div>
+                        <div style="margin-top:3px;">
+                            <span class="number-badge green">Total: {{ entry.total_registered }}</span>
                         </div>
                     </td>
                     <td>
-                        <div style="display:flex; flex-direction:column; gap:4px;">
+                        {% if entry.total_transferred %}
+                        <span class="number-badge blue">{{ entry.total_transferred }}</span>
+                        {% else %}
+                        <span style="color:#d1d1d6; font-size:12px;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if entry.total_deleted %}
+                        <span class="number-badge red">{{ entry.total_deleted }}</span>
+                        {% else %}
+                        <span style="color:#d1d1d6; font-size:12px;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display:flex; flex-direction:column; gap:2px;">
                             <span class="status-badge {% if entry.uploaded %}uploaded{% else %}pending{% endif %}">
-                                {{ entry.uploaded|yesno:"📤 Uploaded,⏳ Pending" }}
+                                {{ entry.uploaded|yesno:"✓ Uploaded,⏳ Pending" }}
                             </span>
-                            <span style="font-size:11px; color:#8e8e93;">
+                            <span style="font-size:10px; color:#8e8e93;">
                                 {{ entry.created_at|timesince }} ago
                             </span>
                         </div>
                     </td>
                     <td>
                         <div class="actions-cell">
-                            <a href="{% url 'superadmin:entry_edit' entry.id %}" class="btn-edit">✎ Edit</a>
+                            <a href="{% url 'superadmin:entry_edit' entry.id %}" class="btn-edit">✏️</a>
                             <form method="post" action="{% url 'superadmin:entry_delete' entry.id %}" style="display:inline;"
                                   onsubmit="return confirm('Delete this entry?')">
                                 {% csrf_token %}
-                                <button type="submit" class="btn-danger">✕</button>
+                                <button type="submit" class="btn-danger">🗑️</button>
                             </form>
                         </div>
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6">
+                    <td colspan="7">
                         <div class="empty-state">
                             <span class="icon">📋</span>
                             <h3>No Entries Found</h3>
                             <p>No daily entries match your criteria.</p>
-                            <a href="{% url 'home:entry_create' %}" class="btn-primary" style="display:inline-flex;">
-                                <span style="font-size:20px; line-height:1;">+</span> Create Entry
+                            <a href="{% url 'superadmin:entry_create' %}" class="btn-primary" style="display:inline-flex;">
+                                + Create Entry
                             </a>
                         </div>
                     </td>
@@ -642,24 +778,74 @@
         </table>
     </div>
 
-    {% if entries.has_other_pages %}
+    {% if page_obj.has_other_pages %}
     <div class="pagination">
-        {% if entries.has_previous %}
-        <a href="?page={{ entries.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">← Previous</a>
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">‹ Prev</a>
         {% endif %}
 
-        {% for num in entries.paginator.page_range %}
-            {% if entries.number == num %}
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
             <span class="current">{{ num }}</span>
-            {% elif num > entries.number|add:'-3' and num < entries.number|add:'3' %}
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
             <a href="?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ num }}</a>
             {% endif %}
         {% endfor %}
 
-        {% if entries.has_next %}
-        <a href="?page={{ entries.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next →</a>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next ›</a>
         {% endif %}
     </div>
     {% endif %}
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Filter VRAs by ward
+    const wardField = document.getElementById('id_ward');
+    const vraField = document.getElementById('id_vra');
+
+    if (wardField && vraField) {
+        wardField.addEventListener('change', function() {
+            const wardId = this.value;
+            if (wardId) {
+                fetch(`/superadmin/api/get-vras-by-ward/?ward_id=${wardId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        vraField.innerHTML = '<option value="">All</option>';
+                        data.vras.forEach(vra => {
+                            const option = document.createElement('option');
+                            option.value = vra.id;
+                            option.textContent = vra.name;
+                            vraField.appendChild(option);
+                        });
+                    })
+                    .catch(error => console.error('Error fetching VRAs:', error));
+            }
+        });
+    }
+
+    // Make export buttons submit the filter form
+    document.querySelectorAll('.export-buttons .btn-sm, .filter-actions .btn-sm').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const form = document.getElementById('filterForm');
+            const action = this.formAction || this.getAttribute('formaction');
+
+            // Check if it's a PDF button - open in new tab
+            if (this.classList.contains('pdf') || action.includes('generate_report')) {
+                // For PDF, open in new window with filter params
+                const formData = new FormData(form);
+                const params = new URLSearchParams(formData);
+                const url = action + '?' + params.toString();
+                window.open(url, '_blank');
+            } else {
+                // For CSV/Excel, submit form
+                form.action = action;
+                form.submit();
+            }
+        });
+    });
+});
+</script>
 {% endblock %}
