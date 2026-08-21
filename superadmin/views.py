@@ -575,7 +575,6 @@ def entry_list(request):
     total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
     total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
     total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
-    total_other = entries.aggregate(Sum('registered_other'))['registered_other__sum'] or 0
     total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
     total_deleted = entries.aggregate(Sum('total_deleted'))['total_deleted__sum'] or 0
 
@@ -588,7 +587,6 @@ def entry_list(request):
         'total_registered': today_entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0,
         'registered_male': today_entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0,
         'registered_female': today_entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0,
-        'registered_other': today_entries.aggregate(Sum('registered_other'))['registered_other__sum'] or 0,
         'total_transferred': today_entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0,
         'total_deleted': today_entries.aggregate(Sum('total_deleted'))['total_deleted__sum'] or 0,
     }
@@ -604,7 +602,6 @@ def entry_list(request):
         'total_registered': total_registered,
         'total_male': total_male,
         'total_female': total_female,
-        'total_other': total_other,
         'total_transferred': total_transferred,
         'total_deleted': total_deleted,
         'today_stats': today_stats,
