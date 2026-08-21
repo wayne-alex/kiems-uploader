@@ -1299,7 +1299,6 @@ def generate_report(request):
                 str(w['count']),
                 str(w['male'] or 0),
                 str(w['female'] or 0),
-                str(w['other'] or 0),
                 str(w['registered'] or 0),
                 str(w['transferred'] or 0),
                 str(w['deleted'] or 0)
@@ -1307,7 +1306,6 @@ def generate_report(request):
             total_ward_entries += w['count']
             total_ward_male += w['male'] or 0
             total_ward_female += w['female'] or 0
-            total_ward_other += w['other'] or 0
             total_ward_registered += w['registered'] or 0
 
         # Add total row
@@ -1353,7 +1351,6 @@ def generate_report(request):
                 str(p['count']),
                 str(p['male'] or 0),
                 str(p['female'] or 0),
-                str(p['other'] or 0),
                 str(p['registered'] or 0),
                 str(p['transferred'] or 0),
                 str(p['deleted'] or 0)
