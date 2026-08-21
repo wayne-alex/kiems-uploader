@@ -1101,7 +1101,6 @@ def generate_report(request):
     total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
     total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
     total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
-    total_other = entries.aggregate(Sum('registered_other'))['registered_other__sum'] or 0
     total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
     total_deleted = entries.aggregate(Sum('total_deleted'))['total_deleted__sum'] or 0
     total_entries = entries.count()
@@ -1111,7 +1110,6 @@ def generate_report(request):
         registered=Sum('total_registered'),
         male=Sum('registered_male'),
         female=Sum('registered_female'),
-        other=Sum('registered_other'),
         transferred=Sum('total_transferred'),
         deleted=Sum('total_deleted'),
         count=Count('id')
@@ -1122,7 +1120,6 @@ def generate_report(request):
         registered=Sum('total_registered'),
         male=Sum('registered_male'),
         female=Sum('registered_female'),
-        other=Sum('registered_other'),
         transferred=Sum('total_transferred'),
         deleted=Sum('total_deleted'),
         count=Count('id')
@@ -1133,7 +1130,6 @@ def generate_report(request):
         registered=Sum('total_registered'),
         male=Sum('registered_male'),
         female=Sum('registered_female'),
-        other=Sum('registered_other'),
         transferred=Sum('total_transferred'),
         deleted=Sum('total_deleted'),
         count=Count('id')
@@ -1234,7 +1230,6 @@ def generate_report(request):
         ['Total Registered', str(total_registered)],
         ['Male', str(total_male)],
         ['Female', str(total_female)],
-        ['Other', str(total_other)],
         ['Gender Ratio (M:F)', f"{total_male}:{total_female}" if total_female > 0 else "N/A"],
         ['Total Transferred', str(total_transferred)],
         ['Total Deleted', str(total_deleted)],
@@ -1266,7 +1261,6 @@ def generate_report(request):
         ['Male', str(total_male), f"{(total_male / total_registered * 100):.1f}%" if total_registered > 0 else "0%"],
         ['Female', str(total_female),
          f"{(total_female / total_registered * 100):.1f}%" if total_registered > 0 else "0%"],
-        ['Other', str(total_other), f"{(total_other / total_registered * 100):.1f}%" if total_registered > 0 else "0%"],
         ['Total', str(total_registered), '100%'],
     ]
 
@@ -1394,7 +1388,6 @@ def generate_report(request):
                 k['kiems_kit__kit_name'] or 'Unknown',
                 str(k['male'] or 0),
                 str(k['female'] or 0),
-                str(k['other'] or 0),
                 str(k['registered'] or 0)
             ])
 
