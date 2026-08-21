@@ -1,0 +1,514 @@
+{% extends "superadmin/base.html" %}
+{% block title %}Clerks Management | SuperAdmin{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Same as ward_list.css plus additional styles */
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .page-header h2 {
+        font-size: 24px;
+        font-weight: 700;
+        color: #000000;
+    }
+
+    .page-header .subtitle {
+        font-size: 14px;
+        color: #8e8e93;
+        font-weight: 400;
+        margin-top: 4px;
+    }
+
+    .btn-primary {
+        background: #90EE90;
+        padding: 10px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        color: #000;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-primary:hover {
+        background: #7fe07f;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(144, 238, 144, 0.3);
+    }
+
+    .btn-secondary {
+        background: #f2f2f7;
+        padding: 10px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        color: #000;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 0.5px solid rgba(0,0,0,0.08);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+        background: #e5e5ea;
+    }
+
+    .btn-danger {
+        background: #ff3b30;
+        padding: 6px 14px;
+        border-radius: 6px;
+        text-decoration: none;
+        color: #fff;
+        font-weight: 500;
+        font-size: 13px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-danger:hover {
+        background: #e0352b;
+    }
+
+    .btn-edit {
+        background: #5856d6;
+        padding: 6px 14px;
+        border-radius: 6px;
+        text-decoration: none;
+        color: #fff;
+        font-weight: 500;
+        font-size: 13px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-block;
+    }
+
+    .btn-edit:hover {
+        background: #4846c6;
+    }
+
+    .table-container {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 0.5px solid rgba(0,0,0,0.08);
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 800px;
+    }
+
+    thead {
+        background: #f9f9fb;
+        border-bottom: 0.5px solid rgba(0,0,0,0.06);
+    }
+
+    th {
+        padding: 14px 20px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 600;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+    }
+
+    td {
+        padding: 14px 20px;
+        border-bottom: 0.5px solid rgba(0,0,0,0.06);
+        vertical-align: middle;
+    }
+
+    tr:last-child td {
+        border-bottom: none;
+    }
+
+    tr:hover td {
+        background: #fafafc;
+    }
+
+    .clerk-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .clerk-name {
+        font-weight: 600;
+        color: #000;
+    }
+
+    .clerk-username {
+        font-size: 12px;
+        color: #8e8e93;
+    }
+
+    .role-badge {
+        display: inline-flex;
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .role-badge.admin {
+        background: rgba(255, 59, 48, 0.12);
+        color: #ff3b30;
+    }
+
+    .role-badge.supervisor {
+        background: rgba(255, 149, 0, 0.12);
+        color: #ff9500;
+    }
+
+    .role-badge.clerk {
+        background: rgba(52, 199, 89, 0.12);
+        color: #34c759;
+    }
+
+    .role-badge.viewer {
+        background: rgba(142, 142, 147, 0.12);
+        color: #8e8e93;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .status-badge.active {
+        background: rgba(52, 199, 89, 0.12);
+        color: #34c759;
+    }
+
+    .status-badge.inactive {
+        background: rgba(255, 59, 48, 0.12);
+        color: #ff3b30;
+    }
+
+    .actions-cell {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .empty-state {
+        padding: 60px 20px;
+        text-align: center;
+        color: #8e8e93;
+    }
+
+    .empty-state .icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        display: block;
+    }
+
+    .empty-state h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #000;
+        margin-bottom: 8px;
+    }
+
+    .empty-state p {
+        font-size: 14px;
+        color: #8e8e93;
+        margin-bottom: 20px;
+    }
+
+    .stats-bar {
+        display: flex;
+        gap: 24px;
+        padding: 16px 20px;
+        background: #f9f9fb;
+        border-bottom: 0.5px solid rgba(0,0,0,0.06);
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .stat-item .label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .stat-item .value {
+        font-size: 16px;
+        font-weight: 700;
+        color: #000;
+    }
+
+    .search-bar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .search-input {
+        padding: 8px 16px;
+        border: 0.5px solid rgba(0,0,0,0.1);
+        border-radius: 8px;
+        font-size: 14px;
+        background: #f9f9fb;
+        min-width: 200px;
+        transition: all 0.2s ease;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #90EE90;
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(144, 238, 144, 0.2);
+    }
+
+    .filter-select {
+        padding: 8px 16px;
+        border: 0.5px solid rgba(0,0,0,0.1);
+        border-radius: 8px;
+        font-size: 14px;
+        background: #f9f9fb;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .filter-select:focus {
+        outline: none;
+        border-color: #90EE90;
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(144, 238, 144, 0.2);
+    }
+
+    @media (max-width: 768px) {
+        .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .search-bar {
+            width: 100%;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: unset;
+        }
+
+        .actions-cell {
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        td {
+            padding: 12px 16px;
+        }
+
+        th {
+            padding: 12px 16px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2>Clerks Management</h2>
+        <div class="subtitle">Manage all registered clerks and their assignments</div>
+    </div>
+    <div class="search-bar">
+        <input type="text" class="search-input" id="searchInput" placeholder="Search clerks..." onkeyup="filterTable()">
+        <select class="filter-select" id="roleFilter" onchange="filterTable()">
+            <option value="">All Roles</option>
+            <option value="admin">Admin</option>
+            <option value="supervisor">Supervisor</option>
+            <option value="clerk">Clerk</option>
+            <option value="viewer">Viewer</option>
+        </select>
+        <select class="filter-select" id="statusFilter" onchange="filterTable()">
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+        </select>
+        <a href="{% url 'superadmin:clerk_create' %}" class="btn-primary">
+            <span style="font-size: 20px; line-height: 1;">+</span> Add Clerk
+        </a>
+    </div>
+</div>
+
+<div class="table-container">
+    <div class="stats-bar">
+        <div class="stat-item">
+            <span class="label">Total Clerks</span>
+            <span class="value">{{ clerks|length }}</span>
+        </div>
+        <div class="stat-item">
+            <span class="label">Active</span>
+            <span class="value">{{ clerks|length }}</span>
+        </div>
+        <div class="stat-item">
+            <span class="label">Admins</span>
+            <span class="value">{{ clerks|length }}</span>
+        </div>
+        <div class="stat-item">
+            <span class="label">Supervisors</span>
+            <span class="value">{{ clerks|length }}</span>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table id="clerkTable">
+            <thead>
+                <tr>
+                    <th>Clerk</th>
+                    <th>Contact</th>
+                    <th>Role</th>
+                    <th>Ward</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for clerk in clerks %}
+                <tr data-role="{{ clerk.role }}" data-status="{{ clerk.is_active|yesno:'active,inactive' }}">
+                    <td>
+                        <div class="clerk-info">
+                            <span class="clerk-name">{{ clerk.get_full_name }}</span>
+                            <span class="clerk-username">@{{ clerk.user.username }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="clerk-info">
+                            <span>{{ clerk.phone_number }}</span>
+                            <span style="font-size: 12px; color: #8e8e93;">{{ clerk.user.email }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="role-badge {{ clerk.role }}">
+                            {{ clerk.get_role_display }}
+                        </span>
+                    </td>
+                    <td>
+                        {{ clerk.ward.name|default:"Not Assigned" }}
+                        {% if clerk.ward %}
+                        <span style="font-size: 11px; color: #8e8e93; display: block;">{{ clerk.ward.constituency.name }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="status-badge {{ clerk.is_active|yesno:'active,inactive' }}">
+                            {{ clerk.is_active|yesno:"Active,Inactive" }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="actions-cell">
+                            <a href="{% url 'superadmin:clerk_edit' clerk.id %}" class="btn-edit">
+                                ✎ Edit
+                            </a>
+                            <form method="post" action="{% url 'superadmin:clerk_delete' clerk.id %}" style="display: inline;" 
+                                  onsubmit="return confirm('Are you sure you want to delete clerk "{{ clerk.get_full_name }}"? This action cannot be undone.')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-danger">
+                                    ✕ Delete
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <span class="icon">👤</span>
+                            <h3>No Clerks Found</h3>
+                            <p>Start by creating your first clerk to manage the electoral process.</p>
+                            <a href="{% url 'superadmin:clerk_create' %}" class="btn-primary" style="display: inline-flex;">
+                                <span style="font-size: 20px; line-height: 1;">+</span> Create First Clerk
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function filterTable() {
+    const input = document.getElementById('searchInput');
+    const searchFilter = input.value.toLowerCase();
+    const roleFilter = document.getElementById('roleFilter').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value.toLowerCase();
+    const table = document.getElementById('clerkTable');
+    const rows = table.getElementsByTagName('tr');
+
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const cells = row.getElementsByTagName('td');
+        let matchesSearch = false;
+        let matchesRole = true;
+        let matchesStatus = true;
+        
+        // Check search
+        if (cells.length > 0) {
+            const searchText = row.textContent || row.innerText;
+            matchesSearch = searchText.toLowerCase().indexOf(searchFilter) > -1;
+        }
+        
+        // Check role
+        if (roleFilter) {
+            const role = row.getAttribute('data-role') || '';
+            matchesRole = role === roleFilter;
+        }
+        
+        // Check status
+        if (statusFilter) {
+            const status = row.getAttribute('data-status') || '';
+            matchesStatus = status === statusFilter;
+        }
+        
+        row.style.display = (matchesSearch && matchesRole && matchesStatus) ? '' : 'none';
+    }
+}
+
+document.getElementById('searchInput').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') {
+        filterTable();
+    }
+});
+</script>
+{% endblock %}

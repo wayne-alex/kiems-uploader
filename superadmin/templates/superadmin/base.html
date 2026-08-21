@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{% block title %}KIEMS SuperAdmin{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f2f2f7;
+            color: #000000;
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background-color: #ffffff;
+            border-right: 0.5px solid rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-brand {
+            padding: 20px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 0.5px solid #c6c6c8;
+        }
+
+        .sidebar-brand img {
+            height: 36px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .brand-text h1 {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .brand-text p {
+            font-size: 11px;
+            color: #8e8e93;
+        }
+
+        .sidebar-menu {
+            flex: 1;
+            padding: 16px 8px;
+            overflow-y: auto;
+            list-style: none;
+        }
+
+        .menu-category {
+            font-size: 11px;
+            font-weight: 600;
+            color: #8e8e93;
+            text-transform: uppercase;
+            padding: 12px 12px 6px 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .menu-item a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            color: #3a3a3c;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            margin-bottom: 2px;
+        }
+
+        .menu-item svg {
+            width: 20px;
+            height: 20px;
+            color: #8e8e93;
+            transition: color 0.2s ease;
+        }
+
+        .menu-item a:hover {
+            background-color: rgba(144, 238, 144, 0.15);
+            color: #000000;
+        }
+
+        .menu-item a:hover svg {
+            color: #7fe07f;
+        }
+
+        .menu-item.active a {
+            background-color: #90EE90;
+            color: #000000;
+            font-weight: 600;
+        }
+
+        .menu-item.active svg {
+            color: #000000;
+        }
+
+        .sidebar-footer {
+            padding: 16px;
+            border-top: 0.5px solid #c6c6c8;
+            background-color: #f8f8f8;
+        }
+
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #90EE90;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .user-info p {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .user-info span {
+            font-size: 11px;
+            color: #ff3b30;
+            font-weight: 600;
+        }
+
+        .btn-logout {
+            width: 100%;
+            padding: 8px;
+            background: transparent;
+            border: 0.5px solid #ff3b30;
+            color: #ff3b30;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-logout:hover {
+            background: #ffe5e5;
+        }
+
+        .main-wrapper {
+            flex: 1;
+            margin-left: 260px;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .mobile-header {
+            display: none;
+            background-color: #ffffff;
+            height: 56px;
+            padding: 0 16px;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 90;
+        }
+
+        .menu-toggle {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .mobile-brand {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .content-body {
+            padding: 24px;
+            flex: 1;
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(2px);
+            z-index: 95;
+        }
+
+        /* Toast/Messages */
+        .messages {
+            margin-bottom: 20px;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .alert-success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 0.5px solid #a5d6a7;
+        }
+
+        .alert-error {
+            background: #ffebee;
+            color: #c62828;
+            border: 0.5px solid #ef9a9a;
+        }
+
+        .alert-warning {
+            background: #fff8e1;
+            color: #f57f17;
+            border: 0.5px solid #ffe082;
+        }
+
+        .alert-info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border: 0.5px solid #90caf9;
+        }
+
+        @media (max-width: 991px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .sidebar-overlay.show {
+                display: block;
+            }
+
+            .main-wrapper {
+                margin-left: 0;
+            }
+
+            .mobile-header {
+                display: flex;
+            }
+
+            .content-body {
+                padding: 16px;
+            }
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <img src="https://cvr.iebc.or.ke/images/logoiebc.png" alt="IEBC Logo">
+            <div class="brand-text">
+                <h1>KIEMS Portal</h1>
+                <p>SuperAdmin Command</p>
+            </div>
+        </div>
+
+        <nav class="sidebar-menu">
+            <div class="menu-category">Main Operations</div>
+            <li class="menu-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                <a href="{% url 'superadmin:dashboard' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                        <polyline points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                    Dashboard
+                </a>
+            </li>
+
+            <div class="menu-category">Management</div>
+            <li class="menu-item {% if 'phase' in request.path %}active{% endif %}">
+                <a href="{% url 'superadmin:phase_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    Phases
+                </a>
+            </li>
+            <li class="menu-item {% if 'ward' in request.path %}active{% endif %}">
+                <a href="{% url 'superadmin:ward_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+                        <line x1="8" y1="2" x2="8" y2="18"/>
+                        <line x1="16" y1="6" x2="16" y2="22"/>
+                    </svg>
+                    Wards
+                </a>
+            </li>
+            <li class="menu-item {% if 'clerk' in request.path %}active{% endif %}">
+                <a href="{% url 'superadmin:clerk_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    Clerks
+                </a>
+            </li>
+            <li class="menu-item {% if 'kit' in request.path %}active{% endif %}">
+                <a href="{% url 'superadmin:kit_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/>
+                        <line x1="12" y1="18" x2="12.01" y2="18"/>
+                    </svg>
+                    KIEMS Kits
+                </a>
+            </li>
+
+            <div class="menu-category">Data & Logs</div>
+            <li class="menu-item {% if 'entry' in request.path %}active{% endif %}">
+                <a href="{% url 'superadmin:entry_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                    Daily Entries
+                </a>
+            </li>
+            <li class="menu-item {% if 'sync' in request.path %}active{% endif %}">
+                <a href="">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.21 15.89A6 6 0 1 1 8 2.83"/>
+                        <path d="M22 12A10 10 0 0 0 12 2v10z"/>
+                    </svg>
+                    Sync Engine
+                </a>
+            </li>
+            <li class="menu-item {% if 'audit' in request.path %}active{% endif %}">
+                <a href="">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    Audit Logs
+                </a>
+            </li>
+
+            <div class="menu-category">Import/Export</div>
+            <li class="menu-item {% if 'import' in request.path %}active{% endif %}">
+                <a href="{% url 'superadmin:import_data' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Import
+                </a>
+            </li>
+            <li class="menu-item {% if 'import-logs' in request.path %}active{% endif %}">
+                <a href="">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                    Import Logs
+                </a>
+            </li>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-badge">
+                <div class="user-avatar">
+                    {{ request.user.username|slice:":1"|upper|default:"A" }}
+                </div>
+                <div class="user-info">
+                    <p>{{ request.user.get_full_name|default:request.user.username }}</p>
+                    <span>SuperAdmin</span>
+                </div>
+            </div>
+            <form method="post" action="{% url 'superadmin:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-logout">Log Out</button>
+            </form>
+        </div>
+    </aside>
+
+    <div class="main-wrapper">
+        <header class="mobile-header">
+            <button class="menu-toggle" id="menuToggle" aria-label="Open Navigation Menu">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+            <div class="mobile-brand">KIEMS Portal</div>
+            <div style="width: 32px;"></div>
+        </header>
+
+        <main class="content-body">
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    {% if message.tags == 'success' %}<i class="bi bi-check-circle-fill"></i>{% endif %}
+                    {% if message.tags == 'error' %}<i class="bi bi-exclamation-circle-fill"></i>{% endif %}
+                    {% if message.tags == 'warning' %}<i class="bi bi-exclamation-triangle-fill"></i>{% endif %}
+                    {% if message.tags == 'info' %}<i class="bi bi-info-circle-fill"></i>{% endif %}
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+
+<script>
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    function toggleSidebar() {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('show');
+    }
+
+    menuToggle.addEventListener('click', toggleSidebar);
+    overlay.addEventListener('click', toggleSidebar);
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

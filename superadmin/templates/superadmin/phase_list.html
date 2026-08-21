@@ -1,0 +1,46 @@
+{% extends "home/base.html" %}
+{% block title %}Phases | KIEMS Admin{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+    <div>
+        <h2 style="font-size:24px; font-weight:700;">Election Phases</h2>
+        <p style="color:#8e8e93; font-size:14px;">Manage all election phases and timelines</p>
+    </div>
+    <a href="{% url 'home:phase_create' %}" style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
+        <span style="font-size:20px; line-height:1;">+</span> Add Phase
+    </a>
+</div>
+
+<div style="display:grid; gap:12px;">
+    {% for phase in phases %}
+    <div style="background:#fff; border-radius:12px; border:0.5px solid rgba(0,0,0,0.08); padding:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div>
+            <div style="display:flex; align-items:center; gap:12px;">
+                <span style="font-size:18px; font-weight:600;">{{ phase.name }}</span>
+                {% if phase.active %}
+                <span style="background:#34c759; color:#fff; font-size:11px; font-weight:600; padding:2px 12px; border-radius:12px;">Active</span>
+                {% endif %}
+            </div>
+            <div style="font-size:13px; color:#8e8e93; margin-top:4px;">
+                {{ phase.start_date|date:"M d, Y" }} → {{ phase.end_date|date:"M d, Y" }}
+            </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <a href="{% url 'home:phase_edit' phase.id %}" style="background:#5856d6; padding:6px 14px; border-radius:6px; color:#fff; text-decoration:none; font-size:13px;">✎ Edit</a>
+            <form method="post" action="{% url 'home:phase_delete' phase.id %}" style="display:inline;" onsubmit="return confirm('Delete this phase?')">
+                {% csrf_token %}
+                <button type="submit" style="background:#ff3b30; padding:6px 14px; border-radius:6px; color:#fff; border:none; cursor:pointer; font-size:13px;">✕ Delete</button>
+            </form>
+        </div>
+    </div>
+    {% empty %}
+    <div style="text-align:center; padding:60px 20px; color:#8e8e93;">
+        <div style="font-size:48px; margin-bottom:16px;">📅</div>
+        <h3 style="color:#000; margin-bottom:8px;">No Phases Found</h3>
+        <p style="margin-bottom:20px;">Create your first election phase</p>
+        <a href="{% url 'home:phase_create' %}" style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600;">+ Create Phase</a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

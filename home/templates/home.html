@@ -1,0 +1,345 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>KIEMS Entry – IEBC</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/iconfont/tabler-icons.min.css">
+<style>
+    :root {
+        --green: #6B9C3F;
+        --green-dark: #547B30;
+        --green-tint: #EAF3DD;
+        --bg: #F2F2F7;
+        --surface: #FFFFFF;
+        --surface-2: #F7F8F5;
+        --ink: #1C1C1E;
+        --ink-2: #6E6E73;
+        --ink-3: #AEAEB2;
+        --border: #E5E5EA;
+        --error: #FF3B30;
+        --r: 14px;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+    .navbar { position: sticky; top: 0; z-index: 10; background: rgba(242,242,247,0.85); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 0.5px solid var(--border); padding: 8px 16px 10px; }
+    .brand-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .brand-row img { height: 20px; width: 20px; border-radius: 50%; object-fit: contain; }
+    .brand-row span { font-size: 12px; font-weight: 600; color: var(--green-dark); }
+    .title { font-size: 26px; font-weight: 700; letter-spacing: -0.3px; }
+    .content { max-width: 460px; margin: 0 auto; padding: 14px 14px 40px; }
+    .phase-pill { display: inline-flex; align-items: center; gap: 6px; background: var(--green-tint); color: var(--green-dark); font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 999px; margin-bottom: 12px; }
+    .phase-pill i { font-size: 8px; }
+    .who { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--ink-2); margin: 0 0 14px 2px; }
+    .avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--green-tint); color: var(--green-dark); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    .kit-card { background: var(--surface-2); border-radius: var(--r); border: 0.5px solid var(--border); padding: 14px; margin-bottom: 10px; }
+    .kit-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+    .kit-head-left { display: flex; gap: 10px; flex: 1; min-width: 0; }
+    .kit-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
+    .kit-icon.done { background: var(--green-tint); color: var(--green-dark); }
+    .kit-icon.pending { background: #ECECEE; color: var(--ink-3); }
+    .kit-info { flex: 1; min-width: 0; }
+    .kit-name { font-size: 15px; font-weight: 600; color: var(--ink); display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+    .kit-serial { font-size: 12px; font-weight: 400; color: var(--ink-3); font-family: monospace; background: var(--bg); padding: 1px 8px; border-radius: 4px; }
+    .kit-sub { display: flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+    .kit-sub.pending { color: var(--ink-3); }
+    .edit-btn { display: flex; align-items: center; gap: 4px; background: none; border: none; color: var(--green-dark); font-size: 13px; font-weight: 600; padding: 4px; cursor: pointer; flex-shrink: 0; }
+    .edit-btn:active { opacity: 0.7; }
+    .stat-row { display: flex; align-items: baseline; gap: 5px; margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--border); }
+    .stat-num { font-size: 24px; font-weight: 700; color: var(--ink); }
+    .stat-label { font-size: 12.5px; color: var(--ink-2); }
+    .input-row { display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; border: 1px solid transparent; }
+    .input-row:focus-within { border-color: var(--green); }
+    .input-row i { font-size: 15px; color: var(--ink-3); flex-shrink: 0; }
+    .input-row input { border: none; outline: none; background: none; font-size: 15px; color: var(--ink); width: 100%; font-family: inherit; }
+    .input-row input::placeholder { color: var(--ink-3); }
+    .save-btn { width: 100%; padding: 10px; border: none; border-radius: 10px; background: var(--green); color: #fff; font-weight: 600; font-size: 14px; margin-top: 4px; cursor: pointer; transition: opacity 0.2s; }
+    .save-btn:active { opacity: 0.75; }
+    .field-error { color: var(--error); font-size: 12px; margin: -4px 0 8px 2px; }
+    .lock-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 2px; font-size: 13px; color: var(--ink-2); }
+    .lock-row i { font-size: 12px; margin-right: 4px; color: var(--ink-3); }
+    .btn-primary { width: 100%; padding: 15px; border: none; border-radius: 13px; background: var(--green); color: #fff; font-weight: 700; font-size: 16px; margin-top: 10px; cursor: pointer; transition: opacity 0.2s; }
+    .btn-primary:active { opacity: 0.75; }
+    .btn-primary:disabled { background: #C7C7CC; cursor: not-allowed; }
+    .group { background: var(--surface); border-radius: var(--r); overflow: hidden; margin-bottom: 4px; }
+    .row { padding: 10px 16px; border-bottom: 0.5px solid var(--border); position: relative; }
+    .row:last-child { border-bottom: none; }
+    .row label { font-size: 13px; color: var(--ink-2); display: block; margin-bottom: 2px; }
+    .row select { border: none; outline: none; font-size: 16.5px; color: var(--ink); background: transparent; width: 100%; -webkit-appearance: none; appearance: none; font-family: inherit; cursor: pointer; }
+    .row.select-row::after { content: ""; position: absolute; right: 16px; top: 50%; width: 8px; height: 8px; border-right: 1.6px solid var(--ink-3); border-bottom: 1.6px solid var(--ink-3); transform: translateY(-65%) rotate(45deg); pointer-events: none; }
+    .msg-success { display: flex; align-items: center; gap: 8px; color: var(--green-dark); font-size: 14px; font-weight: 600; margin-top: 12px; padding: 11px 14px; background: var(--green-tint); border-radius: 12px; }
+    .msg-error { color: var(--error); font-size: 13.5px; margin-top: 12px; padding: 11px 14px; background: #FFEBEA; border-radius: 12px; }
+    .hidden { display: none !important; }
+    .footer-note { text-align: center; font-size: 11px; color: var(--ink-3); margin-top: 16px; }
+    .empty-state { text-align: center; padding: 30px 20px; color: var(--ink-3); }
+    .empty-state i { font-size: 40px; display: block; margin-bottom: 10px; }
+    .empty-state p { font-size: 14px; }
+    .badge-count { font-size: 11px; background: var(--green-tint); color: var(--green-dark); padding: 2px 10px; border-radius: 12px; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="navbar">
+    <div class="brand-row">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/9/92/IEBC_Emblem.png" alt="IEBC">
+        <span>IEBC – Turbo Constituency</span>
+    </div>
+    <div class="title">KIEMS entry</div>
+</div>
+
+<div class="content">
+
+    {% if active_phase %}
+    <div class="phase-pill"><i class="ti ti-circle-filled"></i>{{ active_phase.name }}</div>
+    {% endif %}
+
+    <div id="identify-card">
+        <div class="group">
+            <div class="row select-row">
+                <label>Ward</label>
+                <select id="ward-select">
+                    <option value="">Select ward</option>
+                    {% for ward in wards %}
+                        <option value="{{ ward.id }}">{{ ward.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <button id="bind-btn" class="btn-primary" disabled>Continue</button>
+        <div id="bind-error" class="msg-error hidden"></div>
+    </div>
+
+    <div id="entry-card" class="hidden">
+        <div class="who">
+            <span class="avatar" id="vra-initials"></span>
+            <span id="vra-badge"></span>
+            <span class="badge-count" id="kit-count"></span>
+        </div>
+
+        <div id="kits-container"></div>
+
+        <button id="submit-btn" class="btn-primary">Submit all</button>
+        <div id="submit-message" class="msg-success hidden"></div>
+        <div id="form-errors" class="msg-error hidden"></div>
+    </div>
+
+    <p class="footer-note">IEBC Turbo Constituency &middot; KIEMS Field Reporting</p>
+</div>
+
+<script>
+const CSRF = "{{ csrf_token }}";
+
+function getDeviceToken() {
+    let t = localStorage.getItem('vra_device_token');
+    if (!t) { t = crypto.randomUUID(); localStorage.setItem('vra_device_token', t); }
+    return t;
+}
+const token = getDeviceToken();
+let currentVRA = null;
+let kitsData = [];
+
+function initials(name) {
+    return name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+}
+
+async function resolveVRA() {
+    const res = await fetch(`/kiems/resolve-vra/?token=${token}`);
+    const data = await res.json();
+    if (data.bound) { currentVRA = data; await enterForm(); }
+}
+
+document.getElementById('ward-select').addEventListener('change', (e) => {
+    document.getElementById('bind-btn').disabled = !e.target.value;
+});
+
+document.getElementById('bind-btn').addEventListener('click', async () => {
+    const wardId = document.getElementById('ward-select').value;
+    const res = await fetch('/kiems/bind-ward/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `token=${token}&ward_id=${wardId}`
+    });
+    const data = await res.json();
+    const errBox = document.getElementById('bind-error');
+    if (!data.ok) { errBox.textContent = data.error; errBox.classList.remove('hidden'); return; }
+    errBox.classList.add('hidden');
+    currentVRA = data;
+    await enterForm();
+});
+
+async function enterForm() {
+    document.getElementById('identify-card').classList.add('hidden');
+    document.getElementById('entry-card').classList.remove('hidden');
+    document.getElementById('vra-badge').textContent = `${currentVRA.vra_name} – ${currentVRA.ward_name}`;
+    document.getElementById('vra-initials').textContent = initials(currentVRA.vra_name);
+    await loadKits();
+}
+
+async function loadKits() {
+    const res = await fetch(`/kiems/kits-with-entries/?token=${token}`);
+    const data = await res.json();
+    kitsData = data.kits;
+    document.getElementById('kit-count').textContent = `${kitsData.length} kits`;
+    renderKits();
+}
+
+function renderKits() {
+    const container = document.getElementById('kits-container');
+
+    if (!kitsData || kitsData.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="ti ti-device-tablet-off"></i>
+                <p>No KIEMS kits assigned to this ward</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = kitsData.map(kit => kit.has_entry && !kit._editing ? summaryCard(kit) : formCard(kit)).join('');
+
+    // wire up edit buttons
+    container.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const kit = kitsData.find(k => k.kit_id == btn.dataset.kit);
+            if (kit) {
+                kit._editing = true;
+                renderKits();
+            }
+        });
+    });
+
+    // wire up save buttons
+    container.querySelectorAll('.save-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const kitId = btn.dataset.kit;
+            const kitCard = btn.closest('.kit-card');
+            const venue = kitCard.querySelector(`.venue-input`).value.trim();
+            const registered = kitCard.querySelector(`.registered-input`).value.trim();
+            const errEl = document.getElementById(`err-${kitId}`);
+
+            if (!venue || !registered) {
+                errEl.textContent = 'Enter venue and total registered.';
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            const body = new URLSearchParams();
+            body.append('token', token);
+            body.append('kit_id[]', kitId);
+            body.append('venue[]', venue);
+            body.append('total_registered[]', registered);
+
+            const res = await fetch('/kiems/submit-entries/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+                body
+            });
+            const data = await res.json();
+            if (data.ok) {
+                await loadKits(); // refresh from server, collapses back to summary
+            } else {
+                errEl.textContent = Object.values(data.errors)[0] || 'Could not save.';
+                errEl.classList.remove('hidden');
+            }
+        });
+    });
+}
+
+function summaryCard(kit) {
+    return `
+    <div class="kit-card">
+        <div class="kit-head">
+            <div class="kit-head-left">
+                <div class="kit-icon done"><i class="ti ti-check"></i></div>
+                <div class="kit-info">
+                    <div class="kit-name">
+                        ${kit.kit_name}
+                        <span class="kit-serial">${kit.serial_no}</span>
+                    </div>
+                    <div class="kit-sub"><i class="ti ti-map-pin"></i>${kit.venue}</div>
+                </div>
+            </div>
+            <button class="edit-btn" data-kit="${kit.kit_id}"><i class="ti ti-pencil"></i>Edit</button>
+        </div>
+        <div class="stat-row">
+            <span class="stat-num">${kit.total_registered}</span>
+            <span class="stat-label">registered today</span>
+        </div>
+        ${(kit.total_transferred || kit.total_deleted) ? `
+        <div class="lock-row"><span><i class="ti ti-lock"></i>Transferred</span><span>${kit.total_transferred}</span></div>
+        <div class="lock-row"><span><i class="ti ti-lock"></i>Deleted</span><span>${kit.total_deleted}</span></div>
+        ` : ''}
+    </div>`;
+}
+
+function formCard(kit) {
+    return `
+    <div class="kit-card">
+        <div class="kit-head" style="margin-bottom:12px;">
+            <div class="kit-head-left">
+                <div class="kit-icon pending"><i class="ti ti-device-tablet"></i></div>
+                <div class="kit-info">
+                    <div class="kit-name">
+                        ${kit.kit_name}
+                        <span class="kit-serial">${kit.serial_no}</span>
+                    </div>
+                    <div class="kit-sub pending">${kit.has_entry ? "Editing current entry" : "Not submitted today"}</div>
+                </div>
+            </div>
+        </div>
+        <div class="input-row">
+            <i class="ti ti-map-pin"></i>
+            <input class="venue-input" data-kit="${kit.kit_id}" value="${kit.venue}" placeholder="Venue">
+        </div>
+        <div class="input-row">
+            <i class="ti ti-users"></i>
+            <input class="registered-input" data-kit="${kit.kit_id}" type="number" min="0" inputmode="numeric" value="${kit.total_registered}" placeholder="Total registered">
+        </div>
+        <div class="field-error hidden" id="err-${kit.kit_id}"></div>
+        <button class="save-btn" data-kit="${kit.kit_id}"><i class="ti ti-device-floppy"></i> Save</button>
+    </div>`;
+}
+
+document.getElementById('submit-btn').addEventListener('click', async () => {
+    const venueInputs = document.querySelectorAll('.venue-input');
+    if (venueInputs.length === 0) {
+        document.getElementById('submit-message').textContent = '✅ All entries saved!';
+        document.getElementById('submit-message').classList.remove('hidden');
+        return;
+    }
+    const registeredInputs = document.querySelectorAll('.registered-input');
+    const body = new URLSearchParams();
+    body.append('token', token);
+    venueInputs.forEach((el, i) => {
+        body.append('kit_id[]', el.dataset.kit);
+        body.append('venue[]', el.value);
+        body.append('total_registered[]', registeredInputs[i].value);
+    });
+
+    const res = await fetch('/kiems/submit-entries/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+    });
+    const data = await res.json();
+    const msg = document.getElementById('submit-message');
+    const errBox = document.getElementById('form-errors');
+
+    if (data.ok) {
+        msg.textContent = `✅ ${data.saved} entries submitted successfully!`;
+        msg.classList.remove('hidden');
+        errBox.classList.add('hidden');
+        await loadKits();
+    } else {
+        msg.classList.add('hidden');
+        errBox.textContent = `⚠️ ${data.saved || 0} saved, some entries need attention.`;
+        errBox.classList.remove('hidden');
+    }
+});
+
+resolveVRA();
+</script>
+</body>
+</html>

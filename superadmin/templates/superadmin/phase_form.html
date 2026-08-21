@@ -1,0 +1,61 @@
+{% extends "home/base.html" %}
+{% block title %}{{ title }} | KIEMS Admin{% endblock %}
+
+{% block content %}
+<div style="max-width:600px; margin:0 auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+        <h2 style="font-size:24px; font-weight:700;">{{ title }}</h2>
+        <a href="{% url 'home:phase_list' %}" style="color:#5856d6; text-decoration:none;">← Back</a>
+    </div>
+    
+    <div style="background:#fff; border-radius:12px; border:0.5px solid rgba(0,0,0,0.08); padding:24px;">
+        <form method="post">
+            {% csrf_token %}
+            
+            <div style="margin-bottom:16px;">
+                <label style="display:block; font-size:13px; font-weight:600; color:#3a3a3c; margin-bottom:4px;">Name</label>
+                {{ form.name }}
+            </div>
+            
+            <div style="margin-bottom:16px;">
+                <label style="display:block; font-size:13px; font-weight:600; color:#3a3a3c; margin-bottom:4px;">Start Date</label>
+                {{ form.start_date }}
+            </div>
+            
+            <div style="margin-bottom:16px;">
+                <label style="display:block; font-size:13px; font-weight:600; color:#3a3a3c; margin-bottom:4px;">End Date</label>
+                {{ form.end_date }}
+            </div>
+            
+            <div style="margin-bottom:24px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    {{ form.active }}
+                    <span style="font-weight:500;">Active</span>
+                </label>
+            </div>
+            
+            <button type="submit" style="width:100%; padding:14px; background:#90EE90; border:none; border-radius:12px; font-size:17px; font-weight:600; cursor:pointer;">
+                {% if form.instance.pk %}Update{% else %}Create{% endif %} Phase
+            </button>
+        </form>
+    </div>
+</div>
+
+<style>
+    .form-input {
+        width:100%;
+        padding:12px 16px;
+        border:0.5px solid rgba(0,0,0,0.08);
+        border-radius:10px;
+        font-size:16px;
+        background:#f9f9fb;
+        transition:all 0.2s;
+    }
+    .form-input:focus {
+        outline:none;
+        border-color:#90EE90;
+        background:#fff;
+        box-shadow:0 0 0 3px rgba(144,238,144,0.15);
+    }
+</style>
+{% endblock %}

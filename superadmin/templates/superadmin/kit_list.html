@@ -1,0 +1,65 @@
+{% extends "home/base.html" %}
+{% block title %}KIEMS Kits | KIEMS Admin{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+    <div>
+        <h2 style="font-size:24px; font-weight:700;">KIEMS Kits</h2>
+        <p style="color:#8e8e93; font-size:14px;">Manage all KIEMS kits inventory</p>
+    </div>
+    <a href="{% url 'home:kit_create' %}" style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
+        <span style="font-size:20px; line-height:1;">+</span> Add Kit
+    </a>
+</div>
+
+<div style="background:#fff; border-radius:12px; border:0.5px solid rgba(0,0,0,0.08); overflow:hidden;">
+    <table style="width:100%; border-collapse:collapse;">
+        <thead style="background:#f9f9fb;">
+            <tr>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Kit Name</th>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Serial No</th>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Status</th>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Ward</th>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Assigned Clerks</th>
+                <th style="padding:14px 20px; text-align:right; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for kit in kits %}
+            <tr style="border-bottom:0.5px solid rgba(0,0,0,0.06);">
+                <td style="padding:14px 20px; font-weight:500;">{{ kit.kit_name }}</td>
+                <td style="padding:14px 20px; font-family:monospace; font-size:13px;">{{ kit.serial_no }}</td>
+                <td style="padding:14px 20px;">
+                    <span style="display:inline-block; padding:2px 12px; border-radius:12px; font-size:12px; font-weight:600; {% if kit.status %}background:#e8f5e9; color:#2e7d32;{% else %}background:#ffebee; color:#c62828;{% endif %}">
+                        {{ kit.status|yesno:"Active,Inactive" }}
+                    </span>
+                </td>
+                <td style="padding:14px 20px;">{{ kit.ward.name }}</td>
+                <td style="padding:14px 20px; font-size:13px;">
+                    {% for clerk in kit.assigned_clerks.all %}
+                        <span style="display:inline-block; background:#f2f2f7; padding:2px 8px; border-radius:4px; margin:2px;">{{ clerk.name }}</span>
+                    {% empty %}
+                        <span style="color:#8e8e93;">—</span>
+                    {% endfor %}
+                </td>
+                <td style="padding:14px 20px; text-align:right;">
+                    <a href="{% url 'home:kit_edit' kit.id %}" style="color:#5856d6; text-decoration:none; margin-right:12px;">Edit</a>
+                    <form method="post" action="{% url 'home:kit_delete' kit.id %}" style="display:inline;" onsubmit="return confirm('Delete this kit?')">
+                        {% csrf_token %}
+                        <button type="submit" style="background:none; border:none; color:#ff3b30; cursor:pointer;">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="padding:60px 20px; text-align:center; color:#8e8e93;">
+                    <div style="font-size:48px; margin-bottom:16px;">📱</div>
+                    <h3 style="color:#000; margin-bottom:8px;">No KIEMS Kits Found</h3>
+                    <a href="{% url 'home:kit_create' %}" style="color:#90EE90; text-decoration:none; font-weight:600;">Create your first kit</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

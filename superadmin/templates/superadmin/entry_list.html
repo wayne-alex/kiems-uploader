@@ -1,0 +1,665 @@
+{% extends "superadmin/base.html" %}
+{% block title %}Daily Entries | KIEMS Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Modern Entry List Styles */
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .page-header-left h2 {
+        font-size: 28px;
+        font-weight: 700;
+        color: #000;
+        letter-spacing: -0.5px;
+    }
+
+    .page-header-left p {
+        color: #8e8e93;
+        font-size: 15px;
+        margin-top: 4px;
+    }
+
+    .page-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .btn-primary {
+        background: #90EE90;
+        padding: 10px 20px;
+        border-radius: 10px;
+        border: none;
+        color: #000;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+
+    .btn-primary:hover {
+        background: #7fe07f;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(144, 238, 144, 0.3);
+    }
+
+    .btn-secondary {
+        background: #f2f2f7;
+        padding: 10px 20px;
+        border-radius: 10px;
+        border: 0.5px solid rgba(0,0,0,0.08);
+        color: #000;
+        font-weight: 500;
+        font-size: 14px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+
+    .btn-secondary:hover {
+        background: #e5e5ea;
+    }
+
+    .btn-danger {
+        background: #ff3b30;
+        padding: 6px 14px;
+        border-radius: 6px;
+        border: none;
+        color: #fff;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-danger:hover {
+        background: #e0352b;
+    }
+
+    .btn-edit {
+        background: #5856d6;
+        padding: 6px 14px;
+        border-radius: 6px;
+        border: none;
+        color: #fff;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.2s;
+    }
+
+    .btn-edit:hover {
+        background: #4846c6;
+    }
+
+    /* Today's Counter */
+    .today-counter {
+        background: linear-gradient(135deg, #90EE90 0%, #6fd86f 100%);
+        border-radius: 16px;
+        padding: 20px 24px;
+        margin-bottom: 24px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 20px;
+        box-shadow: 0 4px 20px rgba(144, 238, 144, 0.3);
+    }
+
+    .counter-item {
+        text-align: center;
+    }
+
+    .counter-item .number {
+        font-size: 32px;
+        font-weight: 700;
+        color: #000;
+        line-height: 1;
+    }
+
+    .counter-item .label {
+        font-size: 13px;
+        font-weight: 500;
+        color: rgba(0,0,0,0.7);
+        margin-top: 4px;
+    }
+
+    .counter-item .sub-label {
+        font-size: 11px;
+        color: rgba(0,0,0,0.5);
+    }
+
+    /* Filters */
+    .filters-bar {
+        background: #fff;
+        border-radius: 16px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        padding: 20px;
+        margin-bottom: 24px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .filters-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        align-items: end;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .filter-group label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .filter-group input,
+    .filter-group select {
+        padding: 10px 14px;
+        border: 0.5px solid rgba(0,0,0,0.08);
+        border-radius: 10px;
+        font-size: 14px;
+        background: #f9f9fb;
+        transition: all 0.2s;
+        font-family: inherit;
+        width: 100%;
+    }
+
+    .filter-group input:focus,
+    .filter-group select:focus {
+        outline: none;
+        border-color: #90EE90;
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(144, 238, 144, 0.15);
+    }
+
+    .filter-actions {
+        display: flex;
+        gap: 8px;
+        padding-top: 4px;
+    }
+
+    .filter-actions button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-filter {
+        background: #90EE90;
+        color: #000;
+    }
+
+    .btn-filter:hover {
+        background: #7fe07f;
+    }
+
+    .btn-clear {
+        background: #f2f2f7;
+        color: #3a3a3c;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .btn-clear:hover {
+        background: #e5e5ea;
+    }
+
+    /* Table */
+    .table-container {
+        background: #fff;
+        border-radius: 16px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 900px;
+    }
+
+    thead {
+        background: #f9f9fb;
+        border-bottom: 0.5px solid rgba(0,0,0,0.06);
+    }
+
+    th {
+        padding: 14px 16px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 600;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+    }
+
+    td {
+        padding: 14px 16px;
+        border-bottom: 0.5px solid rgba(0,0,0,0.05);
+        vertical-align: middle;
+    }
+
+    tr:last-child td {
+        border-bottom: none;
+    }
+
+    tr:hover td {
+        background: #fafafc;
+    }
+
+    .entry-kit {
+        font-weight: 600;
+        color: #000;
+    }
+
+    .entry-meta {
+        font-size: 12px;
+        color: #8e8e93;
+        display: block;
+        margin-top: 2px;
+    }
+
+    .entry-type {
+        display: inline-flex;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .entry-type.new { background: #e8f5e9; color: #2e7d32; }
+    .entry-type.transfer { background: #e3f2fd; color: #1565c0; }
+    .entry-type.update { background: #fff8e1; color: #f57f17; }
+    .entry-type.delete { background: #ffebee; color: #c62828; }
+
+    .number-badge {
+        display: inline-flex;
+        padding: 2px 10px;
+        border-radius: 4px;
+        font-size: 13px;
+        font-weight: 600;
+        margin: 2px;
+    }
+
+    .number-badge.green { background: #e8f5e9; color: #2e7d32; }
+    .number-badge.blue { background: #e3f2fd; color: #1565c0; }
+    .number-badge.orange { background: #fff8e1; color: #f57f17; }
+    .number-badge.red { background: #ffebee; color: #c62828; }
+
+    .status-badge {
+        display: inline-flex;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .status-badge.synced { background: #e8f5e9; color: #2e7d32; }
+    .status-badge.pending { background: #fff8e1; color: #f57f17; }
+    .status-badge.uploaded { background: #e3f2fd; color: #1565c0; }
+
+    .actions-cell {
+        display: flex;
+        gap: 6px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
+    /* Pagination */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 6px;
+        padding: 20px;
+        border-top: 0.5px solid rgba(0,0,0,0.06);
+    }
+
+    .pagination a,
+    .pagination span {
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 14px;
+        text-decoration: none;
+        color: #3a3a3c;
+        transition: all 0.2s;
+    }
+
+    .pagination a:hover {
+        background: #f2f2f7;
+    }
+
+    .pagination .current {
+        background: #90EE90;
+        color: #000;
+        font-weight: 600;
+    }
+
+    .pagination .disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .empty-state {
+        padding: 60px 20px;
+        text-align: center;
+        color: #8e8e93;
+    }
+
+    .empty-state .icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        display: block;
+    }
+
+    .empty-state h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #000;
+        margin-bottom: 8px;
+    }
+
+    .empty-state p {
+        font-size: 14px;
+        color: #8e8e93;
+        margin-bottom: 20px;
+    }
+
+    .summary-bar {
+        display: flex;
+        gap: 24px;
+        padding: 12px 20px;
+        background: #f9f9fb;
+        border-bottom: 0.5px solid rgba(0,0,0,0.06);
+        flex-wrap: wrap;
+        font-size: 13px;
+        color: #3a3a3c;
+    }
+
+    .summary-bar .highlight {
+        font-weight: 700;
+        color: #000;
+    }
+
+    @media (max-width: 768px) {
+        .page-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .page-actions {
+            flex-wrap: wrap;
+        }
+
+        .filters-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .filter-actions {
+            grid-column: span 2;
+            justify-content: flex-end;
+        }
+
+        .today-counter {
+            grid-template-columns: repeat(2, 1fr);
+            padding: 16px;
+        }
+
+        .counter-item .number {
+            font-size: 24px;
+        }
+
+        td {
+            padding: 12px 12px;
+        }
+
+        th {
+            padding: 12px 12px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .filters-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .filter-actions {
+            grid-column: span 1;
+        }
+
+        .today-counter {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h2>Daily Entries</h2>
+        <p>Track all daily submissions across phases</p>
+    </div>
+    <div class="page-actions">
+        <a href="{% url 'superadmin:entry_create' %}" class="btn-primary">
+            <span style="font-size:20px; line-height:1;">+</span> Add Entry
+        </a>
+        <a href="{% url 'superadmin:export_data' %}?model_type=entry&format=csv" class="btn-secondary">
+            📥 CSV
+        </a>
+        <a href="{% url 'superadmin:export_data' %}?model_type=entry&format=xlsx" class="btn-secondary">
+            📥 Excel
+        </a>
+        <a href="{% url 'superadmin:generate_report' %}" class="btn-secondary" target="_blank">
+            📄 Report PDF
+        </a>
+    </div>
+</div>
+
+<!-- Today's Counter -->
+<div class="today-counter">
+    <div class="counter-item">
+        <div class="number">{{ today_stats.total_entries|default:"0" }}</div>
+        <div class="label">Total Entries Today</div>
+        <div class="sub-label">{{ today_stats.unique_kits|default:"0" }} kits</div>
+    </div>
+    <div class="counter-item">
+        <div class="number">{{ today_stats.total_registered|default:"0" }}</div>
+        <div class="label">Registered Today</div>
+        <div class="sub-label">👤 New voters</div>
+    </div>
+    <div class="counter-item">
+        <div class="number">{{ today_stats.total_transferred|default:"0" }}</div>
+        <div class="label">Transferred</div>
+        <div class="sub-label">🔄 From other wards</div>
+    </div>
+    <div class="counter-item">
+        <div class="number">{{ today_stats.total_deleted|default:"0" }}</div>
+        <div class="label">Deleted</div>
+        <div class="sub-label">❌ Removed entries</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filters-bar">
+    <form method="get" class="filters-grid">
+        <div class="filter-group">
+            <label for="id_phase">Phase</label>
+            {{ form.phase }}
+        </div>
+        <div class="filter-group">
+            <label for="id_ward">Ward</label>
+            {{ form.ward }}
+        </div>
+        <div class="filter-group">
+            <label for="id_kit">KIEMS Kit</label>
+            {{ form.kit }}
+        </div>
+        <div class="filter-group">
+            <label for="id_vra">VRA</label>
+            {{ form.vra }}
+        </div>
+        <div class="filter-group">
+            <label for="id_date_from">Date From</label>
+            {{ form.date_from }}
+        </div>
+        <div class="filter-group">
+            <label for="id_date_to">Date To</label>
+            {{ form.date_to }}
+        </div>
+        <div class="filter-group">
+            <label for="id_uploaded">Uploaded</label>
+            {{ form.uploaded }}
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn-filter">Apply Filters</button>
+            <a href="{% url 'superadmin:entry_list' %}" class="btn-clear">Clear</a>
+        </div>
+    </form>
+</div>
+
+<!-- Table -->
+<div class="table-container">
+    <div class="summary-bar">
+        <span>Showing <span class="highlight">{{ entries|length }}</span> entries</span>
+        {% if is_filtered %}
+        <span>🔍 Filtered</span>
+        {% endif %}
+        <span style="margin-left:auto;">Total: {{ total_registered }} registered</span>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Kit / VRA</th>
+                    <th>Phase / Date</th>
+                    <th>Venue</th>
+                    <th>Counts</th>
+                    <th>Status</th>
+                    <th style="text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in entries %}
+                <tr>
+                    <td>
+                        <div class="entry-kit">{{ entry.kiems_kit.kit_name }}</div>
+                        <span class="entry-meta">VRA: {{ entry.vra.name }}</span>
+                    </td>
+                    <td>
+                        <div>{{ entry.phase.name }}</div>
+                        <span class="entry-meta">{{ entry.entry_date|date:"M d, Y" }}</span>
+                    </td>
+                    <td>{{ entry.venue|default:"—" }}</td>
+                    <td>
+                        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                            {% if entry.total_registered %}
+                            <span class="number-badge green">+{{ entry.total_registered }}</span>
+                            {% endif %}
+                            {% if entry.total_transferred %}
+                            <span class="number-badge blue">{{ entry.total_transferred }}↗</span>
+                            {% endif %}
+                            {% if entry.total_deleted %}
+                            <span class="number-badge red">{{ entry.total_deleted }}✕</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span class="status-badge {% if entry.uploaded %}uploaded{% else %}pending{% endif %}">
+                                {{ entry.uploaded|yesno:"📤 Uploaded,⏳ Pending" }}
+                            </span>
+                            <span style="font-size:11px; color:#8e8e93;">
+                                {{ entry.created_at|timesince }} ago
+                            </span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="actions-cell">
+                            <a href="{% url 'superadmin:entry_edit' entry.id %}" class="btn-edit">✎ Edit</a>
+                            <form method="post" action="{% url 'superadmin:entry_delete' entry.id %}" style="display:inline;"
+                                  onsubmit="return confirm('Delete this entry?')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-danger">✕</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <span class="icon">📋</span>
+                            <h3>No Entries Found</h3>
+                            <p>No daily entries match your criteria.</p>
+                            <a href="{% url 'home:entry_create' %}" class="btn-primary" style="display:inline-flex;">
+                                <span style="font-size:20px; line-height:1;">+</span> Create Entry
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if entries.has_other_pages %}
+    <div class="pagination">
+        {% if entries.has_previous %}
+        <a href="?page={{ entries.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">← Previous</a>
+        {% endif %}
+
+        {% for num in entries.paginator.page_range %}
+            {% if entries.number == num %}
+            <span class="current">{{ num }}</span>
+            {% elif num > entries.number|add:'-3' and num < entries.number|add:'3' %}
+            <a href="?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if entries.has_next %}
+        <a href="?page={{ entries.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next →</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

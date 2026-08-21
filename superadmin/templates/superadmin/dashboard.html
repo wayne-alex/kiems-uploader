@@ -1,0 +1,439 @@
+{% extends "superadmin/base.html" %}
+{% block title %}Dashboard Analytics | KIEMS Portal{% endblock %}
+
+{% block extra_css %}
+<style>
+    .dashboard-header {
+        margin-bottom: 32px;
+        padding-bottom: 16px;
+    }
+
+    .dashboard-header h2 {
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        color: #000000;
+        margin-bottom: 8px;
+    }
+
+    .dashboard-header p {
+        font-size: 15px;
+        color: #8e8e93;
+        margin: 0;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+        margin-bottom: 32px;
+    }
+
+    .stat-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 20px;
+        border: 0.5px solid rgba(0, 0, 0, 0.08);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .stat-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .stat-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+
+    .stat-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .stat-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: rgba(144, 238, 144, 0.12);
+    }
+
+    .stat-icon svg {
+        width: 20px;
+        height: 20px;
+        color: #7fe07f;
+    }
+
+    .stat-icon.danger {
+        background-color: rgba(255, 59, 48, 0.12);
+    }
+
+    .stat-icon.danger svg {
+        color: #ff3b30;
+    }
+
+    .stat-icon.info {
+        background-color: rgba(88, 86, 214, 0.12);
+    }
+
+    .stat-icon.info svg {
+        color: #5856d6;
+    }
+
+    .stat-value {
+        font-size: 32px;
+        font-weight: 700;
+        color: #000000;
+        letter-spacing: -0.5px;
+        line-height: 1;
+    }
+
+    .stat-value-small {
+        font-size: 12px;
+        color: #8e8e93;
+        font-weight: 500;
+        margin-top: 6px;
+    }
+
+    .chart-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 24px;
+        margin-bottom: 24px;
+    }
+
+    @media (max-width: 1200px) {
+        .chart-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .dashboard-card {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 0.5px solid rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .card-header {
+        padding: 20px;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.06);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .card-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #000000;
+    }
+
+    .card-action {
+        font-size: 13px;
+        color: #7fe07f;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .card-action:hover {
+        color: #6fd86f;
+    }
+
+    .card-body {
+        padding: 20px;
+    }
+
+    .chart-container {
+        position: relative;
+        height: 300px;
+    }
+
+    .data-list {
+        list-style: none;
+    }
+
+    .data-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .data-row:last-child {
+        border-bottom: none;
+    }
+
+    .data-label {
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .data-meta {
+        font-size: 12px;
+        color: #8e8e93;
+    }
+
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .status-badge.synced {
+        background: rgba(52, 199, 89, 0.15);
+        color: #34c759;
+    }
+
+    .status-badge.pending {
+        background: rgba(255, 149, 0, 0.15);
+        color: #ff9500;
+    }
+
+    .status-badge.failed {
+        background: rgba(255, 59, 48, 0.15);
+        color: #ff3b30;
+    }
+
+    .empty-state {
+        padding: 40px 20px;
+        text-align: center;
+        color: #a1a1a6;
+    }
+
+    .empty-state-icon {
+        font-size: 40px;
+        margin-bottom: 12px;
+    }
+
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        }
+        .stat-value {
+            font-size: 24px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h2>Analytics Dashboard</h2>
+    <p>Real-time overview of {{ active_phase.name|default:"Election Activity" }}</p>
+    {% if active_phase %}
+    <div style="font-size: 13px; color: #a1a1a6; margin-top: 6px;">
+        Phase: <strong>{{ active_phase.name }}</strong>
+        ({{ active_phase.start_date|date:"M d, Y" }} - {{ active_phase.end_date|date:"M d, Y" }})
+    </div>
+    {% endif %}
+</div>
+
+<!-- Key Metrics -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-meta">
+            <span class="stat-label">Total Registered</span>
+            <div class="stat-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <polyline points="16 11 18 13 22 9"/>
+                </svg>
+            </div>
+        </div>
+        <div class="stat-value">{{ metrics.total_registered|default:0 }}</div>
+        <div class="stat-value-small">Across all wards</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-meta">
+            <span class="stat-label">Active Kits</span>
+            <div class="stat-icon info">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/>
+                    <line x1="12" y1="18" x2="12.01" y2="18"/>
+                </svg>
+            </div>
+        </div>
+        <div class="stat-value">{{ metrics.active_kits }}</div>
+        <div class="stat-value-small">{{ metrics.inactive_kits }} inactive · {{ metrics.repair_kits }} in repair</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-meta">
+            <span class="stat-label">Sync Health</span>
+            <div class="stat-icon {% if metrics.sync_health_percentage > 80 %}info{% else %}danger{% endif %}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.21 15.89A6 6 0 1 1 8 2.83"/>
+                    <polyline points="23 4 23 10 17 10"/>
+                </svg>
+            </div>
+        </div>
+        <div class="stat-value">{{ metrics.sync_health_percentage }}%</div>
+        <div class="stat-value-small">{{ metrics.synced_count }} synced · {{ metrics.unsynced_count }} pending</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-meta">
+            <span class="stat-label">Clerks Online</span>
+            <div class="stat-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <circle cx="17" cy="9" r="2"/>
+                </svg>
+            </div>
+        </div>
+        <div class="stat-value">{{ metrics.online_clerks }}</div>
+        <div class="stat-value-small">Out of {{ metrics.total_clerks }} total</div>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="chart-grid">
+    <div class="dashboard-card">
+        <div class="card-header">
+            <h3 class="card-title">Daily Activity (Last 30 Days)</h3>
+        </div>
+        <div class="card-body">
+            <div class="chart-container">
+                <canvas id="dailyChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-card">
+        <div class="card-header">
+            <h3 class="card-title">Sync Status</h3>
+        </div>
+        <div class="card-body">
+            <div class="chart-container">
+                <canvas id="syncChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="dashboard-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    <div class="dashboard-card">
+        <div class="card-header">
+            <h3 class="card-title">Recent Submissions</h3>
+            <a href="{% url 'superadmin:entry_list' %}" class="card-action">View All</a>
+        </div>
+        <div class="card-body" style="padding: 0 20px;">
+            {% if recent_entries %}
+            <ul class="data-list">
+                {% for entry in recent_entries %}
+                <li class="data-row">
+                    <div>
+                        <div class="data-label">{{ entry.kiems_kit.kit_code }}</div>
+                        <div class="data-meta">{{ entry.kiems_kit.ward.name|default:"No Ward" }}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div>+{{ entry.new_registered }} new</div>
+                        <div class="data-meta">{{ entry.created_at|timesince }} ago</div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">📋</div>
+                <div>No recent submissions</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="dashboard-card">
+        <div class="card-header">
+            <h3 class="card-title">Recent Audit Activity</h3>
+            <a href="" class="card-action">View All</a>
+        </div>
+        <div class="card-body" style="padding: 0 20px;">
+            {% if recent_audits %}
+            <ul class="data-list">
+                {% for audit in recent_audits %}
+                <li class="data-row">
+                    <div>
+                        <div class="data-label">{{ audit.get_action_display }} - {{ audit.object_repr }}</div>
+                        <div class="data-meta">by {{ audit.user.username|default:"System" }}</div>
+                    </div>
+                    <div class="data-meta">{{ audit.created_at|timesince }} ago</div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">🔒</div>
+                <div>No recent audit activity</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Daily Activity Chart
+    fetch('{% url "superadmin:chart_data" %}?type=daily&days=30')
+        .then(r => r.json())
+        .then(data => {
+            new Chart(document.getElementById('dailyChart'), {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        });
+
+    // Sync Status Chart
+    fetch('{% url "superadmin:chart_data" %}?type=sync')
+        .then(r => r.json())
+        .then(data => {
+            new Chart(document.getElementById('syncChart'), {
+                type: 'doughnut',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        });
+});
+</script>
+{% endblock %}
