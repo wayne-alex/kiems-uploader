@@ -1,0 +1,450 @@
+{% extends "superadmin/base.html" %}
+{% block title %}Filtered Entries Preview | KIEMS Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .page-header-left h2 {
+        font-size: 22px;
+        font-weight: 700;
+        color: #000;
+        letter-spacing: -0.3px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .page-header-left p {
+        color: #8e8e93;
+        font-size: 13px;
+        margin-top: 2px;
+    }
+
+    .page-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .btn-pdf {
+        background: #ff3b30;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: none;
+        color: #fff;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+
+    .btn-pdf:hover {
+        background: #e0352b;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(255, 59, 48, 0.25);
+    }
+
+    .btn-secondary {
+        background: #f2f2f7;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        color: #000;
+        font-weight: 500;
+        font-size: 13px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+
+    .btn-secondary:hover {
+        background: #e5e5ea;
+    }
+
+    .btn-export {
+        background: #5856d6;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: none;
+        color: #fff;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+
+    .btn-export:hover {
+        background: #4846c6;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(88, 86, 214, 0.25);
+    }
+
+    .btn-export.csv {
+        background: #34c759;
+    }
+
+    .btn-export.csv:hover {
+        background: #2db84e;
+    }
+
+    .btn-export.excel {
+        background: #217346;
+    }
+
+    .btn-export.excel:hover {
+        background: #1a5c38;
+    }
+
+    .summary-bar {
+        display: flex;
+        gap: 16px;
+        padding: 10px 16px;
+        background: #f9f9fb;
+        border-radius: 10px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        font-size: 13px;
+        color: #3a3a3c;
+        align-items: center;
+        border: 0.5px solid rgba(0,0,0,0.06);
+    }
+
+    .summary-bar .highlight {
+        font-weight: 700;
+        color: #000;
+    }
+
+    .summary-bar .sep {
+        color: #d1d1d6;
+    }
+
+    .table-container {
+        background: #fff;
+        border-radius: 12px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        overflow: hidden;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 1000px;
+        font-size: 13px;
+    }
+
+    thead {
+        background: #f9f9fb;
+        border-bottom: 0.5px solid rgba(0,0,0,0.06);
+    }
+
+    th {
+        padding: 10px 14px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 600;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+    }
+
+    td {
+        padding: 10px 14px;
+        border-bottom: 0.5px solid rgba(0,0,0,0.04);
+        vertical-align: middle;
+        font-size: 13px;
+    }
+
+    tr:last-child td {
+        border-bottom: none;
+    }
+
+    tr:hover td {
+        background: #fafafc;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .status-badge.uploaded { background: #e8f5e9; color: #2e7d32; }
+    .status-badge.pending { background: #fff8e1; color: #f57f17; }
+
+    .gender-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        margin: 1px 2px;
+    }
+
+    .gender-badge.male { background: #e3f2fd; color: #1565c0; }
+    .gender-badge.female { background: #fce4ec; color: #c62828; }
+    .gender-badge.other { background: #f3e5f5; color: #6a1b9a; }
+
+    .totals-bar {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        padding: 12px 16px;
+        background: #f9f9fb;
+        border-top: 0.5px solid rgba(0,0,0,0.06);
+        font-size: 13px;
+        font-weight: 600;
+        color: #3a3a3c;
+    }
+
+    .totals-bar span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .totals-bar .number {
+        font-weight: 700;
+        color: #000;
+    }
+
+    .icon {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        vertical-align: -2px;
+        display: inline-block;
+    }
+
+    .icon-sm { width: 12px; height: 12px; }
+    .icon-lg { width: 18px; height: 18px; }
+
+    .empty-state {
+        padding: 40px 20px;
+        text-align: center;
+        color: #8e8e93;
+    }
+
+    .empty-state .icon-wrap {
+        margin-bottom: 12px;
+        display: flex;
+        justify-content: center;
+        color: #c7c7cc;
+    }
+
+    .empty-state h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #000;
+        margin-bottom: 6px;
+    }
+
+    .empty-state p {
+        font-size: 13px;
+        color: #8e8e93;
+        margin-bottom: 16px;
+    }
+
+    @media print {
+        .page-actions { display: none !important; }
+        .no-print { display: none !important; }
+        .summary-bar { background: #f4f4f4 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .totals-bar { background: #f4f4f4 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .status-badge { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .gender-badge { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+
+    @media (max-width: 768px) {
+        .page-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .page-actions {
+            flex-wrap: wrap;
+        }
+        .summary-bar {
+            font-size: 11px;
+            gap: 10px;
+        }
+        .totals-bar {
+            font-size: 11px;
+            gap: 10px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h2>
+            <svg class="icon icon-lg" viewBox="0 0 24 24" style="width:20px;height:20px;">
+                <line x1="8" y1="6" x2="21" y2="6"/>
+                <line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/>
+                <line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
+            Filtered Entries Preview
+        </h2>
+        <p>{{ filter_summary|safe }}</p>
+    </div>
+    <div class="page-actions no-print">
+        <a href="{% url 'superadmin:entry_list' %}{% if query_string %}?{{ query_string }}{% endif %}" class="btn-secondary">
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+            Back
+        </a>
+        <a href="{% url 'superadmin:generate_report' %}{% if query_string %}?{{ query_string }}{% endif %}" class="btn-pdf" target="_blank">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            PDF Report
+        </a>
+        <a href="{% url 'superadmin:export_data' %}?model_type=entry&format=csv{% if query_string %}&{{ query_string }}{% endif %}" class="btn-export csv">
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="20" x2="12" y2="4"/></svg>
+            CSV
+        </a>
+        <a href="{% url 'superadmin:export_data' %}?model_type=entry&format=xlsx{% if query_string %}&{{ query_string }}{% endif %}" class="btn-export excel">
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="20" x2="12" y2="4"/></svg>
+            Excel
+        </a>
+    </div>
+</div>
+
+<!-- Summary -->
+<div class="summary-bar">
+    <span>Entries: <span class="highlight">{{ entries|length }}</span></span>
+    <span class="sep">|</span>
+    <span>Total Registered: <span class="highlight">{{ totals.registered }}</span></span>
+    <span class="sep">|</span>
+    <span>
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6"/><line x1="14.5" y1="9.5" x2="21" y2="3"/><polyline points="16 3 21 3 21 8"/></svg>
+        {{ totals.male }}
+    </span>
+    <span>
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+        {{ totals.female }}
+    </span>
+    <span class="sep">|</span>
+    <span>Transferred: <span class="highlight">{{ totals.transferred }}</span></span>
+    <span>Updated: <span class="highlight">{{ totals.updated }}</span></span>
+    <span style="font-size:11px; color:#8e8e93; margin-left:auto;">Generated: {{ generated_at }}</span>
+</div>
+
+<!-- Table -->
+<div class="table-container">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Kit</th>
+                    <th>VRA</th>
+                    <th>Ward</th>
+                    <th>Phase</th>
+                    <th>Date</th>
+                    <th>Venue</th>
+                    <th style="text-align:center;">Male</th>
+                    <th style="text-align:center;">Female</th>
+                    <th style="text-align:center;">Other</th>
+                    <th style="text-align:center;">Total</th>
+                    <th style="text-align:center;">Transferred</th>
+                    <th style="text-align:center;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in entries %}
+                <tr>
+                    <td><strong>{{ entry.kiems_kit.kit_name }}</strong></td>
+                    <td>{{ entry.vra.name }}</td>
+                    <td>{{ entry.ward.name }}</td>
+                    <td>{{ entry.phase.name }}</td>
+                    <td>{{ entry.entry_date|date:"M d, Y" }}</td>
+                    <td>{{ entry.venue|default:"-" }}</td>
+                    <td style="text-align:center;">{{ entry.registered_male }}</td>
+                    <td style="text-align:center;">{{ entry.registered_female }}</td>
+                    <td style="text-align:center;">{{ entry.registered_other|default:"0" }}</td>
+                    <td style="text-align:center;"><strong>{{ entry.total_registered }}</strong></td>
+                    <td style="text-align:center;">{{ entry.total_transferred|default:"0" }}</td>
+                    <td style="text-align:center;">
+                        <span class="status-badge {% if entry.uploaded %}uploaded{% else %}pending{% endif %}">
+                            {% if entry.uploaded %}
+                            <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                            Uploaded
+                            {% else %}
+                            <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            Pending
+                            {% endif %}
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="12">
+                        <div class="empty-state">
+                            <div class="icon-wrap">
+                                <svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                            </div>
+                            <h3>No Entries Found</h3>
+                            <p>No entries match your current filters.</p>
+                            <a href="{% url 'superadmin:entry_list' %}" class="btn-secondary" style="display:inline-flex; margin-top:8px;">
+                                <svg class="icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+                                Back to Entries
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="totals-bar">
+        <span>📊 Entries: <span class="number">{{ entries|length }}</span></span>
+        <span>
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6"/><line x1="14.5" y1="9.5" x2="21" y2="3"/><polyline points="16 3 21 3 21 8"/></svg>
+            Male: <span class="number">{{ totals.male }}</span>
+        </span>
+        <span>
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+            Female: <span class="number">{{ totals.female }}</span>
+        </span>
+        <span>Total Registered: <span class="number">{{ totals.registered }}</span></span>
+        <span>Transferred: <span class="number">{{ totals.transferred }}</span></span>
+        <span>Updated: <span class="number">{{ totals.updated }}</span></span>
+    </div>
+</div>
+{% endblock %}

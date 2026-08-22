@@ -1329,80 +1329,19 @@ function extractFilteredRows() {
 }
 
 function previewFilteredReport() {
-    const body = document.getElementById('filteredModalBody');
-    document.getElementById('filteredModalOverlay').classList.add('open');
+    // Get current filter values from the form
+    const form = document.getElementById('filterForm');
+    const formData = new FormData(form);
+    const params = new URLSearchParams(formData);
 
-    const rowsData = extractFilteredRows();
-
-    if (!rowsData.length) {
-        body.innerHTML = `
-            <div class="kit-modal-loading">${getFilterSummary()}</div>
-            <div class="kit-modal-error">No entries match the current filters on this page.</div>`;
-        return;
+    // Remove empty values
+    for (let [key, value] of params.entries()) {
+        if (!value) params.delete(key);
     }
 
-    const totals = rowsData.reduce((acc, r) => {
-        acc.male += r.male;
-        acc.female += r.female;
-        acc.other += r.other;
-        acc.total += r.total;
-        acc.transferred += r.transferred;
-        return acc;
-    }, { male: 0, female: 0, other: 0, total: 0, transferred: 0 });
-
-    let rowsHtml = '';
-    rowsData.forEach(r => {
-        rowsHtml += `
-            <tr>
-                <td>${escapeHtml(r.kit)}</td>
-                <td>${escapeHtml(r.vra)}</td>
-                <td>${escapeHtml(r.ward)}</td>
-                <td>${escapeHtml(r.phase)}</td>
-                <td>${escapeHtml(r.date)}</td>
-                <td>${r.male}</td>
-                <td>${r.female}</td>
-                <td>${r.total}</td>
-                <td>${r.transferred}</td>
-                <td>${r.uploaded ? 'Uploaded' : 'Pending'}</td>
-            </tr>`;
-    });
-
-    body.innerHTML = `
-        <div style="font-size:12px; color:#8e8e93; margin-bottom:14px;">
-            ${getFilterSummary()}
-        </div>
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Kit</th><th>VRA</th><th>Ward</th><th>Phase</th><th>Date</th>
-                        <th>Male</th><th>Female</th><th>Total</th><th>Transferred</th><th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>${rowsHtml}</tbody>
-            </table>
-        </div>
-        <div class="kit-modal-totals">
-            <span>Entries: ${rowsData.length}</span>
-            <span>
-                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6"/><line x1="14.5" y1="9.5" x2="21" y2="3"/><polyline points="16 3 21 3 21 8"/></svg>
-                Male: ${totals.male}
-            </span>
-            <span>
-                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
-                Female: ${totals.female}
-            </span>
-            <span>Total Registered: ${totals.total}</span>
-            <span>Transferred: ${totals.transferred}</span>
-        </div>
-        <div style="font-size:11px; color:#c7c7cc; margin-top:12px;">
-            Preview reflects entries on the current page. Use CSV / Excel / PDF to export the full filtered result set.
-        </div>
-    `;
-
-    // Cache for printing
-    body.dataset.rowsCache = JSON.stringify(rowsData);
-    body.dataset.totalsCache = JSON.stringify(totals);
+    // Open in new tab/window
+    const url = '/superadmin/filtered-preview/?' + params.toString();
+    window.open(url, '_blank');
 }
 
 function closeFilteredReport() {

@@ -18,16 +18,12 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_GET
+from reportlab.graphics.shapes import Drawing, Rect
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
-from reportlab.platypus import SimpleDocTemplate, Spacer, HRFlowable, Table, TableStyle
-from reportlab.platypus.para import Paragraph
 from reportlab.pdfgen import canvas as pdfcanvas
-from reportlab.graphics.shapes import Drawing, Rect
 
 # Add custom colors for use in Paragraph font tags
 if not hasattr(colors, 'KIEMS_GREEN'):
@@ -42,7 +38,6 @@ from .forms import (
     WardForm, VRAForm, ClerkForm, KIEMSKitForm, PhaseForm,
     DailyKIEMSEntryForm, DailyEntryFilterForm, ImportForm, ExportForm
 )
-
 
 
 def is_superadmin(user):
@@ -747,7 +742,6 @@ def export_data(request):
                 e.venue,
                 e.registered_male,
                 e.registered_female,
-                e.registered_other,
                 e.total_registered,
                 e.total_transferred,
                 e.total_updated,
@@ -1285,6 +1279,7 @@ def _pct(part, whole):
 def is_superadmin(user):
     return user.is_superuser
 
+
 def _parse_report_filters(request):
     """Parse and normalize the report filter querystring params. Shared by the
     HTML preview and PDF generation views so date_from/date_to are never
@@ -1439,9 +1434,6 @@ def generate_report_download(request):
     return generate_report_pdf(request, as_attachment=True)
 
 
-
-
-
 def kit_report_api(request, kit_id):
     kit = get_object_or_404(KIEMSKit, id=kit_id)
     entries = DailyKIEMSEntry.objects.filter(kiems_kit=kit).select_related('vra').order_by('-entry_date')
@@ -1471,3 +1463,218 @@ def kit_report_api(request, kit_id):
         },
     }
     return JsonResponse(data)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def filtered_preview(request):
+    """Preview filtered entries in a full page"""
+    entries = DailyKIEMSEntry.objects.select_related(
+        'kiems_kit', 'phase', 'ward', 'vra'
+    ).all()
+
+    filter_params = {}
+    query_string = ""
+
+    # Apply filters
+    if request.GET.get('phase'):
+        entries = entries.filter(phase_id=request.GET.get('phase'))
+        filter_params['phase'] = request.GET.get('phase')
+
+    if request.GET.get('ward'):
+        entries = entries.filter(ward_id=request.GET.get('ward'))
+        filter_params['ward'] = request.GET.get('ward')
+
+    if request.GET.get('kit'):
+        entries = entries.filter(kiems_kit_id=request.GET.get('kit'))
+        filter_params['kit'] = request.GET.get('kit')
+
+    if request.GET.get('vra'):
+        entries = entries.filter(vra_id=request.GET.get('vra'))
+        filter_params['vra'] = request.GET.get('vra')
+
+    if request.GET.get('date_from'):
+        entries = entries.filter(entry_date__gte=request.GET.get('date_from'))
+        filter_params['date_from'] = request.GET.get('date_from')
+
+    if request.GET.get('date_to'):
+        entries = entries.filter(entry_date__lte=request.GET.get('date_to'))
+        filter_params['date_to'] = request.GET.get('date_to')
+
+    if request.GET.get('uploaded') == 'True':
+        entries = entries.filter(uploaded=True)
+        filter_params['uploaded'] = 'True'
+    elif request.GET.get('uploaded') == 'False':
+        entries = entries.filter(uploaded=False)
+        filter_params['uploaded'] = 'False'
+
+    # Build query string for links
+    query_string = '&'.join([f'{k}={v}' for k, v in filter_params.items()])
+
+    # Calculate totals
+    totals = {
+        'registered': entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0,
+        'male': entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0,
+        'female': entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0,
+        'transferred': entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0,
+        'updated': entries.aggregate(Sum('total_updated'))['total_updated__sum'] or 0,
+    }
+
+    # Build filter summary
+    filter_parts = []
+    if filter_params.get('phase'):
+        phase = Phase.objects.filter(id=filter_params['phase']).first()
+        if phase: filter_parts.append(f'Phase: {phase.name}')
+    if filter_params.get('ward'):
+        ward = Ward.objects.filter(id=filter_params['ward']).first()
+        if ward: filter_parts.append(f'Ward: {ward.name}')
+    if filter_params.get('kit'):
+        kit = KIEMSKit.objects.filter(id=filter_params['kit']).first()
+        if kit: filter_parts.append(f'Kit: {kit.kit_name}')
+    if filter_params.get('vra'):
+        vra = VRA.objects.filter(id=filter_params['vra']).first()
+        if vra: filter_parts.append(f'VRA: {vra.name}')
+    if filter_params.get('date_from'):
+        filter_parts.append(f'From: {filter_params["date_from"]}')
+    if filter_params.get('date_to'):
+        filter_parts.append(f'To: {filter_params["date_to"]}')
+    if filter_params.get('uploaded') == 'True':
+        filter_parts.append('Status: Uploaded')
+    elif filter_params.get('uploaded') == 'False':
+        filter_parts.append('Status: Pending')
+
+    filter_summary = ' &middot; '.join(filter_parts) if filter_parts else 'No filters applied - showing all entries'
+
+    context = {
+        'entries': entries.order_by('-entry_date'),
+        'totals': totals,
+        'filter_summary': filter_summary,
+        'query_string': query_string,
+        'generated_at': timezone.now().strftime('%Y-%m-%d %H:%M'),
+    }
+
+    return render(request, 'superadmin/filtered_preview.html', context)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def performance_dashboard(request):
+    """Performance dashboard showing best performing kits"""
+    period = request.GET.get('period', 'weekly')
+
+    # Determine date range
+    today = timezone.now().date()
+    date_from = None
+
+    if period == 'daily':
+        date_from = today
+        period_label = 'Today'
+    elif period == 'weekly':
+        date_from = today - timedelta(days=7)
+        period_label = 'Last 7 Days'
+    elif period == 'monthly':
+        date_from = today - timedelta(days=30)
+        period_label = 'Last 30 Days'
+    else:  # all
+        period_label = 'All Time'
+
+    # Build base queryset
+    entries = DailyKIEMSEntry.objects.select_related('kiems_kit', 'ward')
+
+    if date_from:
+        entries = entries.filter(entry_date__gte=date_from)
+
+    # Kit rankings
+    kit_rankings = []
+    kit_data = entries.values('kiems_kit_id', 'kiems_kit__kit_name', 'kiems_kit__serial_no', 'ward__name').annotate(
+        total_registered=Sum('total_registered'),
+        total_male=Sum('registered_male'),
+        total_female=Sum('registered_female'),
+        entry_count=Count('id'),
+        total_transferred=Sum('total_transferred'),
+    ).order_by('-total_registered')
+
+    total_registered = sum(k['total_registered'] or 0 for k in kit_data)
+    max_registered = kit_data[0]['total_registered'] if kit_data else 0
+
+    # Calculate gender totals
+    total_male = sum(k['total_male'] or 0 for k in kit_data)
+    total_female = sum(k['total_female'] or 0 for k in kit_data)
+    gender_total = total_male + total_female
+
+    for kit in kit_data:
+        total = kit['total_registered'] or 0
+        kit_rankings.append({
+            'kit_name': kit['kiems_kit__kit_name'],
+            'serial_no': kit['kiems_kit__serial_no'],
+            'ward_name': kit['ward__name'],
+            'total_registered': total,
+            'total_male': kit['total_male'] or 0,
+            'total_female': kit['total_female'] or 0,
+            'entry_count': kit['entry_count'] or 0,
+            'total_transferred': kit['total_transferred'] or 0,
+            'pct_of_total': (total / total_registered * 100) if total_registered > 0 else 0,
+            'pct_of_max': (total / max_registered * 100) if max_registered > 0 else 0,
+            'avg_per_entry': (total / kit['entry_count']) if kit['entry_count'] > 0 else 0,
+        })
+
+    # Top kit
+    top_kit = kit_rankings[0] if kit_rankings else None
+
+    # Daily performance (last 7 days)
+    daily_start = today - timedelta(days=7)
+    daily_entries = DailyKIEMSEntry.objects.filter(entry_date__gte=daily_start).values('entry_date').annotate(
+        entry_count=Count('id'),
+        male=Sum('registered_male'),
+        female=Sum('registered_female'),
+        total_registered=Sum('total_registered'),
+        transferred=Sum('total_transferred'),
+    ).order_by('-entry_date')
+
+    # Get top kit per day
+    daily_performance = []
+    for day in daily_entries:
+        top_kit_day = DailyKIEMSEntry.objects.filter(entry_date=day['entry_date']).values(
+            'kiems_kit__kit_name').annotate(
+            total=Sum('total_registered')
+        ).order_by('-total').first()
+
+        daily_performance.append({
+            'date': day['entry_date'],
+            'entry_count': day['entry_count'] or 0,
+            'male': day['male'] or 0,
+            'female': day['female'] or 0,
+            'total_registered': day['total_registered'] or 0,
+            'transferred': day['transferred'] or 0,
+            'top_kit': top_kit_day['kiems_kit__kit_name'] if top_kit_day else None,
+            'top_kit_count': top_kit_day['total'] if top_kit_day else 0,
+        })
+
+    # Calculate averages
+    total_kits = kit_data.count()
+    avg_per_kit = total_registered / total_kits if total_kits > 0 else 0
+
+    # Gender percentages
+    gender_male_pct = int((total_male / gender_total * 100)) if gender_total > 0 else 50
+    gender_female_pct = int((total_female / gender_total * 100)) if gender_total > 0 else 50
+
+    if gender_total > 0:
+        gender_ratio = f"{gender_male_pct}/{gender_female_pct}"
+    else:
+        gender_ratio = "0/0"
+
+    context = {
+        'period': period,
+        'period_label': period_label,
+        'kit_rankings': kit_rankings,
+        'top_kit': top_kit,
+        'total_registered': total_registered,
+        'total_kits': total_kits,
+        'avg_per_kit': int(avg_per_kit),
+        'gender_ratio': gender_ratio,
+        'gender_male_pct': gender_male_pct,
+        'gender_female_pct': gender_female_pct,
+        'daily_performance': daily_performance,
+    }
+
+    return render(request, 'superadmin/performance_dashboard.html', context)

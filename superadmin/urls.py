@@ -1,10 +1,11 @@
 from django.urls import path
+
 from . import views
 
 app_name = 'superadmin'
 
 urlpatterns = [
-# Login/Logout URLs
+    # Login/Logout URLs
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('password-reset/', views.password_reset_request, name='password_reset'),
@@ -50,5 +51,7 @@ urlpatterns = [
     path('api/chart-data/', views.get_chart_data, name='chart_data'),
     path('api/get-clerks-by-ward/', views.get_clerks_by_ward, name='get_clerks_by_ward'),
     path('api/get-vras-by-ward/', views.get_vras_by_ward, name='get_vras_by_ward'),
-path('api/kit-report/<int:kit_id>/', views.kit_report_api, name='kit_report_api'),
+    path('api/kit-report/<int:kit_id>/', views.kit_report_api, name='kit_report_api'),
+    path('filtered-preview/', views.filtered_preview, name='filtered_preview'),
+    path('performance/', views.performance_dashboard, name='performance_dashboard'),
 ]

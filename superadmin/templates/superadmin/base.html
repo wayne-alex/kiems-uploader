@@ -362,6 +362,16 @@
                     KIEMS Kits
                 </a>
             </li>
+            <li class="menu-item {% if 'kit' in request.path %}active{% endif %}">
+                <a href="{% url 'superadmin:performance_dashboard' %}" class="sidebar-link">
+                    <svg class="icon" viewBox="0 0 24 24">
+                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                        <polyline points="17 6 23 6 23 12"/>
+                    </svg>
+                    Performance
+                </a>
+            </li>
+
 
             <div class="menu-category">Data & Logs</div>
             <li class="menu-item {% if 'entry' in request.path %}active{% endif %}">

@@ -1,0 +1,519 @@
+{% extends "superadmin/base.html" %}
+{% block title %}Performance Dashboard | KIEMS Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .page-header-left h2 {
+        font-size: 22px;
+        font-weight: 700;
+        color: #000;
+        letter-spacing: -0.3px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .page-header-left p {
+        color: #8e8e93;
+        font-size: 13px;
+        margin-top: 2px;
+    }
+
+    .period-selector {
+        display: flex;
+        gap: 4px;
+        background: #f2f2f7;
+        padding: 4px;
+        border-radius: 8px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+    }
+
+    .period-selector a {
+        padding: 6px 14px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #3a3a3c;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .period-selector a:hover {
+        background: rgba(0,0,0,0.05);
+    }
+
+    .period-selector a.active {
+        background: #90EE90;
+        color: #000;
+        font-weight: 600;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .stat-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        padding: 14px 18px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+
+    .stat-card .label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        margin-bottom: 4px;
+    }
+
+    .stat-card .number {
+        font-size: 28px;
+        font-weight: 700;
+        color: #000;
+        line-height: 1.1;
+    }
+
+    .stat-card .detail {
+        font-size: 13px;
+        color: #3a3a3c;
+        margin-top: 4px;
+    }
+
+    .stat-card .change {
+        font-size: 12px;
+        color: #34c759;
+        font-weight: 600;
+    }
+
+    .stat-card .change.negative {
+        color: #ff3b30;
+    }
+
+    .stat-card .sub {
+        font-size: 12px;
+        color: #8e8e93;
+        margin-top: 2px;
+    }
+
+    .stat-card.gold { border-left: 4px solid #ffd700; }
+    .stat-card.green { border-left: 4px solid #34c759; }
+    .stat-card.blue { border-left: 4px solid #5856d6; }
+    .stat-card.purple { border-left: 4px solid #af52de; }
+
+    .table-container {
+        background: #fff;
+        border-radius: 12px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        overflow: hidden;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+        margin-bottom: 20px;
+    }
+
+    .table-container .section-header {
+        padding: 12px 16px;
+        background: #f9f9fb;
+        border-bottom: 0.5px solid rgba(0,0,0,0.06);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .table-container .section-header h3 {
+        font-size: 14px;
+        font-weight: 600;
+        color: #000;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .table-container .section-header .badge {
+        font-size: 11px;
+        color: #8e8e93;
+        font-weight: 400;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 700px;
+        font-size: 13px;
+    }
+
+    thead {
+        background: #f9f9fb;
+        border-bottom: 0.5px solid rgba(0,0,0,0.06);
+    }
+
+    th {
+        padding: 10px 14px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 600;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+    }
+
+    td {
+        padding: 10px 14px;
+        border-bottom: 0.5px solid rgba(0,0,0,0.04);
+        vertical-align: middle;
+        font-size: 13px;
+    }
+
+    tr:last-child td {
+        border-bottom: none;
+    }
+
+    tr:hover td {
+        background: #fafafc;
+    }
+
+    .rank-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        font-size: 12px;
+        font-weight: 700;
+        background: #f2f2f7;
+        color: #3a3a3c;
+    }
+
+    .rank-badge.gold { background: #ffd700; color: #000; }
+    .rank-badge.silver { background: #c0c0c0; color: #000; }
+    .rank-badge.bronze { background: #cd7f32; color: #fff; }
+
+    .progress-wrapper {
+        width: 100%;
+        min-width: 60px;
+    }
+
+    .progress-bar-bg {
+        width: 100%;
+        background: #f2f2f7;
+        border-radius: 4px;
+        overflow: hidden;
+        height: 4px;
+        margin-top: 3px;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        border-radius: 4px;
+        background: #90EE90;
+        transition: width 0.3s ease;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .status-badge.uploaded { background: #e8f5e9; color: #2e7d32; }
+    .status-badge.pending { background: #fff8e1; color: #f57f17; }
+
+    .entry-meta {
+        font-size: 11px;
+        color: #8e8e93;
+        display: block;
+        margin-top: 1px;
+    }
+
+    .gender-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        margin: 1px 2px;
+    }
+
+    .gender-badge.male { background: #e3f2fd; color: #1565c0; }
+    .gender-badge.female { background: #fce4ec; color: #c62828; }
+
+    .icon {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        vertical-align: -2px;
+        display: inline-block;
+    }
+
+    .icon-sm { width: 12px; height: 12px; }
+    .icon-lg { width: 18px; height: 18px; }
+
+    .empty-state {
+        padding: 40px 20px;
+        text-align: center;
+        color: #8e8e93;
+    }
+
+    .empty-state .icon-wrap {
+        margin-bottom: 12px;
+        display: flex;
+        justify-content: center;
+        color: #c7c7cc;
+    }
+
+    .empty-state h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #000;
+        margin-bottom: 6px;
+    }
+
+    .empty-state p {
+        font-size: 13px;
+        color: #8e8e93;
+        margin-bottom: 16px;
+    }
+
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .font-bold { font-weight: 700; }
+
+    @media (max-width: 768px) {
+        .page-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .stats-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+        .stat-card .number {
+            font-size: 22px;
+        }
+        .period-selector {
+            flex-wrap: wrap;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h2>
+            <svg class="icon icon-lg" viewBox="0 0 24 24" style="width:20px;height:20px;">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                <polyline points="17 6 23 6 23 12"/>
+            </svg>
+            Performance Dashboard
+        </h2>
+        <p>Track kit performance across {{ period_label|lower }}</p>
+    </div>
+    <div class="period-selector">
+        <a href="?period=daily" class="{% if period == 'daily' %}active{% endif %}">Daily</a>
+        <a href="?period=weekly" class="{% if period == 'weekly' %}active{% endif %}">Weekly</a>
+        <a href="?period=monthly" class="{% if period == 'monthly' %}active{% endif %}">Monthly</a>
+        <a href="?period=all" class="{% if period == 'all' %}active{% endif %}">All Time</a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="stats-grid">
+    <div class="stat-card gold">
+        <div class="label">🏆 Best Performing Kit</div>
+        <div class="number">{{ top_kit.kit_name|default:"-" }}</div>
+        <div class="detail">
+            {{ top_kit.total_registered|default:"0" }} total registrations
+            <span class="change">↑ {{ top_kit.pct_of_total|default:"0"|floatformat:1 }}%</span>
+        </div>
+        <div class="sub">of total registrations</div>
+    </div>
+    <div class="stat-card green">
+        <div class="label">📊 Total Registrations</div>
+        <div class="number">{{ total_registered }}</div>
+        <div class="detail">Across {{ total_kits }} active kits</div>
+    </div>
+    <div class="stat-card blue">
+        <div class="label">📈 Average Per Kit</div>
+        <div class="number">{{ avg_per_kit|default:"0" }}</div>
+        <div class="detail">Registrations per kit</div>
+    </div>
+    <div class="stat-card purple">
+        <div class="label">👤 Gender Ratio</div>
+        <div class="number">{{ gender_ratio|default:"50/50" }}</div>
+        <div class="detail">
+            <span class="gender-badge male">♂ {{ gender_male_pct|default:"50" }}%</span>
+            <span class="gender-badge female">♀ {{ gender_female_pct|default:"50" }}%</span>
+        </div>
+    </div>
+</div>
+
+<!-- Kit Rankings -->
+<div class="table-container">
+    <div class="section-header">
+        <h3>
+            <svg class="icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            Kit Rankings
+            <span class="badge">{{ kit_rankings|length }} kits</span>
+        </h3>
+        <span style="font-size:12px; color:#8e8e93;">Sorted by total registrations</span>
+    </div>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:50px;">#</th>
+                    <th>Kit Name</th>
+                    <th>Ward</th>
+                    <th style="text-align:center;">Male</th>
+                    <th style="text-align:center;">Female</th>
+                    <th style="text-align:center;">Total</th>
+                    <th style="text-align:center;">%</th>
+                    <th style="text-align:center;">Entries</th>
+                    <th style="text-align:center;">Avg</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for kit in kit_rankings %}
+                <tr>
+                    <td>
+                        <span class="rank-badge {% if forloop.counter == 1 %}gold{% elif forloop.counter == 2 %}silver{% elif forloop.counter == 3 %}bronze{% endif %}">
+                            {{ forloop.counter }}
+                        </span>
+                    </td>
+                    <td>
+                        <strong>{{ kit.kit_name }}</strong>
+                        {% if kit.serial_no %}
+                        <span class="entry-meta">Serial: {{ kit.serial_no }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ kit.ward_name|default:"-" }}</td>
+                    <td class="text-center">{{ kit.total_male }}</td>
+                    <td class="text-center">{{ kit.total_female }}</td>
+                    <td class="text-center">
+                        <strong>{{ kit.total_registered }}</strong>
+                        <div class="progress-wrapper">
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" style="width:{{ kit.pct_of_max|floatformat:1 }}%;"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="text-center">{{ kit.pct_of_total|floatformat:1 }}%</td>
+                    <td class="text-center">{{ kit.entry_count }}</td>
+                    <td class="text-center">{{ kit.avg_per_entry|floatformat:1 }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9">
+                        <div class="empty-state">
+                            <div class="icon-wrap">
+                                <svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                            </div>
+                            <h3>No Data Available</h3>
+                            <p>No entries found for the selected period.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Daily Performance -->
+<div class="table-container">
+    <div class="section-header">
+        <h3>
+            <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Daily Performance
+            <span class="badge">Last 7 days</span>
+        </h3>
+    </div>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th style="text-align:center;">Entries</th>
+                    <th style="text-align:center;">Male</th>
+                    <th style="text-align:center;">Female</th>
+                    <th style="text-align:center;">Total</th>
+                    <th style="text-align:center;">Transferred</th>
+                    <th>Top Kit</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for day in daily_performance %}
+                <tr>
+                    <td><strong>{{ day.date|date:"M d, Y" }}</strong></td>
+                    <td class="text-center">{{ day.entry_count }}</td>
+                    <td class="text-center">{{ day.male }}</td>
+                    <td class="text-center">{{ day.female }}</td>
+                    <td class="text-center"><strong>{{ day.total_registered }}</strong></td>
+                    <td class="text-center">{{ day.transferred }}</td>
+                    <td>
+                        {% if day.top_kit %}
+                        <span style="display:inline-flex; align-items:center; gap:6px; background:#e8f5e9; padding:2px 10px; border-radius:12px; color:#2e7d32; font-weight:600; font-size:12px;">
+                            {{ day.top_kit }}
+                            <span style="background:#2e7d32; color:#fff; border-radius:50%; padding:0 6px; font-size:10px;">{{ day.top_kit_count }}</span>
+                        </span>
+                        {% else %}
+                        <span style="color:#d1d1d6;">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7">
+                        <div class="empty-state">
+                            <div class="icon-wrap">
+                                <svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                            </div>
+                            <h3>No Daily Data</h3>
+                            <p>No entries found for the last 7 days.</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
