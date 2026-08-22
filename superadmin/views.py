@@ -1,8 +1,12 @@
 import csv
 import io
+import json
+import os
+import urllib
 from datetime import datetime, timedelta
 
 import openpyxl
+import requests
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout, authenticate, login
@@ -16,33 +20,18 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_GET
 
-# Optional imports with graceful fallback
+# Optional: ReportLab as fallback if PDF.co fails
 try:
-    import weasyprint
-
-    WEASYPRINT_AVAILABLE = True
-except ImportError:
-    WEASYPRINT_AVAILABLE = False
-
-try:
-    from reportlab.graphics.shapes import Drawing, Rect
     from reportlab.lib import colors
-    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.pagesizes import letter, landscape
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
-    from reportlab.lib.utils import ImageReader
-    from reportlab.pdfgen import canvas as pdfcanvas
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.enums import TA_CENTER
 
     REPORTLAB_AVAILABLE = True
 except ImportError:
     REPORTLAB_AVAILABLE = False
-    # Define dummy classes to avoid NameError
-    colors = type('colors', (), {})
-    pdfcanvas = None
-    Drawing = None
-    Rect = None
-    letter = (612, 792)
-    inch = 72
-    ImageReader = None
 
 from home.models import (
     Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry
@@ -62,6 +51,10 @@ def is_superadmin(user):
 # ==================== AUTH VIEWS ====================
 
 def login_view(request):
+    """
+    Login view for SuperAdmin panel with enhanced security features
+    """
+    # Redirect if already logged in
     if request.user.is_authenticated:
         if request.user.is_superuser:
             return redirect('superadmin:dashboard')
@@ -73,43 +66,61 @@ def login_view(request):
     if request.method == 'POST':
         email = request.POST.get('email', '').strip()
         password = request.POST.get('password', '')
+        print(email)
 
+        # Validate inputs
         if not email or not password:
             messages.error(request, 'Please provide both email and password.')
             return render(request, 'superadmin/login.html', {'email': email})
 
+        # Attempt authentication
         username = User.objects.filter(email=email).first()
+
         user = authenticate(request, username=username, password=password)
 
         if user is not None:
             if user.is_superuser:
+                # Login successful
                 login(request, user)
                 messages.success(request, f'Welcome back, {user.get_full_name() or user.username}!')
                 return redirect('superadmin:dashboard')
             else:
                 messages.error(request, 'You do not have administrator privileges.')
         else:
+            # Failed login attempt
             messages.error(request, 'Invalid email or password. Please try again.')
 
         return render(request, 'superadmin/login.html', {'email': email})
 
+    # GET request
     return render(request, 'superadmin/login.html')
 
 
 def logout_view(request):
+    """
+    Logout view for SuperAdmin panel
+    """
     if request.user.is_authenticated:
         messages.info(request, 'You have been logged out successfully.')
         logout(request)
+
     return redirect('superadmin:login')
 
 
 def password_reset_request(request):
+    """
+    Password reset request view
+    """
     if request.method == 'POST':
         email = request.POST.get('email', '').strip()
+
         if email:
+            # Check if user exists with this email
+            from django.contrib.auth.models import User
             try:
                 user = User.objects.get(email=email)
                 if user.is_superuser:
+                    # In production, send password reset email
                     messages.success(request, 'Password reset instructions have been sent to your email.')
                     return redirect('superadmin:login')
                 else:
@@ -118,6 +129,7 @@ def password_reset_request(request):
                 messages.error(request, 'No account found with this email address.')
         else:
             messages.error(request, 'Please provide your email address.')
+
     return render(request, 'superadmin/password_reset.html')
 
 
@@ -126,8 +138,10 @@ def password_reset_request(request):
 @login_required
 @user_passes_test(is_superadmin)
 def dashboard(request):
+    """SuperAdmin Dashboard"""
     active_phase = Phase.objects.filter(active=True).first()
 
+    # Key Metrics
     metrics = {
         'total_wards': Ward.objects.count(),
         'total_vras': VRA.objects.filter(active=True).count(),
@@ -141,10 +155,12 @@ def dashboard(request):
         'total_updated': DailyKIEMSEntry.objects.aggregate(Sum('total_updated'))['total_updated__sum'] or 0,
     }
 
+    # Recent entries
     recent_entries = DailyKIEMSEntry.objects.select_related(
         'kiems_kit', 'phase', 'ward', 'vra'
     ).order_by('-created_at')[:10]
 
+    # Today's activity
     today = timezone.now().date()
     today_activity = DailyKIEMSEntry.objects.filter(
         entry_date=today
@@ -154,6 +170,7 @@ def dashboard(request):
         deleted=Sum('total_updated')
     )
 
+    # Kits by ward
     kits_by_ward = KIEMSKit.objects.values('ward__name').annotate(
         total=Count('id'),
         active=Count('id', filter=Q(status=True))
@@ -174,6 +191,7 @@ def dashboard(request):
 @login_required
 @user_passes_test(is_superadmin)
 def phase_list(request):
+    """List all phases"""
     phases = Phase.objects.all().order_by('-start_date')
     return render(request, 'superadmin/phase_list.html', {'phases': phases})
 
@@ -181,6 +199,7 @@ def phase_list(request):
 @login_required
 @user_passes_test(is_superadmin)
 def phase_create(request):
+    """Create a new phase"""
     if request.method == 'POST':
         form = PhaseForm(request.POST)
         if form.is_valid():
@@ -195,6 +214,7 @@ def phase_create(request):
 @login_required
 @user_passes_test(is_superadmin)
 def phase_edit(request, pk):
+    """Edit a phase"""
     phase = get_object_or_404(Phase, pk=pk)
     if request.method == 'POST':
         form = PhaseForm(request.POST, instance=phase)
@@ -211,6 +231,7 @@ def phase_edit(request, pk):
 @user_passes_test(is_superadmin)
 @require_POST
 def phase_delete(request, pk):
+    """Delete a phase"""
     phase = get_object_or_404(Phase, pk=pk)
     phase_name = phase.name
     phase.delete()
@@ -223,6 +244,7 @@ def phase_delete(request, pk):
 @login_required
 @user_passes_test(is_superadmin)
 def ward_list(request):
+    """List all wards"""
     wards = Ward.objects.all().order_by('name')
     return render(request, 'superadmin/ward_list.html', {'wards': wards})
 
@@ -230,6 +252,7 @@ def ward_list(request):
 @login_required
 @user_passes_test(is_superadmin)
 def ward_create(request):
+    """Create a new ward"""
     if request.method == 'POST':
         form = WardForm(request.POST)
         if form.is_valid():
@@ -244,6 +267,7 @@ def ward_create(request):
 @login_required
 @user_passes_test(is_superadmin)
 def ward_edit(request, pk):
+    """Edit a ward"""
     ward = get_object_or_404(Ward, pk=pk)
     if request.method == 'POST':
         form = WardForm(request.POST, instance=ward)
@@ -260,6 +284,7 @@ def ward_edit(request, pk):
 @user_passes_test(is_superadmin)
 @require_POST
 def ward_delete(request, pk):
+    """Delete a ward"""
     ward = get_object_or_404(Ward, pk=pk)
     ward_name = ward.name
     ward.delete()
@@ -272,9 +297,11 @@ def ward_delete(request, pk):
 @login_required
 @user_passes_test(is_superadmin)
 def staff_list(request):
+    """List all clerks and VRAs"""
     clerks = Clerk.objects.select_related('ward').all().order_by('ward__name', 'name')
     vras = VRA.objects.select_related('ward').all().order_by('ward__name', 'name')
 
+    # Combine both with a type indicator
     staff_list = []
     for clerk in clerks:
         staff_list.append({
@@ -284,7 +311,10 @@ def staff_list(request):
             'ward': clerk.ward,
             'active': clerk.active,
             'created_at': clerk.created_at,
-            'details': {'role': 'Clerk', 'type_label': 'Clerk'}
+            'details': {
+                'role': 'Clerk',
+                'type_label': 'Clerk'
+            }
         })
 
     for vra in vras:
@@ -303,8 +333,10 @@ def staff_list(request):
             }
         })
 
+    # Sort combined list by ward name, then name
     staff_list.sort(key=lambda x: (x['ward'].name if x['ward'] else '', x['name']))
 
+    # Statistics
     stats = {
         'total_clerks': clerks.count(),
         'total_vras': vras.count(),
@@ -324,10 +356,14 @@ def staff_list(request):
 @login_required
 @user_passes_test(is_superadmin)
 def staff_create(request):
+    """Create a new clerk or VRA"""
     staff_type = request.GET.get('type', request.POST.get('type', 'clerk'))
 
     if request.method == 'POST':
         staff_type = request.POST.get('type', 'clerk')
+
+        # Debug: print what type we're getting
+        print(f"Creating staff of type: {staff_type}")
 
         if staff_type == 'clerk':
             form = ClerkForm(request.POST)
@@ -335,13 +371,20 @@ def staff_create(request):
                 clerk = form.save()
                 messages.success(request, f'Clerk "{clerk.name}" created successfully!')
                 return redirect('superadmin:staff_list')
-        else:
+            else:
+                # Print form errors for debugging
+                print(f"Clerk form errors: {form.errors}")
+        else:  # VRA
             form = VRAForm(request.POST)
             if form.is_valid():
                 vra = form.save()
                 messages.success(request, f'VRA "{vra.name}" created successfully!')
                 return redirect('superadmin:staff_list')
+            else:
+                # Print form errors for debugging
+                print(f"VRA form errors: {form.errors}")
     else:
+        # GET request - instantiate the correct form based on type
         if staff_type == 'clerk':
             form = ClerkForm()
         else:
@@ -357,6 +400,7 @@ def staff_create(request):
 @login_required
 @user_passes_test(is_superadmin)
 def staff_edit(request, pk, staff_type):
+    """Edit a clerk or VRA"""
     if staff_type == 'clerk':
         staff = get_object_or_404(Clerk, pk=pk)
         if request.method == 'POST':
@@ -367,7 +411,7 @@ def staff_edit(request, pk, staff_type):
                 return redirect('superadmin:staff_list')
         else:
             form = ClerkForm(instance=staff)
-    else:
+    else:  # VRA
         staff = get_object_or_404(VRA, pk=pk)
         if request.method == 'POST':
             form = VRAForm(request.POST, instance=staff)
@@ -390,17 +434,27 @@ def staff_edit(request, pk, staff_type):
 @user_passes_test(is_superadmin)
 @require_POST
 def staff_delete(request, pk, staff_type):
+    """Delete a clerk or VRA"""
     if staff_type == 'clerk':
         staff = get_object_or_404(Clerk, pk=pk)
         staff_name = staff.name
         staff.delete()
         messages.success(request, f'Clerk "{staff_name}" deleted successfully!')
-    else:
+    else:  # VRA
         staff = get_object_or_404(VRA, pk=pk)
         staff_name = staff.name
         staff.delete()
         messages.success(request, f'VRA "{staff_name}" deleted successfully!')
+
     return redirect('superadmin:staff_list')
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def clerk_list_old(request):
+    """List all clerks (legacy)"""
+    clerks = Clerk.objects.select_related('ward').all().order_by('ward__name', 'name')
+    return render(request, 'superadmin/clerk_list.html', {'clerks': clerks})
 
 
 # ==================== KIEMS KIT CRUD ====================
@@ -408,6 +462,7 @@ def staff_delete(request, pk, staff_type):
 @login_required
 @user_passes_test(is_superadmin)
 def kit_list(request):
+    """List all KIEMS kits"""
     kits = KIEMSKit.objects.select_related('ward').prefetch_related('assigned_clerks').all().order_by('ward__name',
                                                                                                       'kit_name')
     return render(request, 'superadmin/kit_list.html', {'kits': kits})
@@ -416,6 +471,7 @@ def kit_list(request):
 @login_required
 @user_passes_test(is_superadmin)
 def kit_create(request):
+    """Create a new KIEMS kit"""
     if request.method == 'POST':
         form = KIEMSKitForm(request.POST)
         if form.is_valid():
@@ -430,6 +486,7 @@ def kit_create(request):
 @login_required
 @user_passes_test(is_superadmin)
 def kit_edit(request, pk):
+    """Edit a KIEMS kit"""
     kit = get_object_or_404(KIEMSKit, pk=pk)
     if request.method == 'POST':
         form = KIEMSKitForm(request.POST, instance=kit)
@@ -446,6 +503,7 @@ def kit_edit(request, pk):
 @user_passes_test(is_superadmin)
 @require_POST
 def kit_delete(request, pk):
+    """Delete a KIEMS kit"""
     kit = get_object_or_404(KIEMSKit, pk=pk)
     kit_name = kit.kit_name
     kit.delete()
@@ -458,6 +516,7 @@ def kit_delete(request, pk):
 @login_required
 @user_passes_test(is_superadmin)
 def entry_list(request):
+    """List all daily entries with filters"""
     entries = DailyKIEMSEntry.objects.select_related(
         'kiems_kit', 'phase', 'ward', 'vra'
     ).all()
@@ -491,12 +550,14 @@ def entry_list(request):
             entries = entries.filter(uploaded=False)
             filter_params['uploaded'] = 'False'
 
+    # Calculate totals with gender breakdown
     total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
     total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
     total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
     total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
     total_updated = entries.aggregate(Sum('total_updated'))['total_updated__sum'] or 0
 
+    # Today's statistics with gender breakdown
     today = timezone.now().date()
     today_entries = DailyKIEMSEntry.objects.filter(entry_date=today)
     today_stats = {
@@ -531,6 +592,7 @@ def entry_list(request):
 @login_required
 @user_passes_test(is_superadmin)
 def entry_create(request):
+    """Create a new daily entry"""
     if request.method == 'POST':
         form = DailyKIEMSEntryForm(request.POST)
         if form.is_valid():
@@ -545,6 +607,7 @@ def entry_create(request):
 @login_required
 @user_passes_test(is_superadmin)
 def entry_edit(request, pk):
+    """Edit a daily entry"""
     entry = get_object_or_404(DailyKIEMSEntry, pk=pk)
     if request.method == 'POST':
         form = DailyKIEMSEntryForm(request.POST, instance=entry)
@@ -561,6 +624,7 @@ def entry_edit(request, pk):
 @user_passes_test(is_superadmin)
 @require_POST
 def entry_delete(request, pk):
+    """Delete a daily entry"""
     entry = get_object_or_404(DailyKIEMSEntry, pk=pk)
     entry.delete()
     messages.success(request, 'Daily entry deleted successfully!')
@@ -573,6 +637,7 @@ def entry_delete(request, pk):
 @user_passes_test(is_superadmin)
 @require_GET
 def export_data(request):
+    """Export data in CSV or Excel format with filters"""
     form = ExportForm(request.GET or None)
 
     if not form.is_valid():
@@ -582,6 +647,7 @@ def export_data(request):
     model_type = form.cleaned_data['model_type']
     export_format = form.cleaned_data['format']
 
+    # Get filter parameters from request
     filter_params = {}
     if request.GET.get('phase'):
         filter_params['phase'] = request.GET.get('phase')
@@ -601,6 +667,7 @@ def export_data(request):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = f"export_{model_type}_{timestamp}"
 
+    # Map model types to data with filter support
     model_map = {
         'ward': {
             'queryset': Ward.objects.all(),
@@ -660,6 +727,7 @@ def export_data(request):
         messages.error(request, 'Invalid model type')
         return redirect('superadmin:entry_list')
 
+    # Apply filters for entry model
     queryset = data['queryset']
     if model_type == 'entry' and filter_params:
         if filter_params.get('phase'):
@@ -682,6 +750,7 @@ def export_data(request):
     headers = data['headers']
     rows = data['rows'](queryset)
 
+    # Add filter info to filename
     if filter_params:
         filename += "_filtered"
 
@@ -708,6 +777,7 @@ def export_data(request):
 @login_required
 @user_passes_test(is_superadmin)
 def import_data(request):
+    """Import data from CSV or Excel file"""
     if request.method == 'POST':
         form = ImportForm(request.POST, request.FILES)
         if form.is_valid():
@@ -715,6 +785,7 @@ def import_data(request):
             model_type = form.cleaned_data['model_type']
 
             try:
+                # Parse file
                 if file.name.endswith('.csv'):
                     decoded = file.read().decode('utf-8')
                     reader = csv.DictReader(io.StringIO(decoded))
@@ -733,6 +804,7 @@ def import_data(request):
                 success_count = 0
                 error_count = 0
 
+                # Import logic based on model type
                 if model_type == 'ward':
                     for row in rows:
                         try:
@@ -743,6 +815,7 @@ def import_data(request):
                             success_count += 1
                         except Exception:
                             error_count += 1
+
                 elif model_type == 'vra':
                     for row in rows:
                         try:
@@ -761,6 +834,7 @@ def import_data(request):
                                 error_count += 1
                         except Exception:
                             error_count += 1
+
                 elif model_type == 'clerk':
                     for row in rows:
                         try:
@@ -776,6 +850,7 @@ def import_data(request):
                                 error_count += 1
                         except Exception:
                             error_count += 1
+
                 elif model_type == 'kiemskit':
                     for row in rows:
                         try:
@@ -795,6 +870,7 @@ def import_data(request):
                                 error_count += 1
                         except Exception:
                             error_count += 1
+
                 elif model_type == 'phase':
                     for row in rows:
                         try:
@@ -809,6 +885,7 @@ def import_data(request):
                             success_count += 1
                         except Exception:
                             error_count += 1
+
                 elif model_type == 'entry':
                     for row in rows:
                         try:
@@ -856,6 +933,7 @@ def import_data(request):
 @user_passes_test(is_superadmin)
 @require_GET
 def get_chart_data(request):
+    """API endpoint for chart data"""
     chart_type = request.GET.get('type', 'daily')
     days = int(request.GET.get('days', 30))
 
@@ -951,6 +1029,7 @@ def get_chart_data(request):
 @user_passes_test(is_superadmin)
 @require_GET
 def get_clerks_by_ward(request):
+    """API endpoint to get clerks for a specific ward"""
     ward_id = request.GET.get('ward_id')
     if not ward_id:
         return JsonResponse({'clerks': [], 'error': 'No ward specified'}, status=400)
@@ -966,6 +1045,7 @@ def get_clerks_by_ward(request):
 @user_passes_test(is_superadmin)
 @require_GET
 def get_vras_by_ward(request):
+    """API endpoint to get VRAs for a specific ward"""
     ward_id = request.GET.get('ward_id')
     if not ward_id:
         return JsonResponse({'vras': [], 'error': 'No ward specified'}, status=400)
@@ -977,9 +1057,10 @@ def get_vras_by_ward(request):
         return JsonResponse({'vras': [], 'error': str(e)}, status=500)
 
 
-# ==================== REPORT GENERATION ====================
+# ==================== REPORT GENERATION WITH PDF.CO ====================
 
 def _parse_report_filters(request):
+    """Parse and normalize report filter parameters"""
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
     phase_id = request.GET.get('phase')
@@ -1013,6 +1094,7 @@ def _parse_report_filters(request):
 
 
 def _filter_labels(date_from, date_to, phase_id, ward_id, kit_id, vra_id, uploaded):
+    """Generate human-readable filter labels"""
     labels = [f"{date_from.strftime('%d %b %Y')} - {date_to.strftime('%d %b %Y')}"]
 
     if phase_id:
@@ -1042,6 +1124,7 @@ def _filter_labels(date_from, date_to, phase_id, ward_id, kit_id, vra_id, upload
 
 
 def generate_report_html(request):
+    """Generate HTML report content"""
     f = _parse_report_filters(request)
     date_from, date_to = f['date_from'], f['date_to']
     phase_id, ward_id, kit_id, vra_id, uploaded = (
@@ -1112,29 +1195,93 @@ def generate_report_html(request):
     return HttpResponse(html_string)
 
 
+@login_required
+@user_passes_test(is_superadmin)
 def generate_report_pdf(request, as_attachment=False):
+    """Generate PDF using PDF.co API"""
     try:
-        if not WEASYPRINT_AVAILABLE:
-            messages.error(request, 'PDF generation is not available. Please install weasyprint.')
+        # Check if API key is configured
+        if not hasattr(settings, 'PDF_CO_API_KEY') or not settings.PDF_CO_API_KEY:
+            messages.error(request,
+                           'PDF.co API key is not configured. Please add PDF_CO_API_KEY to your environment variables.')
             return redirect('superadmin:entry_list')
 
+        # Generate HTML content
         html_response = generate_report_html(request)
         html_string = html_response.content.decode('utf-8')
 
+        # Get filter params for filename
         f = _parse_report_filters(request)
         date_from, date_to = f['date_from'], f['date_to']
 
-        pdf_bytes = weasyprint.HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
+        # Prepare PDF.co API request
+        api_url = f"{getattr(settings, 'PDF_CO_API_URL', 'https://api.pdf.co/v1')}/pdf/convert/from/html"
 
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        filename = f"KIEMS_Report_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
+        payload = json.dumps({
+            "name": f"KIEMS_Report_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf",
+            "html": html_string,
+            "margin": "20px",
+            "paperSize": "Letter",
+            "orientation": "Portrait",
+            "printBackground": "true",
+            "header": "",
+            "footer": "",
+            "async": False
+        })
 
-        if as_attachment:
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        headers = {
+            'x-api-key': settings.PDF_CO_API_KEY,
+            'Content-Type': 'application/json'
+        }
+
+        # Call PDF.co API
+        response_api = requests.post(api_url, headers=headers, data=payload, timeout=60)
+
+        if response_api.status_code == 200:
+            result = response_api.json()
+
+            if result.get('error'):
+                messages.error(request, f'PDF generation error: {result["error"]}')
+                return redirect('superadmin:entry_list')
+
+            # Check if we have a direct PDF URL
+            if result.get('url'):
+                # Download the PDF
+                pdf_response = requests.get(result['url'], timeout=30)
+
+                if pdf_response.status_code == 200:
+                    response = HttpResponse(pdf_response.content, content_type='application/pdf')
+                    filename = f"KIEMS_Report_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
+
+                    if as_attachment:
+                        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                    else:
+                        response['Content-Disposition'] = f'inline; filename="{filename}"'
+
+                    return response
+                else:
+                    messages.error(request, 'Failed to download generated PDF')
+                    return redirect('superadmin:entry_list')
+            elif result.get('file'):
+                # Some versions return file directly
+                response = HttpResponse(result['file'], content_type='application/pdf')
+                filename = f"KIEMS_Report_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                return response
+            else:
+                messages.error(request, 'Unexpected response from PDF service')
+                return redirect('superadmin:entry_list')
         else:
-            response['Content-Disposition'] = f'inline; filename="{filename}"'
+            error_msg = response_api.json().get('error', 'Unknown error')
+            messages.error(request, f'PDF generation service error: {error_msg}')
+            return redirect('superadmin:entry_list')
 
-        return response
+    except requests.exceptions.Timeout:
+        messages.error(request, 'PDF generation timed out. Please try again.')
+        return redirect('superadmin:entry_list')
+    except requests.exceptions.RequestException as e:
+        messages.error(request, f'Network error: {str(e)}')
+        return redirect('superadmin:entry_list')
     except Exception as e:
         messages.error(request, f'PDF generation failed: {str(e)}')
         return redirect('superadmin:entry_list')
@@ -1142,20 +1289,236 @@ def generate_report_pdf(request, as_attachment=False):
 
 @login_required
 @user_passes_test(is_superadmin)
+def generate_report_pdf_fallback(request, as_attachment=False):
+    """Fallback PDF generation using ReportLab (local) if PDF.co fails"""
+    try:
+        if not REPORTLAB_AVAILABLE:
+            messages.error(request, 'ReportLab is not available. Please install reportlab or check PDF.co API key.')
+            return redirect('superadmin:entry_list')
+
+        f = _parse_report_filters(request)
+        date_from, date_to = f['date_from'], f['date_to']
+        phase_id, ward_id, kit_id, vra_id, uploaded = (
+            f['phase_id'], f['ward_id'], f['kit_id'], f['vra_id'], f['uploaded']
+        )
+
+        # Get data
+        entries = DailyKIEMSEntry.objects.filter(
+            entry_date__gte=date_from,
+            entry_date__lte=date_to
+        ).select_related('kiems_kit', 'phase', 'ward', 'vra').order_by('entry_date')
+
+        if phase_id:
+            entries = entries.filter(phase_id=phase_id)
+        if ward_id:
+            entries = entries.filter(ward_id=ward_id)
+        if kit_id:
+            entries = entries.filter(kiems_kit_id=kit_id)
+        if vra_id:
+            entries = entries.filter(vra_id=vra_id)
+        if uploaded == 'True':
+            entries = entries.filter(uploaded=True)
+        elif uploaded == 'False':
+            entries = entries.filter(uploaded=False)
+
+        total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
+        total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
+        total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
+        total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
+
+        response = HttpResponse(content_type='application/pdf')
+        filename = f"KIEMS_Report_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
+        if as_attachment:
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        else:
+            response['Content-Disposition'] = f'inline; filename="{filename}"'
+
+        # Build PDF with ReportLab
+        doc = SimpleDocTemplate(
+            response,
+            pagesize=landscape(letter),
+            rightMargin=36,
+            leftMargin=36,
+            topMargin=36,
+            bottomMargin=36,
+        )
+
+        styles = getSampleStyleSheet()
+        story = []
+
+        # Title
+        title_style = ParagraphStyle(
+            'Title',
+            parent=styles['Title'],
+            fontSize=18,
+            textColor=colors.HexColor('#2E7D32'),
+            alignment=TA_CENTER,
+            spaceAfter=6
+        )
+        story.append(Paragraph("KIEMS Daily Registration Report", title_style))
+
+        # Subtitle
+        subtitle_style = ParagraphStyle(
+            'Subtitle',
+            parent=styles['Normal'],
+            fontSize=10,
+            textColor=colors.HexColor('#666666'),
+            alignment=TA_CENTER,
+            spaceAfter=12
+        )
+        filter_text = f"{date_from.strftime('%d %b %Y')} - {date_to.strftime('%d %b %Y')}"
+        if phase_id:
+            phase = Phase.objects.filter(id=phase_id).first()
+            if phase: filter_text += f" | Phase: {phase.name}"
+        if ward_id:
+            ward = Ward.objects.filter(id=ward_id).first()
+            if ward: filter_text += f" | Ward: {ward.name}"
+        story.append(
+            Paragraph(f"Generated: {timezone.now().strftime('%d %b %Y, %H:%M')} | {filter_text}", subtitle_style))
+
+        story.append(Spacer(1, 12))
+
+        # Summary stats
+        stats_data = [
+            ['Total Entries', 'Total Registered', 'Male', 'Female', 'Transferred'],
+            [
+                str(entries.count()),
+                str(total_registered),
+                str(total_male),
+                str(total_female),
+                str(total_transferred)
+            ]
+        ]
+
+        stats_table = Table(stats_data, colWidths=[100, 100, 80, 80, 80])
+        stats_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E7D32')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F5F5F5')),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#CCCCCC')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        story.append(stats_table)
+        story.append(Spacer(1, 16))
+
+        # Ward Summary
+        if entries.exists():
+            ward_summary = entries.values('ward__name').annotate(
+                registered=Sum('total_registered'),
+                male=Sum('registered_male'),
+                female=Sum('registered_female'),
+                transferred=Sum('total_transferred'),
+                count=Count('id'),
+            ).order_by('-registered')
+
+            story.append(Paragraph("Summary by Ward", styles['Heading4']))
+            story.append(Spacer(1, 8))
+
+            ward_data = [['Ward', 'Entries', 'Male', 'Female', 'Total', 'Transferred']]
+            for w in ward_summary:
+                ward_data.append([
+                    w['ward__name'] or 'Unknown',
+                    str(w['count']),
+                    str(w['male'] or 0),
+                    str(w['female'] or 0),
+                    str(w['registered'] or 0),
+                    str(w['transferred'] or 0)
+                ])
+
+            ward_table = Table(ward_data, colWidths=[120, 60, 60, 60, 60, 70])
+            ward_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E7D32')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                ('TOPPADDING', (0, 0), (-1, 0), 6),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DDDDDD')),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9F9F9')]),
+            ]))
+            story.append(ward_table)
+            story.append(Spacer(1, 16))
+
+            # Kit Summary
+            kit_summary = entries.values('kiems_kit__kit_name').annotate(
+                registered=Sum('total_registered'),
+                male=Sum('registered_male'),
+                female=Sum('registered_female'),
+                count=Count('id'),
+            ).order_by('-registered')[:20]
+
+            story.append(Paragraph("Top 20 Kits by Registration", styles['Heading4']))
+            story.append(Spacer(1, 8))
+
+            kit_data = [['Kit', 'Entries', 'Male', 'Female', 'Total']]
+            for k in kit_summary:
+                kit_data.append([
+                    k['kiems_kit__kit_name'] or 'Unknown',
+                    str(k['count']),
+                    str(k['male'] or 0),
+                    str(k['female'] or 0),
+                    str(k['registered'] or 0)
+                ])
+
+            kit_table = Table(kit_data, colWidths=[150, 60, 60, 60, 60])
+            kit_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E7D32')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+                ('TOPPADDING', (0, 0), (-1, 0), 6),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DDDDDD')),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9F9F9')]),
+            ]))
+            story.append(kit_table)
+
+        doc.build(story)
+        return response
+
+    except Exception as e:
+        messages.error(request, f'Fallback PDF generation failed: {str(e)}')
+        return redirect('superadmin:entry_list')
+
+
+@login_required
+@user_passes_test(is_superadmin)
 def generate_report(request):
-    return generate_report_pdf(request, as_attachment=True)
+    """Generate PDF using PDF.co API with fallback to ReportLab"""
+    try:
+        # Try PDF.co first
+        return generate_report_pdf(request, as_attachment=True)
+    except Exception as e:
+        # If PDF.co fails, try ReportLab fallback
+        messages.warning(request, f'PDF.co service failed, using fallback: {str(e)}')
+        return generate_report_pdf_fallback(request, as_attachment=True)
 
 
 @login_required
 @user_passes_test(is_superadmin)
 def generate_report_preview(request):
+    """Generate HTML preview of the report"""
     return generate_report_html(request)
 
 
 @login_required
 @user_passes_test(is_superadmin)
 def generate_report_download(request):
-    return generate_report_pdf(request, as_attachment=True)
+    """Generate and download PDF report"""
+    return generate_report(request)
 
 
 # ==================== KIT REPORT API ====================
@@ -1163,6 +1526,7 @@ def generate_report_download(request):
 @login_required
 @user_passes_test(is_superadmin)
 def kit_report_api(request, kit_id):
+    """API endpoint for kit report data"""
     kit = get_object_or_404(KIEMSKit, id=kit_id)
     entries = DailyKIEMSEntry.objects.filter(kiems_kit=kit).select_related('vra').order_by('-entry_date')
 
@@ -1198,6 +1562,7 @@ def kit_report_api(request, kit_id):
 @login_required
 @user_passes_test(is_superadmin)
 def filtered_preview(request):
+    """Preview filtered entries in a full page"""
     entries = DailyKIEMSEntry.objects.select_related(
         'kiems_kit', 'phase', 'ward', 'vra'
     ).all()
@@ -1205,6 +1570,7 @@ def filtered_preview(request):
     filter_params = {}
     query_string = ""
 
+    # Apply filters
     if request.GET.get('phase'):
         entries = entries.filter(phase_id=request.GET.get('phase'))
         filter_params['phase'] = request.GET.get('phase')
@@ -1236,8 +1602,10 @@ def filtered_preview(request):
         entries = entries.filter(uploaded=False)
         filter_params['uploaded'] = 'False'
 
+    # Build query string for links
     query_string = '&'.join([f'{k}={v}' for k, v in filter_params.items()])
 
+    # Calculate totals
     totals = {
         'registered': entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0,
         'male': entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0,
@@ -1246,6 +1614,7 @@ def filtered_preview(request):
         'updated': entries.aggregate(Sum('total_updated'))['total_updated__sum'] or 0,
     }
 
+    # Build filter summary
     filter_parts = []
     if filter_params.get('phase'):
         phase = Phase.objects.filter(id=filter_params['phase']).first()
@@ -1286,8 +1655,10 @@ def filtered_preview(request):
 @login_required
 @user_passes_test(is_superadmin)
 def performance_dashboard(request):
+    """Performance dashboard showing best performing kits"""
     period = request.GET.get('period', 'weekly')
 
+    # Determine date range
     today = timezone.now().date()
     date_from = None
 
@@ -1300,14 +1671,17 @@ def performance_dashboard(request):
     elif period == 'monthly':
         date_from = today - timedelta(days=30)
         period_label = 'Last 30 Days'
-    else:
+    else:  # all
         period_label = 'All Time'
 
+    # Build base queryset
     entries = DailyKIEMSEntry.objects.select_related('kiems_kit', 'ward')
 
     if date_from:
         entries = entries.filter(entry_date__gte=date_from)
 
+    # Kit rankings
+    kit_rankings = []
     kit_data = entries.values('kiems_kit_id', 'kiems_kit__kit_name', 'kiems_kit__serial_no', 'ward__name').annotate(
         total_registered=Sum('total_registered'),
         total_male=Sum('registered_male'),
@@ -1319,11 +1693,11 @@ def performance_dashboard(request):
     total_registered = sum(k['total_registered'] or 0 for k in kit_data)
     max_registered = kit_data[0]['total_registered'] if kit_data else 0
 
+    # Calculate gender totals
     total_male = sum(k['total_male'] or 0 for k in kit_data)
     total_female = sum(k['total_female'] or 0 for k in kit_data)
     gender_total = total_male + total_female
 
-    kit_rankings = []
     for kit in kit_data:
         total = kit['total_registered'] or 0
         kit_rankings.append({
@@ -1340,8 +1714,10 @@ def performance_dashboard(request):
             'avg_per_entry': (total / kit['entry_count']) if kit['entry_count'] > 0 else 0,
         })
 
+    # Top kit
     top_kit = kit_rankings[0] if kit_rankings else None
 
+    # Daily performance (last 7 days)
     daily_start = today - timedelta(days=7)
     daily_entries = DailyKIEMSEntry.objects.filter(entry_date__gte=daily_start).values('entry_date').annotate(
         entry_count=Count('id'),
@@ -1351,6 +1727,7 @@ def performance_dashboard(request):
         transferred=Sum('total_transferred'),
     ).order_by('-entry_date')
 
+    # Get top kit per day
     daily_performance = []
     for day in daily_entries:
         top_kit_day = DailyKIEMSEntry.objects.filter(entry_date=day['entry_date']).values(
@@ -1369,13 +1746,18 @@ def performance_dashboard(request):
             'top_kit_count': top_kit_day['total'] if top_kit_day else 0,
         })
 
+    # Calculate averages
     total_kits = kit_data.count()
     avg_per_kit = total_registered / total_kits if total_kits > 0 else 0
 
+    # Gender percentages
     gender_male_pct = int((total_male / gender_total * 100)) if gender_total > 0 else 50
     gender_female_pct = int((total_female / gender_total * 100)) if gender_total > 0 else 50
 
-    gender_ratio = f"{gender_male_pct}/{gender_female_pct}" if gender_total > 0 else "0/0"
+    if gender_total > 0:
+        gender_ratio = f"{gender_male_pct}/{gender_female_pct}"
+    else:
+        gender_ratio = "0/0"
 
     context = {
         'period': period,

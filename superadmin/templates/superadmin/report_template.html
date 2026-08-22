@@ -1,338 +1,240 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KIEMS Report</title>
+    <meta charset="utf-8">
+    <title>KIEMS Daily Registration Report</title>
     <style>
-        @page {
-            size: letter;
-            margin: 0.5in;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, sans-serif;
-            line-height: 1.6;
-            color: #212121;
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
         }
-
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            padding: 40px;
+            color: #1c1c1e;
+            background: #fff;
+        }
         .header {
             text-align: center;
-            padding: 20px 0;
-            border-bottom: 2px solid #2E7D32;
+            border-bottom: 3px solid #2E7D32;
+            padding-bottom: 20px;
             margin-bottom: 30px;
         }
-
-        .header img {
-            max-height: 50px;
-        }
-
         .header h1 {
-            margin: 10px 0 5px 0;
             font-size: 24px;
             color: #2E7D32;
+            letter-spacing: -0.3px;
+            margin-bottom: 4px;
         }
-
         .header .subtitle {
             color: #666;
-            font-size: 14px;
-        }
-
-        .meta-info {
-            display: flex;
-            justify-content: space-between;
-            padding: 0 20px;
-            margin-bottom: 20px;
-            font-size: 12px;
-            color: #666;
-        }
-
-        .scope {
-            font-style: italic;
-        }
-
-        .filters {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .filters h3 {
-            margin-top: 0;
-            color: #2E7D32;
-        }
-
-        .filter-tag {
-            display: inline-block;
-            background: #e8f5e9;
-            color: #2E7D32;
-            padding: 4px 8px;
-            margin: 4px;
-            border-radius: 4px;
-            font-size: 12px;
-        }
-
-        .section {
-            margin-bottom: 30px;
-        }
-
-        .section h2 {
-            color: #2E7D32;
-            border-bottom: 1px solid #e0e0e0;
-            padding-bottom: 8px;
-            margin-bottom: 20px;
-            font-size: 20px;
-        }
-
-        .summary-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-
-        .summary-table th,
-        .summary-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
-        }
-
-        .summary-table th {
-            background: #e8f5e9;
-            font-weight: 600;
-            color: #2E7D32;
-        }
-
-        .summary-table tr:hover {
-            background: #f5f5f5;
-        }
-
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-
-        .data-table th,
-        .data-table td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
             font-size: 13px;
         }
-
-        .data-table th {
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
             background: #f8f9fa;
-            font-weight: 600;
-        }
-
-        .data-table tbody tr:hover {
-            background: #f5f5f5;
-        }
-
-        .data-table tbody tr:nth-child(even) {
-            background: #fafafa;
-        }
-
-        .number {
-            text-align: right;
-            font-family: monospace;
-        }
-
-        .footer {
+            border-radius: 8px;
+            padding: 12px 16px;
             text-align: center;
-            padding: 20px 0;
-            margin-top: 40px;
-            border-top: 1px solid #e0e0e0;
+            border: 1px solid #e9ecef;
+        }
+        .stat-card .number {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1c1c1e;
+        }
+        .stat-card .label {
+            font-size: 11px;
+            color: #8e8e93;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-top: 2px;
+        }
+        .section {
+            margin-top: 24px;
+        }
+        .section h2 {
+            font-size: 16px;
+            color: #2E7D32;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 6px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
             font-size: 12px;
-            color: #666;
+            margin-bottom: 16px;
         }
-
-        .page-number {
-            margin-top: 10px;
+        th {
+            background: #2E7D32;
+            color: #fff;
+            padding: 8px 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        td {
+            padding: 7px 10px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        tr:nth-child(even) td {
+            background: #f8f9fa;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #e9ecef;
             font-size: 10px;
-            color: #999;
+            color: #8e8e93;
+            text-align: center;
         }
-
         @media print {
-            .no-print {
-                display: none;
-            }
-
-            body {
-                -webkit-print-color-adjust: exact;
-            }
+            body { padding: 20px; }
+            .stat-card { background: #f8f9fa !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            th { background: #2E7D32 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            tr:nth-child(even) td { background: #f8f9fa !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
     </style>
 </head>
 <body>
     <div class="header">
-        {% if request.GET.BRAND_LOGO_URL %}
-        <img src="{{ request.GET.BRAND_LOGO_URL }}" alt="IEBC Logo">
-        {% endif %}
-        <h1>KIEMS Daily Registration Report</h1>
-        <div class="subtitle">{{ generated_at }}</div>
+        <h1>INDEPENDENT ELECTORAL AND BOUNDARIES COMMISSION</h1>
+        <div style="font-size:13px; color:#2E7D32; font-weight:600;">KIEMS Daily Registration Report</div>
+        <div class="subtitle">Generated: {{ generated_at }} | {{ scope }}</div>
     </div>
 
-    <div class="meta-info">
-        <div>{{ scope }}</div>
-        <div class="no-print">
-            Page <span class="page-number"></span>
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="number">{{ total_entries }}</div>
+            <div class="label">Total Entries</div>
+        </div>
+        <div class="stat-card">
+            <div class="number">{{ total_registered }}</div>
+            <div class="label">Total Registered</div>
+        </div>
+        <div class="stat-card">
+            <div class="number">{{ total_male }}</div>
+            <div class="label">Male</div>
+        </div>
+        <div class="stat-card">
+            <div class="number">{{ total_female }}</div>
+            <div class="label">Female</div>
+        </div>
+        <div class="stat-card">
+            <div class="number">{{ total_transferred }}</div>
+            <div class="label">Transferred</div>
         </div>
     </div>
 
-    {% if filter_labels|length > 1 %}
-    <div class="filters">
-        <h3>Applied Filters</h3>
-        <div>
-            {% for label in filter_labels|slice:"1" %}
-            <span class="filter-tag">{{ label }}</span>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
+    <!-- Ward Summary -->
     <div class="section">
-        <h2>Executive Summary</h2>
-        <table class="summary-table">
-            <tr>
-                <th>Total Entries</th>
-                <td class="number">{{ total_entries }}</td>
-            </tr>
-            <tr>
-                <th>Total Registered</th>
-                <td class="number">{{ total_registered }}</td>
-            </tr>
-            <tr>
-                <th>Male Registrations</th>
-                <td class="number">{{ total_male }}</td>
-            </tr>
-            <tr>
-                <th>Female Registrations</th>
-                <td class="number">{{ total_female }}</td>
-            </tr>
-            <tr>
-                <th>Gender Ratio (M:F)</th>
-                <td>{{ total_male }}:{{ total_female }}</td>
-            </tr>
-            <tr>
-                <th>Total Transferred</th>
-                <td class="number">{{ total_transferred }}</td>
-            </tr>
-        </table>
-    </div>
-
-    {% if ward_summary %}
-    <div class="section">
-        <h2>Ward Summary</h2>
-        <table class="data-table">
+        <h2>Summary by Ward</h2>
+        <table>
             <thead>
                 <tr>
                     <th>Ward</th>
-                    <th class="number">Entries</th>
-                    <th class="number">Male</th>
-                    <th class="number">Female</th>
-                    <th class="number">Total</th>
-                    <th class="number">Transferred</th>
+                    <th style="text-align:center;">Entries</th>
+                    <th style="text-align:center;">Male</th>
+                    <th style="text-align:center;">Female</th>
+                    <th style="text-align:center;">Total</th>
+                    <th style="text-align:center;">Transferred</th>
                 </tr>
             </thead>
             <tbody>
                 {% for ward in ward_summary %}
                 <tr>
                     <td>{{ ward.ward__name|default:"Unknown" }}</td>
-                    <td class="number">{{ ward.count }}</td>
-                    <td class="number">{{ ward.male }}</td>
-                    <td class="number">{{ ward.female }}</td>
-                    <td class="number">{{ ward.registered }}</td>
-                    <td class="number">{{ ward.transferred }}</td>
+                    <td style="text-align:center;">{{ ward.count }}</td>
+                    <td style="text-align:center;">{{ ward.male|default:"0" }}</td>
+                    <td style="text-align:center;">{{ ward.female|default:"0" }}</td>
+                    <td style="text-align:center; font-weight:600;">{{ ward.registered|default:"0" }}</td>
+                    <td style="text-align:center;">{{ ward.transferred|default:"0" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align:center; color:#8e8e93;">No data available</td>
                 </tr>
                 {% endfor %}
-                <tr>
-                    <th>TOTAL</th>
-                    <td class="number">{{ ward_summary|length }}</td>
-                    <td class="number">{{ total_male }}</td>
-                    <td class="number">{{ total_female }}</td>
-                    <td class="number">{{ total_registered }}</td>
-                    <td class="number">{{ total_transferred }}</td>
-                </tr>
             </tbody>
         </table>
     </div>
-    {% endif %}
 
-    {% if phase_summary %}
+    <!-- Phase Summary -->
     <div class="section">
-        <h2>Phase Summary</h2>
-        <table class="data-table">
+        <h2>Summary by Phase</h2>
+        <table>
             <thead>
                 <tr>
                     <th>Phase</th>
-                    <th class="number">Entries</th>
-                    <th class="number">Male</th>
-                    <th class="number">Female</th>
-                    <th class="number">Total</th>
-                    <th class="number">Transferred</th>
+                    <th style="text-align:center;">Entries</th>
+                    <th style="text-align:center;">Male</th>
+                    <th style="text-align:center;">Female</th>
+                    <th style="text-align:center;">Total</th>
+                    <th style="text-align:center;">Transferred</th>
                 </tr>
             </thead>
             <tbody>
                 {% for phase in phase_summary %}
                 <tr>
                     <td>{{ phase.phase__name|default:"Unknown" }}</td>
-                    <td class="number">{{ phase.count }}</td>
-                    <td class="number">{{ phase.male }}</td>
-                    <td class="number">{{ phase.female }}</td>
-                    <td class="number">{{ phase.registered }}</td>
-                    <td class="number">{{ phase.transferred }}</td>
+                    <td style="text-align:center;">{{ phase.count }}</td>
+                    <td style="text-align:center;">{{ phase.male|default:"0" }}</td>
+                    <td style="text-align:center;">{{ phase.female|default:"0" }}</td>
+                    <td style="text-align:center; font-weight:600;">{{ phase.registered|default:"0" }}</td>
+                    <td style="text-align:center;">{{ phase.transferred|default:"0" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align:center; color:#8e8e93;">No data available</td>
                 </tr>
                 {% endfor %}
-                <tr>
-                    <th>TOTAL</th>
-                    <td class="number">{{ phase_summary|length }}</td>
-                    <td class="number">{{ total_male }}</td>
-                    <td class="number">{{ total_female }}</td>
-                    <td class="number">{{ total_registered }}</td>
-                    <td class="number">{{ total_transferred }}</td>
-                </tr>
             </tbody>
         </table>
     </div>
-    {% endif %}
 
-    {% if kit_summary %}
+    <!-- Top Kits -->
     <div class="section">
-        <h2>Top 20 Kit Performance</h2>
-        <table class="data-table">
+        <h2>Top 20 Kits by Registration</h2>
+        <table>
             <thead>
                 <tr>
                     <th>Kit Name</th>
-                    <th class="number">Serial Number</th>
-                    <th class="number">Entries</th>
-                    <th class="number">Male</th>
-                    <th class="number">Female</th>
-                    <th class="number">Total Registered</th>
+                    <th style="text-align:center;">Entries</th>
+                    <th style="text-align:center;">Male</th>
+                    <th style="text-align:center;">Female</th>
+                    <th style="text-align:center;">Total</th>
                 </tr>
             </thead>
             <tbody>
                 {% for kit in kit_summary %}
                 <tr>
-                    <td>{{ kit.kiems_kit__kit_name }}</td>
-                    <td class="number">{{ kit.kiems_kit__serial_no }}</td>
-                    <td class="number">{{ kit.count }}</td>
-                    <td class="number">{{ kit.male }}</td>
-                    <td class="number">{{ kit.female }}</td>
-                    <td class="number">{{ kit.registered }}</td>
+                    <td>{{ kit.kiems_kit__kit_name|default:"Unknown" }}</td>
+                    <td style="text-align:center;">{{ kit.count }}</td>
+                    <td style="text-align:center;">{{ kit.male|default:"0" }}</td>
+                    <td style="text-align:center;">{{ kit.female|default:"0" }}</td>
+                    <td style="text-align:center; font-weight:600;">{{ kit.registered|default:"0" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="text-align:center; color:#8e8e93;">No data available</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-    {% endif %}
 
     <div class="footer">
-        Generated by KIEMS SuperAdmin System • Independent Electoral and Boundaries Commission
+        Independent Electoral and Boundaries Commission &bull; {{ generated_at }}
     </div>
 </body>
 </html>

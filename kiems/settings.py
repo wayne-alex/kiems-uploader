@@ -147,3 +147,6 @@ else:
 
 CSRF_TRUSTED_ORIGINS = ['https://*.vercel.app']
 IEBC_LOGO_URL="https://cvr.iebc.or.ke/images/logoiebc.png"
+
+PDF_CO_API_KEY = os.getenv('PDF_CO_API_KEY')
+PDF_CO_API_URL = os.getenv('PDF_CO_API_URL', 'https://api.pdf.co/v1')
