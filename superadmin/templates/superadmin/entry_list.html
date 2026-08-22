@@ -576,6 +576,9 @@
         font-weight: 500;
         transition: all 0.2s;
         cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
     }
 
     .export-buttons .btn-sm:hover {
@@ -854,14 +857,30 @@
             <div style="display:flex; flex-wrap:wrap; gap:4px;">
                 <button type="submit" class="btn-sm primary">Apply</button>
                 <a href="{% url 'superadmin:entry_list' %}" class="btn-sm">Clear</a>
+                <!--
+                    Preview / CSV / Excel / PDF below are plain server-rendered links
+                    (no JS, no fetch, no event delegation) -- mirrors how Apply/Clear
+                    already work reliably. request.GET.urlencode() carries the current
+                    filter querystring through to each destination URL.
+                -->
                 <div class="export-buttons">
-                    <button type="button" class="btn-sm" id="previewBtn">
+                    <a class="btn-sm" target="_blank" rel="noopener"
+                       href="{% url 'superadmin:filtered_preview' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
                         <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         Preview
-                    </button>
-                    <button type="button" class="btn-sm" data-action="{% url 'superadmin:export_data' %}?model_type=entry&format=csv">CSV</button>
-                    <button type="button" class="btn-sm" data-action="{% url 'superadmin:export_data' %}?model_type=entry&format=xlsx">Excel</button>
-                    <button type="button" class="btn-sm pdf" data-action="{% url 'superadmin:generate_report' %}">PDF</button>
+                    </a>
+                    <a class="btn-sm"
+                       href="{% url 'superadmin:export_data' %}?model_type=entry&format=csv{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">
+                        CSV
+                    </a>
+                    <a class="btn-sm"
+                       href="{% url 'superadmin:export_data' %}?model_type=entry&format=xlsx{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">
+                        Excel
+                    </a>
+                    <a class="btn-sm pdf" target="_blank" rel="noopener"
+                       href="{% url 'superadmin:generate_report' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
+                        PDF
+                    </a>
                 </div>
             </div>
         </div>
@@ -1083,29 +1102,6 @@
     </div>
 </div>
 
-<!-- Filtered Results Preview Modal -->
-<div class="kit-modal-overlay" id="filteredModalOverlay">
-    <div class="kit-modal">
-        <div class="kit-modal-header">
-            <h3>
-                <svg class="icon icon-lg" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                Filtered Entries Preview
-            </h3>
-            <div style="display:flex; align-items:center; gap:6px;">
-                <button type="button" class="kit-modal-close" title="Print / save as PDF" onclick="printFilteredReport()">
-                    <svg class="icon icon-lg" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                </button>
-                <button type="button" class="kit-modal-close" onclick="closeFilteredReport()">
-                    <svg class="icon icon-lg" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-            </div>
-        </div>
-        <div class="kit-modal-body" id="filteredModalBody">
-            <div class="kit-modal-loading">Preparing preview...</div>
-        </div>
-    </div>
-</div>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Filter VRAs by ward
@@ -1132,98 +1128,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Handle export and action buttons using event delegation
-    const filterForm = document.getElementById('filterForm');
-    if (filterForm) {
-        filterForm.addEventListener('click', function(e) {
-            const btn = e.target.closest('.btn-sm, .btn-filter, .btn-clear');
-            if (!btn) return;
-
-            // Check if it's the preview button
-            if (btn.id === 'previewBtn') {
-                e.preventDefault();
-                previewFilteredReport();
-                return;
-            }
-
-            // Get the action from data-action attribute or formaction
-            const action = btn.getAttribute('data-action') || btn.getAttribute('formaction');
-
-            // Check if it's an export button (inside export-buttons)
-            const isExport = btn.closest('.export-buttons') !== null;
-
-            if (action && isExport) {
-                e.preventDefault();
-                const form = document.getElementById('filterForm');
-
-                // For PDF button - open in new tab
-                if (btn.classList.contains('pdf') || action.includes('generate_report')) {
-                    const formData = new FormData(form);
-                    const params = new URLSearchParams(formData);
-                    // Remove empty values
-                    for (let [key, value] of params.entries()) {
-                        if (!value) params.delete(key);
-                    }
-                    // Construct URL properly - check if action already has query parameters
-                    const separator = action.includes('?') ? '&' : '?';
-                    const url = action + separator + params.toString();
-                    window.open(url, '_blank');
-                    return;
-                }
-
-                // For CSV/Excel - navigate to URL
-                if (action.includes('export_data')) {
-                    const formData = new FormData(form);
-                    const params = new URLSearchParams(formData);
-                    // Remove empty values
-                    for (let [key, value] of params.entries()) {
-                        if (!value) params.delete(key);
-                    }
-                    // Ensure model_type and format are set
-                    if (!params.has('model_type')) {
-                        params.append('model_type', 'entry');
-                    }
-                    if (!params.has('format')) {
-                        if (action.includes('csv')) {
-                            params.append('format', 'csv');
-                        } else if (action.includes('xlsx')) {
-                            params.append('format', 'xlsx');
-                        }
-                    }
-                    // Construct URL properly - check if action already has query parameters
-                    const separator = action.includes('?') ? '&' : '?';
-                    const url = action + separator + params.toString();
-                    window.location.href = url;
-                    return;
-                }
-            }
-
-            // Handle regular submit buttons (Apply, Clear) - let the form submit normally
-            if (btn.closest('.filter-actions') && !isExport) {
-                return true;
-            }
-        });
-    }
-
-    // Close modal on overlay click or Escape
+    // Close kit report modal on overlay click or Escape
     const kitModalOverlay = document.getElementById('kitModalOverlay');
-    const filteredModalOverlay = document.getElementById('filteredModalOverlay');
 
     if (kitModalOverlay) {
         kitModalOverlay.addEventListener('click', function(e) {
             if (e.target === this) closeKitReport();
         });
     }
-    if (filteredModalOverlay) {
-        filteredModalOverlay.addEventListener('click', function(e) {
-            if (e.target === this) closeFilteredReport();
-        });
-    }
 
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             closeKitReport();
-            closeFilteredReport();
         }
     });
 });
@@ -1319,163 +1235,6 @@ function printKitReport() {
     </html>`;
 
     const printWindow = window.open('', '_blank', 'width=850,height=900');
-    if (!printWindow) {
-        alert('Please allow pop-ups to print this report.');
-        return;
-    }
-    printWindow.document.open();
-    printWindow.document.write(printHtml);
-    printWindow.document.close();
-    printWindow.onload = function() {
-        printWindow.onafterprint = function() { printWindow.close(); };
-        printWindow.focus();
-        printWindow.print();
-        setTimeout(function() {
-            if (!printWindow.closed) printWindow.close();
-        }, 1500);
-    };
-}
-
-function getFilterSummary() {
-    const fields = [
-        { id: 'id_phase', label: 'Phase' },
-        { id: 'id_ward', label: 'Ward' },
-        { id: 'id_kit', label: 'Kit' },
-        { id: 'id_vra', label: 'VRA' },
-        { id: 'id_date_from', label: 'From' },
-        { id: 'id_date_to', label: 'To' },
-        { id: 'id_uploaded', label: 'Status' },
-    ];
-    const parts = [];
-    fields.forEach(f => {
-        const el = document.getElementById(f.id);
-        if (!el) return;
-        let val = '';
-        if (el.tagName === 'SELECT') {
-            const opt = el.options[el.selectedIndex];
-            val = opt ? opt.text.trim() : '';
-            if (!val || val.toLowerCase() === 'all' || val === '---------') val = '';
-        } else {
-            val = el.value;
-        }
-        if (val) parts.push(`${f.label}: ${escapeHtml(val)}`);
-    });
-    return parts.length ? parts.join(' &middot; ') : 'No filters applied - showing all entries';
-}
-
-function extractFilteredRows() {
-    const rows = document.querySelectorAll('.table-container > .table-wrapper table tbody tr[data-kit]');
-    const data = [];
-    rows.forEach(tr => {
-        data.push({
-            kit: tr.dataset.kit,
-            vra: tr.dataset.vra,
-            ward: tr.dataset.ward,
-            phase: tr.dataset.phase,
-            date: tr.dataset.date,
-            venue: tr.dataset.venue,
-            male: parseInt(tr.dataset.male || '0', 10),
-            female: parseInt(tr.dataset.female || '0', 10),
-            other: parseInt(tr.dataset.other || '0', 10),
-            total: parseInt(tr.dataset.total || '0', 10),
-            transferred: parseInt(tr.dataset.transferred || '0', 10),
-            updated: parseInt(tr.dataset.updated || '0', 10),
-            uploaded: tr.dataset.uploaded === '1',
-        });
-    });
-    return data;
-}
-
-function previewFilteredReport() {
-    // Get current filter values from the form
-    const form = document.getElementById('filterForm');
-    const formData = new FormData(form);
-    const params = new URLSearchParams(formData);
-
-    // Remove empty values
-    for (let [key, value] of params.entries()) {
-        if (!value) params.delete(key);
-    }
-
-    // Build the URL
-    const baseUrl = '/superadmin/filtered-preview/';
-    const queryString = params.toString();
-    const url = queryString ? baseUrl + '?' + queryString : baseUrl;
-
-    // Open in new tab/window
-    window.open(url, '_blank');
-}
-
-function closeFilteredReport() {
-    document.getElementById('filteredModalOverlay').classList.remove('open');
-}
-
-function printFilteredReport() {
-    const body = document.getElementById('filteredModalBody');
-    if (!body.dataset.rowsCache) return;
-
-    const rowsData = JSON.parse(body.dataset.rowsCache);
-    const totals = JSON.parse(body.dataset.totalsCache);
-    const generatedAt = new Date().toLocaleString();
-
-    let rowsHtml = '';
-    rowsData.forEach(r => {
-        rowsHtml += `
-            <tr>
-                <td>${escapeHtml(r.kit)}</td>
-                <td>${escapeHtml(r.vra)}</td>
-                <td>${escapeHtml(r.ward)}</td>
-                <td>${escapeHtml(r.phase)}</td>
-                <td>${escapeHtml(r.date)}</td>
-                <td>${r.male}</td>
-                <td>${r.female}</td>
-                <td>${r.total}</td>
-                <td>${r.transferred}</td>
-                <td>${r.uploaded ? 'Uploaded' : 'Pending'}</td>
-            </tr>`;
-    });
-
-    const printHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <title>Filtered Entries Report</title>
-        <style>
-            * { box-sizing: border-box; }
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #000; margin: 32px; }
-            h1 { font-size: 20px; margin-bottom: 2px; }
-            .sub { color: #666; font-size: 12px; margin-bottom: 20px; }
-            table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
-            th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
-            th { background: #f4f4f4; font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; color: #555; }
-            .totals { display: flex; gap: 20px; margin-top: 16px; padding-top: 12px; border-top: 1px solid #ddd; font-size: 12px; font-weight: 600; }
-            @media print { body { margin: 12mm; } }
-        </style>
-    </head>
-    <body>
-        <h1>Filtered Entries Report</h1>
-        <div class="sub">Generated ${escapeHtml(generatedAt)} &middot; ${getFilterSummary()}</div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Kit</th><th>VRA</th><th>Ward</th><th>Phase</th><th>Date</th>
-                    <th>Male</th><th>Female</th><th>Total</th><th>Transferred</th><th>Status</th>
-                </tr>
-            </thead>
-            <tbody>${rowsHtml}</tbody>
-        </table>
-        <div class="totals">
-            <span>Entries: ${rowsData.length}</span>
-            <span>Male: ${totals.male}</span>
-            <span>Female: ${totals.female}</span>
-            <span>Total Registered: ${totals.total}</span>
-            <span>Transferred: ${totals.transferred}</span>
-        </div>
-    </body>
-    </html>`;
-
-    const printWindow = window.open('', '_blank', 'width=1000,height=900');
     if (!printWindow) {
         alert('Please allow pop-ups to print this report.');
         return;
