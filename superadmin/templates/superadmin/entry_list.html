@@ -1132,28 +1132,51 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Make export buttons submit the filter form
-    document.querySelectorAll('.export-buttons .btn-sm, .filter-actions .btn-sm').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            const action = this.formAction || this.getAttribute('formaction');
-            if (!action) return; // not an export button (e.g. Preview) - let its own handler run
-            e.preventDefault();
-            const form = document.getElementById('filterForm');
+ // Make export buttons submit the filter form
+document.querySelectorAll('.export-buttons .btn-sm, .filter-actions .btn-sm').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        const action = this.formAction || this.getAttribute('formaction');
+        if (!action) return;
 
-            // Check if it's a PDF button - open in new tab
-            if (this.classList.contains('pdf') || action.includes('generate_report')) {
-                // For PDF, open in new window with filter params
-                const formData = new FormData(form);
-                const params = new URLSearchParams(formData);
-                const url = action + '?' + params.toString();
-                window.open(url, '_blank');
-            } else {
-                // For CSV/Excel, submit form
-                form.action = action;
-                form.submit();
+        e.preventDefault();
+        const form = document.getElementById('filterForm');
+
+        // Check if it's a PDF button - open in new tab
+        if (this.classList.contains('pdf') || action.includes('generate_report')) {
+            const formData = new FormData(form);
+            const params = new URLSearchParams(formData);
+            // Remove empty values
+            for (let [key, value] of params.entries()) {
+                if (!value) params.delete(key);
             }
-        });
+            const url = action + '?' + params.toString();
+            window.open(url, '_blank');
+        } else {
+            // For CSV/Excel, submit form with the action
+            form.action = action;
+            // Build query string from form data
+            const formData = new FormData(form);
+            const params = new URLSearchParams(formData);
+            // Remove empty values
+            for (let [key, value] of params.entries()) {
+                if (!value) params.delete(key);
+            }
+            // Append model_type and format if not already present
+            if (!params.has('model_type')) {
+                params.append('model_type', 'entry');
+            }
+            if (!params.has('format')) {
+                if (action.includes('csv')) {
+                    params.append('format', 'csv');
+                } else if (action.includes('xlsx')) {
+                    params.append('format', 'xlsx');
+                }
+            }
+            // Submit the form with the query string
+            window.location.href = action + '?' + params.toString();
+        }
     });
+});
 
     // Close modal on overlay click or Escape
     document.getElementById('kitModalOverlay').addEventListener('click', function(e) {

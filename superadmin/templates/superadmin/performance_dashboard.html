@@ -35,6 +35,7 @@
         padding: 4px;
         border-radius: 8px;
         border: 0.5px solid rgba(0,0,0,0.06);
+        flex-wrap: wrap;
     }
 
     .period-selector a {
@@ -45,6 +46,7 @@
         color: #3a3a3c;
         text-decoration: none;
         transition: all 0.2s;
+        cursor: pointer;
     }
 
     .period-selector a:hover {
@@ -55,6 +57,63 @@
         background: #90EE90;
         color: #000;
         font-weight: 600;
+    }
+
+    .date-range-picker {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        background: #fff;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        flex-wrap: wrap;
+    }
+
+    .date-range-picker input[type="date"] {
+        padding: 4px 8px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        border-radius: 6px;
+        font-size: 12px;
+        background: #f9f9fb;
+        font-family: inherit;
+    }
+
+    .date-range-picker input[type="date"]:focus {
+        outline: none;
+        border-color: #90EE90;
+        box-shadow: 0 0 0 3px rgba(144, 238, 144, 0.1);
+    }
+
+    .date-range-picker .btn-apply {
+        background: #90EE90;
+        border: none;
+        padding: 4px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 12px;
+        color: #000;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .date-range-picker .btn-apply:hover {
+        background: #7fe07f;
+    }
+
+    .date-range-picker .btn-clear-date {
+        background: #f2f2f7;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        color: #3a3a3c;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .date-range-picker .btn-clear-date:hover {
+        background: #e5e5ea;
     }
 
     .stats-grid {
@@ -231,19 +290,6 @@
         transition: width 0.3s ease;
     }
 
-    .status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 2px 10px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 600;
-    }
-
-    .status-badge.uploaded { background: #e8f5e9; color: #2e7d32; }
-    .status-badge.pending { background: #fff8e1; color: #f57f17; }
-
     .entry-meta {
         font-size: 11px;
         color: #8e8e93;
@@ -310,6 +356,15 @@
     .text-right { text-align: right; }
     .font-bold { font-weight: 700; }
 
+    .date-range-display {
+        font-size: 12px;
+        color: #8e8e93;
+        padding: 4px 12px;
+        background: #f9f9fb;
+        border-radius: 6px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+    }
+
     @media (max-width: 768px) {
         .page-header {
             flex-direction: column;
@@ -323,6 +378,12 @@
         }
         .period-selector {
             flex-wrap: wrap;
+        }
+        .date-range-picker {
+            flex-wrap: wrap;
+        }
+        .date-range-picker input[type="date"] {
+            width: 100%;
         }
     }
 
@@ -346,11 +407,27 @@
         </h2>
         <p>Track kit performance across {{ period_label|lower }}</p>
     </div>
-    <div class="period-selector">
-        <a href="?period=daily" class="{% if period == 'daily' %}active{% endif %}">Daily</a>
-        <a href="?period=weekly" class="{% if period == 'weekly' %}active{% endif %}">Weekly</a>
-        <a href="?period=monthly" class="{% if period == 'monthly' %}active{% endif %}">Monthly</a>
-        <a href="?period=all" class="{% if period == 'all' %}active{% endif %}">All Time</a>
+    <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+        <div class="period-selector">
+            <a href="?period=daily" class="{% if period == 'daily' %}active{% endif %}">Daily</a>
+            <a href="?period=weekly" class="{% if period == 'weekly' %}active{% endif %}">Weekly</a>
+            <a href="?period=monthly" class="{% if period == 'monthly' %}active{% endif %}">Monthly</a>
+            <a href="?period=custom" class="{% if period == 'custom' %}active{% endif %}">Custom</a>
+            <a href="?period=all" class="{% if period == 'all' %}active{% endif %}">All Time</a>
+        </div>
+        {% if period == 'custom' %}
+        <form method="get" class="date-range-picker">
+            <input type="hidden" name="period" value="custom">
+            <input type="date" name="date_from" value="{{ date_from|date:'Y-m-d' }}" required>
+            <span style="color:#8e8e93; font-size:12px;">to</span>
+            <input type="date" name="date_to" value="{{ date_to|date:'Y-m-d' }}" required>
+            <button type="submit" class="btn-apply">Apply</button>
+            <a href="?period=weekly" class="btn-clear-date">Clear</a>
+            <span class="date-range-display">
+                {{ date_from|date:"M d, Y" }} - {{ date_to|date:"M d, Y" }}
+            </span>
+        </form>
+        {% endif %}
     </div>
 </div>
 

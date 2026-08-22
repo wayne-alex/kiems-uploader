@@ -638,14 +638,20 @@ def entry_delete(request, pk):
 @require_GET
 def export_data(request):
     """Export data in CSV or Excel format with filters"""
-    form = ExportForm(request.GET or None)
+    # Get parameters from request
+    model_type = request.GET.get('model_type', 'entry')
+    export_format = request.GET.get('format', 'csv')
 
-    if not form.is_valid():
-        messages.error(request, 'Invalid export parameters')
+    # Validate model_type
+    valid_models = ['ward', 'vra', 'clerk', 'kiemskit', 'phase', 'entry']
+    if model_type not in valid_models:
+        messages.error(request, f'Invalid model type: {model_type}')
         return redirect('superadmin:entry_list')
 
-    model_type = form.cleaned_data['model_type']
-    export_format = form.cleaned_data['format']
+    # Validate format
+    if export_format not in ['csv', 'xlsx']:
+        messages.error(request, f'Invalid format: {export_format}')
+        return redirect('superadmin:entry_list')
 
     # Get filter parameters from request
     filter_params = {}
@@ -701,7 +707,7 @@ def export_data(request):
             ),
             'headers': [
                 'Kit', 'Phase', 'Ward', 'VRA', 'Date', 'Venue',
-                'Male', 'Female', 'Other', 'Total Registered',
+                'Male', 'Female', 'Total Registered',
                 'Transferred', 'Deleted', 'Uploaded'
             ],
             'rows': lambda q: [[
@@ -713,7 +719,6 @@ def export_data(request):
                 e.venue,
                 e.registered_male,
                 e.registered_female,
-                e.registered_other,
                 e.total_registered,
                 e.total_transferred,
                 e.total_updated,
@@ -772,6 +777,10 @@ def export_data(request):
             ws.append(row)
         wb.save(response)
         return response
+
+    # Fallback
+    messages.error(request, 'Invalid export format')
+    return redirect('superadmin:entry_list')
 
 
 @login_required
@@ -1651,7 +1660,6 @@ def filtered_preview(request):
 
 
 # ==================== PERFORMANCE DASHBOARD ====================
-
 @login_required
 @user_passes_test(is_superadmin)
 def performance_dashboard(request):
@@ -1661,6 +1669,7 @@ def performance_dashboard(request):
     # Determine date range
     today = timezone.now().date()
     date_from = None
+    date_to = today
 
     if period == 'daily':
         date_from = today
@@ -1671,6 +1680,26 @@ def performance_dashboard(request):
     elif period == 'monthly':
         date_from = today - timedelta(days=30)
         period_label = 'Last 30 Days'
+    elif period == 'custom':
+        # Handle custom date range
+        date_from_str = request.GET.get('date_from')
+        date_to_str = request.GET.get('date_to')
+
+        try:
+            if date_from_str:
+                date_from = datetime.strptime(date_from_str, '%Y-%m-%d').date()
+            else:
+                date_from = today - timedelta(days=30)
+
+            if date_to_str:
+                date_to = datetime.strptime(date_to_str, '%Y-%m-%d').date()
+            else:
+                date_to = today
+        except ValueError:
+            date_from = today - timedelta(days=30)
+            date_to = today
+
+        period_label = f'{date_from.strftime("%b %d, %Y")} - {date_to.strftime("%b %d, %Y")}'
     else:  # all
         period_label = 'All Time'
 
@@ -1679,6 +1708,8 @@ def performance_dashboard(request):
 
     if date_from:
         entries = entries.filter(entry_date__gte=date_from)
+    if date_to and period == 'custom':
+        entries = entries.filter(entry_date__lte=date_to)
 
     # Kit rankings
     kit_rankings = []
@@ -1762,6 +1793,8 @@ def performance_dashboard(request):
     context = {
         'period': period,
         'period_label': period_label,
+        'date_from': date_from if period == 'custom' else None,
+        'date_to': date_to if period == 'custom' else None,
         'kit_rankings': kit_rankings,
         'top_kit': top_kit,
         'total_registered': total_registered,
