@@ -146,3 +146,4 @@ else:
     }
 
 CSRF_TRUSTED_ORIGINS = ['https://*.vercel.app']
+IEBC_LOGO_URL="https://cvr.iebc.or.ke/images/logoiebc.png"

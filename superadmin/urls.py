@@ -39,6 +39,8 @@ urlpatterns = [
     path('entries/<int:pk>/edit/', views.entry_edit, name='entry_edit'),
     path('entries/<int:pk>/delete/', views.entry_delete, name='entry_delete'),
     path('entries/generate_report/', views.generate_report, name='generate_report'),
+    path('entries/generate_report/preview/', views.generate_report_preview, name='generate_report_preview'),
+    path('entries/generate_report/download/', views.generate_report_download, name='generate_report_download'),
 
     # Import/Export
     path('export/', views.export_data, name='export_data'),
@@ -48,6 +50,5 @@ urlpatterns = [
     path('api/chart-data/', views.get_chart_data, name='chart_data'),
     path('api/get-clerks-by-ward/', views.get_clerks_by_ward, name='get_clerks_by_ward'),
     path('api/get-vras-by-ward/', views.get_vras_by_ward, name='get_vras_by_ward'),
-    path('generate-report/', views.generate_report, name='generate_report'),
-
+path('api/kit-report/<int:kit_id>/', views.kit_report_api, name='kit_report_api'),
 ]

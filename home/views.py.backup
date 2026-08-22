@@ -55,9 +55,8 @@ def bind_ward(request):
 
 @require_GET
 def kits_with_entries(request):
-    """All kits for the VRA's ward, each with existing entry (if any) for the given date."""
+    """All kits for the VRA's ward, each with today's existing entry (if any) pre-filled."""
     token = request.GET.get("token")
-    date_str = request.GET.get("date")
 
     if not token:
         return JsonResponse({"error": "No token provided", "kits": []}, status=400)
@@ -70,24 +69,17 @@ def kits_with_entries(request):
     if not active_phase:
         return JsonResponse({"error": "No active phase found", "kits": []}, status=404)
 
-    # Parse date or use today
-    try:
-        if date_str:
-            selected_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date()
-        else:
-            selected_date = timezone.localdate()
-    except ValueError:
-        selected_date = timezone.localdate()
+    today = timezone.localdate()
 
     # Get all kits for this ward
     kits = KIEMSKit.objects.filter(ward=vra.ward, status=True).order_by('kit_name')
 
-    # Get existing entries for the selected date
+    # Get existing entries for today
     existing = {
         e.kiems_kit_id: e for e in DailyKIEMSEntry.objects.filter(
             kiems_kit__in=kits,
             phase=active_phase,
-            entry_date=selected_date,
+            entry_date=today,
             vra=vra
         )
     }
@@ -109,9 +101,8 @@ def kits_with_entries(request):
             "registered_female": entry.registered_female if entry else 0,
             "total_registered": total,
             "total_transferred": entry.total_transferred if entry else 0,
+            "total_deleted": entry.total_deleted if entry else 0,
             "has_entry": bool(entry),
-            "is_today": selected_date == timezone.localdate(),
-            "selected_date": selected_date.strftime('%Y-%m-%d'),
         }
         data.append(kit_data)
 
@@ -119,9 +110,7 @@ def kits_with_entries(request):
         "kits": data,
         "ward_name": vra.ward.name,
         "vra_name": vra.name,
-        "kit_count": len(data),
-        "selected_date": selected_date.strftime('%Y-%m-%d'),
-        "is_today": selected_date == timezone.localdate()
+        "kit_count": len(data)
     })
 
 
@@ -135,7 +124,6 @@ def kiems_entry_view(request):
 def submit_daily_entries(request):
     """Bulk submit – one row per kit with male/female breakdown."""
     token = request.POST.get("token")
-    date_str = request.POST.get("date")
 
     if not token:
         return JsonResponse({"ok": False, "error": "No token provided"}, status=400)
@@ -146,18 +134,7 @@ def submit_daily_entries(request):
     if not active_phase:
         return JsonResponse({"ok": False, "error": "No active phase found"}, status=404)
 
-    # Parse date or use today
-    try:
-        if date_str:
-            entry_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date()
-        else:
-            entry_date = timezone.localdate()
-    except ValueError:
-        entry_date = timezone.localdate()
-
-    # Prevent editing entries from past dates (only allow today)
-    if entry_date != timezone.localdate():
-        return JsonResponse({"ok": False, "error": "Can only submit entries for today's date"}, status=403)
+    today = timezone.localdate()
 
     kit_ids = request.POST.getlist("kit_id[]")
     venues = request.POST.getlist("venue[]")
@@ -190,7 +167,7 @@ def submit_daily_entries(request):
         entry, created = DailyKIEMSEntry.objects.get_or_create(
             kiems_kit=kit,
             phase=active_phase,
-            entry_date=entry_date,
+            entry_date=today,
             vra=vra,
             defaults={
                 "ward": vra.ward,

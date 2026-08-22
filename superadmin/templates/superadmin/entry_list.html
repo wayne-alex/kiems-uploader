@@ -3,6 +3,21 @@
 
 {% block extra_css %}
 <style>
+    .icon {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        vertical-align: -2px;
+        display: inline-block;
+    }
+
+    .icon-sm { width: 12px; height: 12px; }
+    .icon-lg { width: 18px; height: 18px; }
+
     .page-header {
         display: flex;
         justify-content: space-between;
@@ -97,7 +112,7 @@
 
     .btn-danger {
         background: #ff3b30;
-        padding: 4px 12px;
+        padding: 4px 10px;
         border-radius: 6px;
         border: none;
         color: #fff;
@@ -105,6 +120,8 @@
         font-size: 12px;
         cursor: pointer;
         transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
     }
 
     .btn-danger:hover {
@@ -113,7 +130,7 @@
 
     .btn-edit {
         background: #5856d6;
-        padding: 4px 12px;
+        padding: 4px 10px;
         border-radius: 6px;
         border: none;
         color: #fff;
@@ -121,12 +138,32 @@
         font-size: 12px;
         cursor: pointer;
         text-decoration: none;
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
         transition: all 0.2s;
     }
 
     .btn-edit:hover {
         background: #4846c6;
+    }
+
+    .btn-view {
+        background: #007aff;
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: none;
+        color: #fff;
+        font-weight: 500;
+        font-size: 12px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        transition: all 0.2s;
+    }
+
+    .btn-view:hover {
+        background: #0064d6;
     }
 
     /* Today's Stats */
@@ -166,6 +203,10 @@
         font-size: 10px;
         color: #aeaeae;
         margin-top: 1px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
     }
 
     /* Filters */
@@ -327,6 +368,8 @@
 
     .gender-badge {
         display: inline-flex;
+        align-items: center;
+        gap: 3px;
         padding: 2px 8px;
         border-radius: 4px;
         font-size: 11px;
@@ -340,6 +383,8 @@
 
     .number-badge {
         display: inline-flex;
+        align-items: center;
+        gap: 3px;
         padding: 2px 8px;
         border-radius: 4px;
         font-size: 12px;
@@ -354,6 +399,8 @@
 
     .status-badge {
         display: inline-flex;
+        align-items: center;
+        gap: 4px;
         padding: 3px 10px;
         border-radius: 12px;
         font-size: 11px;
@@ -384,6 +431,12 @@
         align-items: center;
     }
 
+    .summary-bar span {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
     .summary-bar .highlight {
         font-weight: 700;
         color: #000;
@@ -411,6 +464,9 @@
         text-decoration: none;
         color: #3a3a3c;
         transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
     }
 
     .pagination a:hover {
@@ -429,10 +485,11 @@
         color: #8e8e93;
     }
 
-    .empty-state .icon {
-        font-size: 40px;
+    .empty-state .icon-wrap {
         margin-bottom: 12px;
-        display: block;
+        display: flex;
+        justify-content: center;
+        color: #c7c7cc;
     }
 
     .empty-state h3 {
@@ -574,6 +631,142 @@
     .filter-group .btn-sm.pdf:hover {
         background: #e0352b;
     }
+
+    /* Kit report modal */
+    .kit-modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+    }
+
+    .kit-modal-overlay.open {
+        display: flex;
+    }
+
+    .kit-modal {
+        background: #fff;
+        border-radius: 14px;
+        width: 100%;
+        max-width: 720px;
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+    }
+
+    .kit-modal-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 18px 20px;
+        border-bottom: 0.5px solid rgba(0,0,0,0.06);
+    }
+
+    .kit-modal-header h3 {
+        font-size: 16px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .kit-modal-close {
+        background: #f2f2f7;
+        border: none;
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #3a3a3c;
+    }
+
+    .kit-modal-close:hover {
+        background: #e5e5ea;
+    }
+
+    .kit-modal-body {
+        padding: 20px;
+        overflow-y: auto;
+    }
+
+    .kit-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+
+    .kit-info-item {
+        background: #f9f9fb;
+        border-radius: 10px;
+        padding: 10px 12px;
+    }
+
+    .kit-info-item .label {
+        font-size: 10px;
+        font-weight: 600;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-bottom: 3px;
+    }
+
+    .kit-info-item .value {
+        font-size: 13px;
+        font-weight: 600;
+        color: #000;
+    }
+
+    .kit-modal-body table {
+        min-width: 0;
+        font-size: 12px;
+    }
+
+    .kit-modal-body th {
+        padding: 8px 10px;
+    }
+
+    .kit-modal-body td {
+        padding: 8px 10px;
+    }
+
+    .kit-modal-loading,
+    .kit-modal-error {
+        text-align: center;
+        padding: 30px;
+        color: #8e8e93;
+        font-size: 13px;
+    }
+
+    .kit-modal-totals {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 0.5px solid rgba(0,0,0,0.06);
+        font-size: 12px;
+        color: #3a3a3c;
+    }
+
+    .kit-modal-totals span {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-weight: 600;
+    }
 </style>
 {% endblock %}
 
@@ -586,7 +779,8 @@
     <div class="page-actions">
         <div class="report-actions">
             <a href="{% url 'superadmin:generate_report' %}" class="btn-pdf" target="_blank">
-                📄 PDF Report
+                <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                PDF Report
             </a>
         </div>
         <a href="{% url 'superadmin:entry_create' %}" class="btn-primary">
@@ -605,7 +799,12 @@
     <div class="stat-card" style="border-left:3px solid #34c759;">
         <div class="number">{{ today_stats.total_registered|default:"0" }}</div>
         <div class="label">Registered Today</div>
-        <div class="sub">👨 {{ today_stats.registered_male|default:"0" }} 👩 {{ today_stats.registered_female|default:"0" }}</div>
+        <div class="sub">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6"/><line x1="14.5" y1="9.5" x2="21" y2="3"/><polyline points="16 3 21 3 21 8"/></svg>
+            {{ today_stats.registered_male|default:"0" }}
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+            {{ today_stats.registered_female|default:"0" }}
+        </div>
     </div>
     <div class="stat-card" style="border-left:3px solid #5856d6;">
         <div class="number">{{ today_stats.total_transferred|default:"0" }}</div>
@@ -613,9 +812,9 @@
         <div class="sub">From other wards</div>
     </div>
     <div class="stat-card" style="border-left:3px solid #ff3b30;">
-        <div class="number">{{ today_stats.total_deleted|default:"0" }}</div>
+        <div class="number">0</div>
         <div class="label">Deleted</div>
-        <div class="sub">Removed entries</div>
+        <div class="sub">Function disabled</div>
     </div>
 </div>
 
@@ -656,6 +855,10 @@
                 <button type="submit" class="btn-sm primary">Apply</button>
                 <a href="{% url 'superadmin:entry_list' %}" class="btn-sm">Clear</a>
                 <div class="export-buttons">
+                    <button type="button" class="btn-sm" onclick="previewFilteredReport()">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Preview
+                    </button>
                     <button type="submit" formaction="{% url 'superadmin:export_data' %}?model_type=entry&format=csv" class="btn-sm">CSV</button>
                     <button type="submit" formaction="{% url 'superadmin:export_data' %}?model_type=entry&format=xlsx" class="btn-sm">Excel</button>
                     <button type="submit" formaction="{% url 'superadmin:generate_report' %}" class="btn-sm pdf" target="_blank">PDF</button>
@@ -668,22 +871,37 @@
 <!-- Table -->
 <div class="table-container">
     <div class="summary-bar">
-        <span>📋 <span class="highlight">{{ page_obj|length }}</span> entries</span>
+        <span>
+            <svg class="icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            <span class="highlight">{{ page_obj|length }}</span> entries
+        </span>
         <span class="sep">|</span>
         <span>Registered: <span class="highlight">{{ total_registered }}</span></span>
         <span class="sep">|</span>
-        <span>👨 {{ total_male }} 👩 {{ total_female }}</span>
+        <span>
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6"/><line x1="14.5" y1="9.5" x2="21" y2="3"/><polyline points="16 3 21 3 21 8"/></svg>
+            {{ total_male }}
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+            {{ total_female }}
+        </span>
         {% if total_other %}
         <span class="sep">|</span>
-        <span>👤 {{ total_other }}</span>
+        <span>
+            <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            {{ total_other }}
+        </span>
         {% endif %}
         <span class="sep">|</span>
-        <span>🔄 {{ total_transferred }}</span>
-        <span class="sep">|</span>
-        <span>🗑️ {{ total_deleted }}</span>
+        <span>
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            {{ total_transferred }}
+        </span>
         {% if is_filtered %}
         <span class="sep">|</span>
-        <span>🔍 Filtered</span>
+        <span>
+            <svg class="icon" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            Filtered
+        </span>
         {% endif %}
     </div>
 
@@ -695,14 +913,26 @@
                     <th>Phase / Date</th>
                     <th>Registered</th>
                     <th>Transferred</th>
-                    <th>Deleted</th>
+                    <th>Updated</th>
                     <th>Status</th>
                     <th style="text-align:right;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for entry in page_obj %}
-                <tr>
+                <tr data-kit="{{ entry.kiems_kit.kit_name }}"
+                    data-vra="{{ entry.vra.name }}"
+                    data-ward="{{ entry.ward.name }}"
+                    data-phase="{{ entry.phase.name }}"
+                    data-date="{{ entry.entry_date|date:'M d, Y' }}"
+                    data-venue="{{ entry.venue|default:'-' }}"
+                    data-male="{{ entry.registered_male }}"
+                    data-female="{{ entry.registered_female }}"
+                    data-other="{{ entry.registered_other|default:'0' }}"
+                    data-total="{{ entry.total_registered }}"
+                    data-transferred="{{ entry.total_transferred }}"
+                    data-updated="{{ entry.total_updated }}"
+                    data-uploaded="{{ entry.uploaded|yesno:'1,0' }}">
                     <td>
                         <div class="entry-kit">{{ entry.kiems_kit.kit_name }}</div>
                         <span class="entry-meta">VRA: {{ entry.vra.name }}</span>
@@ -711,14 +941,23 @@
                     <td>
                         <div>{{ entry.phase.name }}</div>
                         <span class="entry-meta">{{ entry.entry_date|date:"M d, Y" }}</span>
-                        <span class="entry-meta">{{ entry.venue|default:"—" }}</span>
+                        <span class="entry-meta">{{ entry.venue|default:"-" }}</span>
                     </td>
                     <td>
                         <div>
-                            <span class="gender-badge male">👨 {{ entry.registered_male }}</span>
-                            <span class="gender-badge female">👩 {{ entry.registered_female }}</span>
+                            <span class="gender-badge male">
+                                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6"/><line x1="14.5" y1="9.5" x2="21" y2="3"/><polyline points="16 3 21 3 21 8"/></svg>
+                                {{ entry.registered_male }}
+                            </span>
+                            <span class="gender-badge female">
+                                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+                                {{ entry.registered_female }}
+                            </span>
                             {% if entry.registered_other %}
-                            <span class="gender-badge other">👤 {{ entry.registered_other }}</span>
+                            <span class="gender-badge other">
+                                <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                {{ entry.registered_other }}
+                            </span>
                             {% endif %}
                         </div>
                         <div style="margin-top:3px;">
@@ -729,20 +968,26 @@
                         {% if entry.total_transferred %}
                         <span class="number-badge blue">{{ entry.total_transferred }}</span>
                         {% else %}
-                        <span style="color:#d1d1d6; font-size:12px;">—</span>
+                        <span style="color:#d1d1d6; font-size:12px;">-</span>
                         {% endif %}
                     </td>
                     <td>
-                        {% if entry.total_deleted %}
-                        <span class="number-badge red">{{ entry.total_deleted }}</span>
+                        {% if entry.total_updated %}
+                        <span class="number-badge orange">{{ entry.total_updated }}</span>
                         {% else %}
-                        <span style="color:#d1d1d6; font-size:12px;">—</span>
+                        <span style="color:#d1d1d6; font-size:12px;">-</span>
                         {% endif %}
                     </td>
                     <td>
                         <div style="display:flex; flex-direction:column; gap:2px;">
                             <span class="status-badge {% if entry.uploaded %}uploaded{% else %}pending{% endif %}">
-                                {{ entry.uploaded|yesno:"✓ Uploaded,⏳ Pending" }}
+                                {% if entry.uploaded %}
+                                <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                                Uploaded
+                                {% else %}
+                                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                Pending
+                                {% endif %}
                             </span>
                             <span style="font-size:10px; color:#8e8e93;">
                                 {{ entry.created_at|timesince }} ago
@@ -751,11 +996,19 @@
                     </td>
                     <td>
                         <div class="actions-cell">
-                            <a href="{% url 'superadmin:entry_edit' entry.id %}" class="btn-edit">✏️</a>
+                            <button type="button" class="btn-view" title="View kit report"
+                                    onclick="viewKitReport('{{ entry.kiems_kit.id }}')">
+                                <svg class="icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                            <a href="{% url 'superadmin:entry_edit' entry.id %}" class="btn-edit" title="Edit entry">
+                                <svg class="icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </a>
                             <form method="post" action="{% url 'superadmin:entry_delete' entry.id %}" style="display:inline;"
-                                  onsubmit="return confirm('Delete this entry?')">
+                                  onsubmit="return confirm('Transfer this entry to archive?')">
                                 {% csrf_token %}
-                                <button type="submit" class="btn-danger">🗑️</button>
+                                <button type="submit" class="btn-danger" title="Delete entry">
+                                    <svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                </button>
                             </form>
                         </div>
                     </td>
@@ -764,7 +1017,9 @@
                 <tr>
                     <td colspan="7">
                         <div class="empty-state">
-                            <span class="icon">📋</span>
+                            <div class="icon-wrap">
+                                <svg viewBox="0 0 24 24" style="width:40px;height:40px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                            </div>
                             <h3>No Entries Found</h3>
                             <p>No daily entries match your criteria.</p>
                             <a href="{% url 'superadmin:entry_create' %}" class="btn-primary" style="display:inline-flex;">
@@ -781,7 +1036,10 @@
     {% if page_obj.has_other_pages %}
     <div class="pagination">
         {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">‹ Prev</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+            Prev
+        </a>
         {% endif %}
 
         {% for num in page_obj.paginator.page_range %}
@@ -793,10 +1051,59 @@
         {% endfor %}
 
         {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next ›</a>
+        <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+            Next
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
         {% endif %}
     </div>
     {% endif %}
+</div>
+
+<!-- Kit Report Modal -->
+<div class="kit-modal-overlay" id="kitModalOverlay">
+    <div class="kit-modal">
+        <div class="kit-modal-header">
+            <h3>
+                <svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+                <span id="kitModalTitle">Kit Report</span>
+            </h3>
+            <div style="display:flex; align-items:center; gap:6px;">
+                <button type="button" class="kit-modal-close" id="kitModalPrintBtn" title="Print / save as PDF" onclick="printKitReport()">
+                    <svg class="icon icon-lg" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                </button>
+                <button type="button" class="kit-modal-close" onclick="closeKitReport()">
+                    <svg class="icon icon-lg" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="kit-modal-body" id="kitModalBody">
+            <div class="kit-modal-loading">Loading kit report...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtered Results Preview Modal -->
+<div class="kit-modal-overlay" id="filteredModalOverlay">
+    <div class="kit-modal">
+        <div class="kit-modal-header">
+            <h3>
+                <svg class="icon icon-lg" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                Filtered Entries Preview
+            </h3>
+            <div style="display:flex; align-items:center; gap:6px;">
+                <button type="button" class="kit-modal-close" title="Print / save as PDF" onclick="printFilteredReport()">
+                    <svg class="icon icon-lg" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                </button>
+                <button type="button" class="kit-modal-close" onclick="closeFilteredReport()">
+                    <svg class="icon icon-lg" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="kit-modal-body" id="filteredModalBody">
+            <div class="kit-modal-loading">Preparing preview...</div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -828,9 +1135,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Make export buttons submit the filter form
     document.querySelectorAll('.export-buttons .btn-sm, .filter-actions .btn-sm').forEach(btn => {
         btn.addEventListener('click', function(e) {
+            const action = this.formAction || this.getAttribute('formaction');
+            if (!action) return; // not an export button (e.g. Preview) - let its own handler run
             e.preventDefault();
             const form = document.getElementById('filterForm');
-            const action = this.formAction || this.getAttribute('formaction');
 
             // Check if it's a PDF button - open in new tab
             if (this.classList.contains('pdf') || action.includes('generate_report')) {
@@ -846,6 +1154,484 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Close modal on overlay click or Escape
+    document.getElementById('kitModalOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeKitReport();
+    });
+    document.getElementById('filteredModalOverlay').addEventListener('click', function(e) {
+        if (e.target === this) closeFilteredReport();
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeKitReport();
+            closeFilteredReport();
+        }
+    });
 });
+
+let currentKitReportData = null;
+
+function openKitModal() {
+    document.getElementById('kitModalOverlay').classList.add('open');
+}
+
+function closeKitReport() {
+    document.getElementById('kitModalOverlay').classList.remove('open');
+}
+
+function printKitReport() {
+    const data = currentKitReportData;
+    if (!data) return;
+
+    const clerks = (data.clerks && data.clerks.length) ? data.clerks.map(escapeHtml).join(', ') : '-';
+    const vras = (data.vras && data.vras.length) ? data.vras.map(escapeHtml).join(', ') : '-';
+
+    let rows = '';
+    (data.entries || []).forEach(e => {
+        rows += `
+            <tr>
+                <td>${escapeHtml(e.date)}</td>
+                <td>${escapeHtml(e.vra)}</td>
+                <td>${escapeHtml(e.male)}</td>
+                <td>${escapeHtml(e.female)}</td>
+                <td>${escapeHtml(e.total)}</td>
+                <td>${escapeHtml(e.transferred)}</td>
+                <td>${e.uploaded ? 'Uploaded' : 'Pending'}</td>
+            </tr>`;
+    });
+    if (!rows) {
+        rows = '<tr><td colspan="7" style="text-align:center; padding:16px;">No daily entries recorded for this kit yet.</td></tr>';
+    }
+
+    const totals = data.totals || {};
+    const generatedAt = new Date().toLocaleString();
+
+    const printHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Kit Report - ${escapeHtml(data.kit_name)}</title>
+        <style>
+            * { box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #000; margin: 32px; }
+            h1 { font-size: 20px; margin-bottom: 2px; }
+            .sub { color: #666; font-size: 12px; margin-bottom: 20px; }
+            .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+            .info-item { border: 1px solid #ddd; border-radius: 8px; padding: 10px 12px; }
+            .info-item .label { font-size: 10px; font-weight: 600; color: #777; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 3px; }
+            .info-item .value { font-size: 13px; font-weight: 600; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+            th, td { border: 1px solid #ddd; padding: 7px 10px; text-align: left; }
+            th { background: #f4f4f4; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; color: #555; }
+            .totals { display: flex; gap: 20px; margin-top: 16px; padding-top: 12px; border-top: 1px solid #ddd; font-size: 12px; font-weight: 600; }
+            @media print {
+                body { margin: 12mm; }
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Kit Report - ${escapeHtml(data.kit_name)}</h1>
+        <div class="sub">Generated ${escapeHtml(generatedAt)}</div>
+
+        <div class="info-grid">
+            <div class="info-item"><div class="label">Kit Name</div><div class="value">${escapeHtml(data.kit_name)}</div></div>
+            <div class="info-item"><div class="label">Serial No.</div><div class="value">${escapeHtml(data.serial_no)}</div></div>
+            <div class="info-item"><div class="label">VRA(s)</div><div class="value">${vras}</div></div>
+            <div class="info-item"><div class="label">Allocated Clerks</div><div class="value">${clerks}</div></div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th><th>VRA</th><th>Male</th><th>Female</th><th>Total</th><th>Transferred</th><th>Status</th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>
+
+        <div class="totals">
+            <span>Male: ${escapeHtml(totals.male || 0)}</span>
+            <span>Female: ${escapeHtml(totals.female || 0)}</span>
+            <span>Total Registered: ${escapeHtml(totals.total || 0)}</span>
+            <span>Transferred: ${escapeHtml(totals.transferred || 0)}</span>
+        </div>
+    </body>
+    </html>`;
+
+    const printWindow = window.open('', '_blank', 'width=850,height=900');
+    if (!printWindow) {
+        alert('Please allow pop-ups to print this report.');
+        return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+    printWindow.onload = function() {
+        printWindow.onafterprint = function() { printWindow.close(); };
+        printWindow.focus();
+        printWindow.print();
+        setTimeout(function() {
+            if (!printWindow.closed) printWindow.close();
+        }, 1500);
+    };
+}
+
+function getFilterSummary() {
+    const fields = [
+        { id: 'id_phase', label: 'Phase' },
+        { id: 'id_ward', label: 'Ward' },
+        { id: 'id_kit', label: 'Kit' },
+        { id: 'id_vra', label: 'VRA' },
+        { id: 'id_date_from', label: 'From' },
+        { id: 'id_date_to', label: 'To' },
+        { id: 'id_uploaded', label: 'Status' },
+    ];
+    const parts = [];
+    fields.forEach(f => {
+        const el = document.getElementById(f.id);
+        if (!el) return;
+        let val = '';
+        if (el.tagName === 'SELECT') {
+            const opt = el.options[el.selectedIndex];
+            val = opt ? opt.text.trim() : '';
+            if (!val || val.toLowerCase() === 'all' || val === '---------') val = '';
+        } else {
+            val = el.value;
+        }
+        if (val) parts.push(`${f.label}: ${escapeHtml(val)}`);
+    });
+    return parts.length ? parts.join(' &middot; ') : 'No filters applied - showing all entries';
+}
+
+function extractFilteredRows() {
+    const rows = document.querySelectorAll('.table-container > .table-wrapper table tbody tr[data-kit]');
+    const data = [];
+    rows.forEach(tr => {
+        data.push({
+            kit: tr.dataset.kit,
+            vra: tr.dataset.vra,
+            ward: tr.dataset.ward,
+            phase: tr.dataset.phase,
+            date: tr.dataset.date,
+            venue: tr.dataset.venue,
+            male: parseInt(tr.dataset.male || '0', 10),
+            female: parseInt(tr.dataset.female || '0', 10),
+            other: parseInt(tr.dataset.other || '0', 10),
+            total: parseInt(tr.dataset.total || '0', 10),
+            transferred: parseInt(tr.dataset.transferred || '0', 10),
+            updated: parseInt(tr.dataset.updated || '0', 10),
+            uploaded: tr.dataset.uploaded === '1',
+        });
+    });
+    return data;
+}
+
+function previewFilteredReport() {
+    const body = document.getElementById('filteredModalBody');
+    document.getElementById('filteredModalOverlay').classList.add('open');
+
+    const rowsData = extractFilteredRows();
+
+    if (!rowsData.length) {
+        body.innerHTML = `
+            <div class="kit-modal-loading">${getFilterSummary()}</div>
+            <div class="kit-modal-error">No entries match the current filters on this page.</div>`;
+        return;
+    }
+
+    const totals = rowsData.reduce((acc, r) => {
+        acc.male += r.male;
+        acc.female += r.female;
+        acc.other += r.other;
+        acc.total += r.total;
+        acc.transferred += r.transferred;
+        return acc;
+    }, { male: 0, female: 0, other: 0, total: 0, transferred: 0 });
+
+    let rowsHtml = '';
+    rowsData.forEach(r => {
+        rowsHtml += `
+            <tr>
+                <td>${escapeHtml(r.kit)}</td>
+                <td>${escapeHtml(r.vra)}</td>
+                <td>${escapeHtml(r.ward)}</td>
+                <td>${escapeHtml(r.phase)}</td>
+                <td>${escapeHtml(r.date)}</td>
+                <td>${r.male}</td>
+                <td>${r.female}</td>
+                <td>${r.total}</td>
+                <td>${r.transferred}</td>
+                <td>${r.uploaded ? 'Uploaded' : 'Pending'}</td>
+            </tr>`;
+    });
+
+    body.innerHTML = `
+        <div style="font-size:12px; color:#8e8e93; margin-bottom:14px;">
+            ${getFilterSummary()}
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Kit</th><th>VRA</th><th>Ward</th><th>Phase</th><th>Date</th>
+                        <th>Male</th><th>Female</th><th>Total</th><th>Transferred</th><th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+        </div>
+        <div class="kit-modal-totals">
+            <span>Entries: ${rowsData.length}</span>
+            <span>
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6"/><line x1="14.5" y1="9.5" x2="21" y2="3"/><polyline points="16 3 21 3 21 8"/></svg>
+                Male: ${totals.male}
+            </span>
+            <span>
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+                Female: ${totals.female}
+            </span>
+            <span>Total Registered: ${totals.total}</span>
+            <span>Transferred: ${totals.transferred}</span>
+        </div>
+        <div style="font-size:11px; color:#c7c7cc; margin-top:12px;">
+            Preview reflects entries on the current page. Use CSV / Excel / PDF to export the full filtered result set.
+        </div>
+    `;
+
+    // Cache for printing
+    body.dataset.rowsCache = JSON.stringify(rowsData);
+    body.dataset.totalsCache = JSON.stringify(totals);
+}
+
+function closeFilteredReport() {
+    document.getElementById('filteredModalOverlay').classList.remove('open');
+}
+
+function printFilteredReport() {
+    const body = document.getElementById('filteredModalBody');
+    if (!body.dataset.rowsCache) return;
+
+    const rowsData = JSON.parse(body.dataset.rowsCache);
+    const totals = JSON.parse(body.dataset.totalsCache);
+    const generatedAt = new Date().toLocaleString();
+
+    let rowsHtml = '';
+    rowsData.forEach(r => {
+        rowsHtml += `
+            <tr>
+                <td>${escapeHtml(r.kit)}</td>
+                <td>${escapeHtml(r.vra)}</td>
+                <td>${escapeHtml(r.ward)}</td>
+                <td>${escapeHtml(r.phase)}</td>
+                <td>${escapeHtml(r.date)}</td>
+                <td>${r.male}</td>
+                <td>${r.female}</td>
+                <td>${r.total}</td>
+                <td>${r.transferred}</td>
+                <td>${r.uploaded ? 'Uploaded' : 'Pending'}</td>
+            </tr>`;
+    });
+
+    const printHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Filtered Entries Report</title>
+        <style>
+            * { box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #000; margin: 32px; }
+            h1 { font-size: 20px; margin-bottom: 2px; }
+            .sub { color: #666; font-size: 12px; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
+            th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+            th { background: #f4f4f4; font-size: 9px; text-transform: uppercase; letter-spacing: 0.3px; color: #555; }
+            .totals { display: flex; gap: 20px; margin-top: 16px; padding-top: 12px; border-top: 1px solid #ddd; font-size: 12px; font-weight: 600; }
+            @media print { body { margin: 12mm; } }
+        </style>
+    </head>
+    <body>
+        <h1>Filtered Entries Report</h1>
+        <div class="sub">Generated ${escapeHtml(generatedAt)} &middot; ${getFilterSummary()}</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Kit</th><th>VRA</th><th>Ward</th><th>Phase</th><th>Date</th>
+                    <th>Male</th><th>Female</th><th>Total</th><th>Transferred</th><th>Status</th>
+                </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+        </table>
+        <div class="totals">
+            <span>Entries: ${rowsData.length}</span>
+            <span>Male: ${totals.male}</span>
+            <span>Female: ${totals.female}</span>
+            <span>Total Registered: ${totals.total}</span>
+            <span>Transferred: ${totals.transferred}</span>
+        </div>
+    </body>
+    </html>`;
+
+    const printWindow = window.open('', '_blank', 'width=1000,height=900');
+    if (!printWindow) {
+        alert('Please allow pop-ups to print this report.');
+        return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+    printWindow.onload = function() {
+        // Attach BEFORE calling print(), since print() blocks synchronously
+        // in most browsers - attaching after would miss the event.
+        printWindow.onafterprint = function() { printWindow.close(); };
+        printWindow.focus();
+        printWindow.print();
+        // Safety net for browsers that don't fire onafterprint reliably.
+        setTimeout(function() {
+            if (!printWindow.closed) printWindow.close();
+        }, 1500);
+    };
+}
+
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function viewKitReport(kitId) {
+    const body = document.getElementById('kitModalBody');
+    const title = document.getElementById('kitModalTitle');
+    const printBtn = document.getElementById('kitModalPrintBtn');
+    title.textContent = 'Kit Report';
+    body.innerHTML = '<div class="kit-modal-loading">Loading kit report...</div>';
+    currentKitReportData = null;
+    printBtn.style.opacity = '0.4';
+    printBtn.style.pointerEvents = 'none';
+    openKitModal();
+
+    fetch(`/superadmin/api/kit-report/${kitId}/`)
+        .then(response => {
+            if (!response.ok) throw new Error('Request failed');
+            return response.json();
+        })
+        .then(data => {
+            currentKitReportData = data;
+            printBtn.style.opacity = '';
+            printBtn.style.pointerEvents = '';
+            renderKitReport(data);
+        })
+        .catch(error => {
+            console.error('Error fetching kit report:', error);
+            body.innerHTML = '<div class="kit-modal-error">Could not load the kit report. Please try again.</div>';
+        });
+}
+
+function renderKitReport(data) {
+    const body = document.getElementById('kitModalBody');
+    const title = document.getElementById('kitModalTitle');
+    title.textContent = data.kit_name || 'Kit Report';
+
+    const clerks = (data.clerks && data.clerks.length)
+        ? data.clerks.map(c => escapeHtml(c)).join(', ')
+        : '-';
+
+    const vras = (data.vras && data.vras.length)
+        ? data.vras.map(v => escapeHtml(v)).join(', ')
+        : '-';
+
+    let rows = '';
+    (data.entries || []).forEach(e => {
+        rows += `
+            <tr>
+                <td>${escapeHtml(e.date)}</td>
+                <td>${escapeHtml(e.vra)}</td>
+                <td>${escapeHtml(e.male)}</td>
+                <td>${escapeHtml(e.female)}</td>
+                <td>${escapeHtml(e.total)}</td>
+                <td>${escapeHtml(e.transferred)}</td>
+                <td>${e.uploaded ? 'Uploaded' : 'Pending'}</td>
+            </tr>`;
+    });
+
+    if (!rows) {
+        rows = '<tr><td colspan="7" style="text-align:center; color:#8e8e93; padding:16px;">No daily entries recorded for this kit yet.</td></tr>';
+    }
+
+    body.innerHTML = `
+        <div class="kit-info-grid">
+            <div class="kit-info-item">
+                <div class="label">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+                    Kit Name
+                </div>
+                <div class="value">${escapeHtml(data.kit_name)}</div>
+            </div>
+            <div class="kit-info-item">
+                <div class="label">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    Serial No.
+                </div>
+                <div class="value">${escapeHtml(data.serial_no)}</div>
+            </div>
+            <div class="kit-info-item">
+                <div class="label">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    VRA(s)
+                </div>
+                <div class="value">${vras}</div>
+            </div>
+            <div class="kit-info-item">
+                <div class="label">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    Allocated Clerks
+                </div>
+                <div class="value">${clerks}</div>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>VRA</th>
+                        <th>Male</th>
+                        <th>Female</th>
+                        <th>Total</th>
+                        <th>Transferred</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="kit-modal-totals">
+            <span>
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6"/><line x1="14.5" y1="9.5" x2="21" y2="3"/><polyline points="16 3 21 3 21 8"/></svg>
+                Male: ${escapeHtml(data.totals ? data.totals.male : 0)}
+            </span>
+            <span>
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+                Female: ${escapeHtml(data.totals ? data.totals.female : 0)}
+            </span>
+            <span>
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>
+                Total Registered: ${escapeHtml(data.totals ? data.totals.total : 0)}
+            </span>
+            <span>
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                Transferred: ${escapeHtml(data.totals ? data.totals.transferred : 0)}
+            </span>
+        </div>
+    `;
+}
 </script>
 {% endblock %}

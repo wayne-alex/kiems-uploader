@@ -18,4 +18,4 @@ class OfficeCorrectionForm(forms.ModelForm):
     """Only reachable from the staff-authenticated side."""
     class Meta:
         model = DailyKIEMSEntry
-        fields = ["total_transferred", "total_deleted"]
+        fields = ["total_transferred"]

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KIEMS Report</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 0.5in;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, sans-serif;
+            line-height: 1.6;
+            color: #212121;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid #2E7D32;
+            margin-bottom: 30px;
+        }
+
+        .header img {
+            max-height: 50px;
+        }
+
+        .header h1 {
+            margin: 10px 0 5px 0;
+            font-size: 24px;
+            color: #2E7D32;
+        }
+
+        .header .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .meta-info {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .scope {
+            font-style: italic;
+        }
+
+        .filters {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .filters h3 {
+            margin-top: 0;
+            color: #2E7D32;
+        }
+
+        .filter-tag {
+            display: inline-block;
+            background: #e8f5e9;
+            color: #2E7D32;
+            padding: 4px 8px;
+            margin: 4px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            color: #2E7D32;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 8px;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .summary-table th,
+        .summary-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .summary-table th {
+            background: #e8f5e9;
+            font-weight: 600;
+            color: #2E7D32;
+        }
+
+        .summary-table tr:hover {
+            background: #f5f5f5;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 13px;
+        }
+
+        .data-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+
+        .data-table tbody tr:hover {
+            background: #f5f5f5;
+        }
+
+        .data-table tbody tr:nth-child(even) {
+            background: #fafafa;
+        }
+
+        .number {
+            text-align: right;
+            font-family: monospace;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px 0;
+            margin-top: 40px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .page-number {
+            margin-top: 10px;
+            font-size: 10px;
+            color: #999;
+        }
+
+        @media print {
+            .no-print {
+                display: none;
+            }
+
+            body {
+                -webkit-print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        {% if request.GET.BRAND_LOGO_URL %}
+        <img src="{{ request.GET.BRAND_LOGO_URL }}" alt="IEBC Logo">
+        {% endif %}
+        <h1>KIEMS Daily Registration Report</h1>
+        <div class="subtitle">{{ generated_at }}</div>
+    </div>
+
+    <div class="meta-info">
+        <div>{{ scope }}</div>
+        <div class="no-print">
+            Page <span class="page-number"></span>
+        </div>
+    </div>
+
+    {% if filter_labels|length > 1 %}
+    <div class="filters">
+        <h3>Applied Filters</h3>
+        <div>
+            {% for label in filter_labels|slice:"1" %}
+            <span class="filter-tag">{{ label }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="section">
+        <h2>Executive Summary</h2>
+        <table class="summary-table">
+            <tr>
+                <th>Total Entries</th>
+                <td class="number">{{ total_entries }}</td>
+            </tr>
+            <tr>
+                <th>Total Registered</th>
+                <td class="number">{{ total_registered }}</td>
+            </tr>
+            <tr>
+                <th>Male Registrations</th>
+                <td class="number">{{ total_male }}</td>
+            </tr>
+            <tr>
+                <th>Female Registrations</th>
+                <td class="number">{{ total_female }}</td>
+            </tr>
+            <tr>
+                <th>Gender Ratio (M:F)</th>
+                <td>{{ total_male }}:{{ total_female }}</td>
+            </tr>
+            <tr>
+                <th>Total Transferred</th>
+                <td class="number">{{ total_transferred }}</td>
+            </tr>
+        </table>
+    </div>
+
+    {% if ward_summary %}
+    <div class="section">
+        <h2>Ward Summary</h2>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Ward</th>
+                    <th class="number">Entries</th>
+                    <th class="number">Male</th>
+                    <th class="number">Female</th>
+                    <th class="number">Total</th>
+                    <th class="number">Transferred</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ward in ward_summary %}
+                <tr>
+                    <td>{{ ward.ward__name|default:"Unknown" }}</td>
+                    <td class="number">{{ ward.count }}</td>
+                    <td class="number">{{ ward.male }}</td>
+                    <td class="number">{{ ward.female }}</td>
+                    <td class="number">{{ ward.registered }}</td>
+                    <td class="number">{{ ward.transferred }}</td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <th>TOTAL</th>
+                    <td class="number">{{ ward_summary|length }}</td>
+                    <td class="number">{{ total_male }}</td>
+                    <td class="number">{{ total_female }}</td>
+                    <td class="number">{{ total_registered }}</td>
+                    <td class="number">{{ total_transferred }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if phase_summary %}
+    <div class="section">
+        <h2>Phase Summary</h2>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Phase</th>
+                    <th class="number">Entries</th>
+                    <th class="number">Male</th>
+                    <th class="number">Female</th>
+                    <th class="number">Total</th>
+                    <th class="number">Transferred</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for phase in phase_summary %}
+                <tr>
+                    <td>{{ phase.phase__name|default:"Unknown" }}</td>
+                    <td class="number">{{ phase.count }}</td>
+                    <td class="number">{{ phase.male }}</td>
+                    <td class="number">{{ phase.female }}</td>
+                    <td class="number">{{ phase.registered }}</td>
+                    <td class="number">{{ phase.transferred }}</td>
+                </tr>
+                {% endfor %}
+                <tr>
+                    <th>TOTAL</th>
+                    <td class="number">{{ phase_summary|length }}</td>
+                    <td class="number">{{ total_male }}</td>
+                    <td class="number">{{ total_female }}</td>
+                    <td class="number">{{ total_registered }}</td>
+                    <td class="number">{{ total_transferred }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if kit_summary %}
+    <div class="section">
+        <h2>Top 20 Kit Performance</h2>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Kit Name</th>
+                    <th class="number">Serial Number</th>
+                    <th class="number">Entries</th>
+                    <th class="number">Male</th>
+                    <th class="number">Female</th>
+                    <th class="number">Total Registered</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for kit in kit_summary %}
+                <tr>
+                    <td>{{ kit.kiems_kit__kit_name }}</td>
+                    <td class="number">{{ kit.kiems_kit__serial_no }}</td>
+                    <td class="number">{{ kit.count }}</td>
+                    <td class="number">{{ kit.male }}</td>
+                    <td class="number">{{ kit.female }}</td>
+                    <td class="number">{{ kit.registered }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        Generated by KIEMS SuperAdmin System • Independent Electoral and Boundaries Commission
+    </div>
+</body>
+</html>

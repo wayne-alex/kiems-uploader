@@ -5,7 +5,6 @@ import urllib
 from datetime import datetime, timedelta
 
 import openpyxl
-import weasyprint
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout, authenticate, login
@@ -15,7 +14,6 @@ from django.core.paginator import Paginator
 from django.db.models import Count, Sum, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
-from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_GET
 from reportlab.lib import colors
@@ -43,6 +41,8 @@ from .forms import (
     DailyKIEMSEntryForm, DailyEntryFilterForm, ImportForm, ExportForm
 )
 
+
+# Removed: from .models import AuditLog
 
 
 def is_superadmin(user):
@@ -148,12 +148,11 @@ def dashboard(request):
         'total_vras': VRA.objects.filter(active=True).count(),
         'total_clerks': Clerk.objects.filter(active=True).count(),
         'total_kits': KIEMSKit.objects.filter(status=True).count(),
-        'inactive_kits': KIEMSKit.objects.filter(status=False).count(),
         'total_phases': Phase.objects.count(),
         'total_entries': DailyKIEMSEntry.objects.count(),
         'total_registered': DailyKIEMSEntry.objects.aggregate(Sum('total_registered'))['total_registered__sum'] or 0,
         'total_transferred': DailyKIEMSEntry.objects.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0,
-        'total_updated': DailyKIEMSEntry.objects.aggregate(Sum('total_updated'))['total_updated__sum'] or 0,
+        'total_deleted': DailyKIEMSEntry.objects.aggregate(Sum('total_deleted'))['total_deleted__sum'] or 0,
     }
 
     # Recent entries
@@ -168,7 +167,7 @@ def dashboard(request):
     ).aggregate(
         registered=Sum('total_registered'),
         transferred=Sum('total_transferred'),
-        deleted=Sum('total_updated')
+        deleted=Sum('total_deleted')
     )
 
     # Kits by ward
@@ -291,6 +290,8 @@ def ward_delete(request, pk):
     ward.delete()
     messages.success(request, f'Ward "{ward_name}" deleted successfully!')
     return redirect('superadmin:ward_list')
+
+
 
 
 # ==================== STAFF CRUD ====================
@@ -463,7 +464,6 @@ def staff_edit(request, pk, staff_type):
         'title': f'Edit {staff_type.upper()}'
     })
 
-
 @login_required
 @user_passes_test(is_superadmin)
 @require_POST
@@ -489,7 +489,6 @@ def clerk_list_old(request):
     """List all clerks (legacy)"""
     clerks = Clerk.objects.select_related('ward').all().order_by('ward__name', 'name')
     return render(request, 'superadmin/clerk_list.html', {'clerks': clerks})
-
 
 # ==================== KIEMS KIT CRUD ====================
 
@@ -589,7 +588,7 @@ def entry_list(request):
     total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
     total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
     total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
-    total_updated = entries.aggregate(Sum('total_updated'))['total_updated__sum'] or 0
+    total_deleted = entries.aggregate(Sum('total_deleted'))['total_deleted__sum'] or 0
 
     # Today's statistics with gender breakdown
     today = timezone.now().date()
@@ -601,7 +600,7 @@ def entry_list(request):
         'registered_male': today_entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0,
         'registered_female': today_entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0,
         'total_transferred': today_entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0,
-        'total_updated': today_entries.aggregate(Sum('total_updated'))['total_updated__sum'] or 0,
+        'total_deleted': today_entries.aggregate(Sum('total_deleted'))['total_deleted__sum'] or 0,
     }
 
     paginator = Paginator(entries, 50)
@@ -616,7 +615,7 @@ def entry_list(request):
         'total_male': total_male,
         'total_female': total_female,
         'total_transferred': total_transferred,
-        'total_updated': total_updated,
+        'total_deleted': total_deleted,
         'today_stats': today_stats,
         'filter_params': filter_params,
     }
@@ -750,7 +749,7 @@ def export_data(request):
                 e.registered_other,
                 e.total_registered,
                 e.total_transferred,
-                e.total_updated,
+                e.total_deleted,
                 'Yes' if e.uploaded else 'No'
             ] for e in q]
         }
@@ -939,7 +938,7 @@ def import_data(request):
                                         'venue': row.get('Venue') or row.get('venue', ''),
                                         'total_registered': int(row.get('Registered', 0)),
                                         'total_transferred': int(row.get('Transferred', 0)),
-                                        'total_updated': int(row.get('Deleted', 0)),
+                                        'total_deleted': int(row.get('Deleted', 0)),
                                         'uploaded': row.get('Uploaded', 'False') in ['True', 'true', '1', 'Yes'],
                                     }
                                 )
@@ -983,7 +982,7 @@ def get_chart_data(request):
         ).values('entry_date').annotate(
             registered=Sum('total_registered'),
             transferred=Sum('total_transferred'),
-            deleted=Sum('total_updated')
+            deleted=Sum('total_deleted')
         ).order_by('entry_date')
 
         data['labels'] = [d['entry_date'].strftime('%Y-%m-%d') for d in daily_data]
@@ -1057,6 +1056,9 @@ def get_chart_data(request):
         ]
 
     return JsonResponse(data)
+
+
+
 
 
 @login_required
@@ -1285,10 +1287,13 @@ def _pct(part, whole):
 def is_superadmin(user):
     return user.is_superuser
 
-def _parse_report_filters(request):
-    """Parse and normalize the report filter querystring params. Shared by the
-    HTML preview and PDF generation views so date_from/date_to are never
-    computed in one place and silently missing in another."""
+
+@login_required
+@user_passes_test(is_superadmin)
+def generate_report(request):
+    """Generate a branded PDF report, honoring the same filters as the list view."""
+
+    # Parse filter parameters
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
     phase_id = request.GET.get('phase')
@@ -1297,6 +1302,7 @@ def _parse_report_filters(request):
     vra_id = request.GET.get('vra')
     uploaded = request.GET.get('uploaded')
 
+    # Date handling
     today = timezone.now().date()
     default_start = today - timezone.timedelta(days=30)
 
@@ -1310,25 +1316,7 @@ def _parse_report_filters(request):
     except ValueError:
         date_to = today
 
-    return {
-        'date_from': date_from,
-        'date_to': date_to,
-        'phase_id': phase_id,
-        'ward_id': ward_id,
-        'kit_id': kit_id,
-        'vra_id': vra_id,
-        'uploaded': uploaded,
-    }
-
-
-def generate_report_html(request):
-    """Generate HTML report content"""
-    f = _parse_report_filters(request)
-    date_from, date_to = f['date_from'], f['date_to']
-    phase_id, ward_id, kit_id, vra_id, uploaded = (
-        f['phase_id'], f['ward_id'], f['kit_id'], f['vra_id'], f['uploaded']
-    )
-
+    # Query with filters
     entries = DailyKIEMSEntry.objects.filter(
         entry_date__gte=date_from,
         entry_date__lte=date_to
@@ -1347,32 +1335,415 @@ def generate_report_html(request):
     elif uploaded == 'False':
         entries = entries.filter(uploaded=False)
 
+    # Aggregate statistics
+    total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
+    total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
+    total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
+    total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
+    total_deleted = entries.aggregate(Sum('total_deleted'))['total_deleted__sum'] or 0
+    total_entries = entries.count()
+
+    # Summary groupings
+    ward_summary = entries.values('ward__name').annotate(
+        registered=Sum('total_registered'),
+        male=Sum('registered_male'),
+        female=Sum('registered_female'),
+        transferred=Sum('total_transferred'),
+        deleted=Sum('total_deleted'),
+        count=Count('id'),
+    ).order_by('-registered')
+
+    phase_summary = entries.values('phase__name').annotate(
+        registered=Sum('total_registered'),
+        male=Sum('registered_male'),
+        female=Sum('registered_female'),
+        transferred=Sum('total_transferred'),
+        deleted=Sum('total_deleted'),
+        count=Count('id'),
+    ).order_by('-registered')
+
+    kit_summary = entries.values('kiems_kit__kit_name').annotate(
+        registered=Sum('total_registered'),
+        male=Sum('registered_male'),
+        female=Sum('registered_female'),
+        count=Count('id'),
+    ).order_by('-registered')[:20]
+
+    filter_labels = _filter_labels(date_from, date_to, phase_id, ward_id, kit_id, vra_id, uploaded)
+    scope = " — ".join(filter_labels[1:]) or "All wards, phases and kits"
+
+    # Response setup
+    response = HttpResponse(content_type='application/pdf')
+    filename = f"KIEMS_Report_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    # Document setup
+    doc = SimpleDocTemplate(
+        response,
+        pagesize=letter,
+        rightMargin=0.5 * inch,
+        leftMargin=0.5 * inch,
+        topMargin=HEADER_BAND_H + 0.25 * inch,
+        bottomMargin=FOOTER_H + 0.15 * inch,
+    )
+
+    # Styles
+    styles = getSampleStyleSheet()
+    header_style = ParagraphStyle(
+        'Header',
+        parent=styles['Heading2'],
+        fontSize=11,
+        spaceAfter=8,
+        textColor=GREEN_DARK,
+        fontName='Helvetica-Bold',
+        spaceBefore=12,
+    )
+    chip_style = ParagraphStyle(
+        'Chips',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=GREY,
+        leading=12,
+    )
+    empty_style = ParagraphStyle(
+        'Empty',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=GREY,
+        alignment=TA_CENTER,
+        spaceBefore=40,
+    )
+
+    story = []
+
+    # Filter chips
+    chips = "&nbsp;&nbsp;•&nbsp;&nbsp;".join(
+        f'<font color="KIEMS_PRIMARY_GREEN">●</font> {label}' for label in filter_labels
+    )
+    story.append(Paragraph(chips, chip_style))
+    story.append(Spacer(1, 0.1 * inch))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#E0E0E0')))
+    story.append(Spacer(1, 0.15 * inch))
+
+    if total_entries == 0:
+        story.append(Paragraph("No records match the selected filters.", empty_style))
+        doc.build(
+            story,
+            canvasmaker=lambda *a, **kw: LetterheadCanvas(
+                *a,
+                report_meta={
+                    'generated_at': timezone.now().strftime('%d %b %Y, %H:%M'),
+                    'scope': scope,
+                },
+                **kw
+            ),
+        )
+        return response
+
+    # Executive Summary
+    story.append(Paragraph("EXECUTIVE SUMMARY", header_style))
+    summary_data = [
+        ['Metric', 'Value'],
+        ['Total Entries', str(total_entries)],
+        ['Total Registered', f"{total_registered:,}"],
+        ['Male', f"{total_male:,}"],
+        ['Female', f"{total_female:,}"],
+        ['Gender Ratio (M:F)', f"{total_male}:{total_female}" if total_female else "N/A"],
+        ['Total Transferred', f"{total_transferred:,}"],
+        ['Total Deleted', f"{total_deleted:,}"],
+        ['Net Change', f"{total_registered + total_transferred - total_deleted:,}"],
+    ]
+
+    summary_table = Table(summary_data, colWidths=[2.5 * inch, 1.5 * inch])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), GREEN),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 7),
+        ('TOPPADDING', (0, 0), (-1, 0), 7),
+        ('BACKGROUND', (0, 1), (-1, -1), GREEN_LIGHT),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E0E0E0')),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('TOPPADDING', (0, 1), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+    ]))
+    story.append(summary_table)
+    story.append(Spacer(1, 0.2 * inch))
+
+    # Gender Breakdown
+    story.append(Paragraph("GENDER BREAKDOWN", header_style))
+    story.append(_gender_ratio_bar(total_male, total_female))
+    story.append(Spacer(1, 0.08 * inch))
+
+    gender_data = [
+        ['Gender', 'Count', 'Percentage'],
+        ['Male', f"{total_male:,}", _pct(total_male, total_registered)],
+        ['Female', f"{total_female:,}", _pct(total_female, total_registered)],
+        ['Total', f"{total_registered:,}", '100%'],
+    ]
+
+    gender_table = Table(gender_data, colWidths=[2.13 * inch, 2.13 * inch, 2.13 * inch])
+    gender_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), GREEN),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('TOPPADDING', (0, 0), (-1, 0), 6),
+        ('BACKGROUND', (0, 1), (-1, -2), GREEN_LIGHT),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#C8E6C9')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E0E0E0')),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('TOPPADDING', (0, 1), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+    ]))
+    story.append(gender_table)
+    story.append(Spacer(1, 0.22 * inch))
+
+    def zebra(n_rows):
+        return [('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, ROW_ALT])]
+
+    # Ward Summary
+    if ward_summary:
+        story.append(Paragraph("WARD SUMMARY", header_style))
+        ward_data = [['Ward', 'Entries', 'Male', 'Female', 'Total', 'Transferred', 'Deleted']]
+
+        t_entries = t_male = t_female = t_registered = t_transferred = t_deleted = 0
+
+        for w in ward_summary:
+            ward_data.append([
+                w['ward__name'] or 'Unknown',
+                str(w['count']),
+                f"{w['male'] or 0:,}",
+                f"{w['female'] or 0:,}",
+                f"{w['registered'] or 0:,}",
+                f"{w['transferred'] or 0:,}",
+                f"{w['deleted'] or 0:,}",
+            ])
+            t_entries += w['count']
+            t_male += w['male'] or 0
+            t_female += w['female'] or 0
+            t_registered += w['registered'] or 0
+            t_transferred += w['transferred'] or 0
+            t_deleted += w['deleted'] or 0
+
+        ward_data.append([
+            'TOTAL',
+            str(t_entries),
+            f"{t_male:,}",
+            f"{t_female:,}",
+            f"{t_registered:,}",
+            f"{t_transferred:,}",
+            f"{t_deleted:,}",
+        ])
+
+        ward_table = Table(
+            ward_data,
+            colWidths=[1.4 * inch, 0.75 * inch, 0.75 * inch, 0.75 * inch, 0.75 * inch, 1.0 * inch, 0.8 * inch]
+        )
+        ward_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), GREEN),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+            ('TOPPADDING', (0, 0), (-1, 0), 5),
+            *zebra(len(ward_data)),
+            ('BACKGROUND', (0, -1), (-1, -1), GREEN_LIGHT),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#E0E0E0')),
+            ('FONTSIZE', (0, 1), (-1, -1), 7),
+            ('TOPPADDING', (0, 1), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+        ]))
+        story.append(ward_table)
+        story.append(Spacer(1, 0.18 * inch))
+
+    # Phase Summary
+    if phase_summary:
+        story.append(Paragraph("PHASE SUMMARY", header_style))
+        phase_data = [['Phase', 'Entries', 'Male', 'Female', 'Total', 'Transferred', 'Deleted']]
+
+        for p in phase_summary:
+            phase_data.append([
+                p['phase__name'] or 'Unknown',
+                str(p['count']),
+                f"{p['male'] or 0:,}",
+                f"{p['female'] or 0:,}",
+                f"{p['registered'] or 0:,}",
+                f"{p['transferred'] or 0:,}",
+                f"{p['deleted'] or 0:,}",
+            ])
+
+        phase_table = Table(
+            phase_data,
+            colWidths=[1.4 * inch, 0.75 * inch, 0.75 * inch, 0.75 * inch, 0.75 * inch, 1.0 * inch, 0.8 * inch]
+        )
+        phase_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), GREEN),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+            ('TOPPADDING', (0, 0), (-1, 0), 5),
+            *zebra(len(phase_data)),
+            ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#E0E0E0')),
+            ('FONTSIZE', (0, 1), (-1, -1), 7),
+            ('TOPPADDING', (0, 1), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+        ]))
+        story.append(phase_table)
+        story.append(Spacer(1, 0.18 * inch))
+
+    # Kit Summary
+    if kit_summary:
+        story.append(Paragraph("TOP 20 KIT PERFORMANCE", header_style))
+        kit_data = [['Kit', 'Entries', 'Male', 'Female', 'Total']]
+
+        for k in kit_summary:
+            kit_data.append([
+                k['kiems_kit__kit_name'] or 'Unknown',
+                str(k['count']),
+                f"{k['male'] or 0:,}",
+                f"{k['female'] or 0:,}",
+                f"{k['registered'] or 0:,}",
+            ])
+
+        kit_table = Table(
+            kit_data,
+            colWidths=[1.7 * inch, 0.9 * inch, 0.9 * inch, 0.9 * inch, 0.9 * inch]
+        )
+        kit_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), GREEN),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+            ('TOPPADDING', (0, 0), (-1, 0), 5),
+            *zebra(len(kit_data)),
+            ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#E0E0E0')),
+            ('FONTSIZE', (0, 1), (-1, -1), 7),
+            ('TOPPADDING', (0, 1), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+        ]))
+        story.append(kit_table)
+
+    doc.build(
+        story,
+        canvasmaker=lambda *a, **kw: LetterheadCanvas(
+            *a,
+            report_meta={
+                'generated_at': timezone.now().strftime('%d %b %Y, %H:%M'),
+                'scope': scope,
+            },
+            **kw
+        ),
+    )
+    return response
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def generate_report_preview(request):
+    """Generate HTML preview of the report before downloading PDF"""
+    # Reuse the same logic as generate_report but return HTML instead of PDF
+    return generate_report_html(request)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def generate_report_download(request):
+    """Generate and download PDF report"""
+    # Reuse the same logic as generate_report but force download
+    return generate_report_pdf(request, as_attachment=True)
+
+
+def generate_report_html(request):
+    """Generate HTML report content"""
+    # Parse filter parameters (same as generate_report)
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    phase_id = request.GET.get('phase')
+    ward_id = request.GET.get('ward')
+    kit_id = request.GET.get('kit')
+    vra_id = request.GET.get('vra')
+    uploaded = request.GET.get('uploaded')
+
+    # Date handling
+    today = timezone.now().date()
+    default_start = today - timezone.timedelta(days=30)
+
+    try:
+        date_from = timezone.datetime.strptime(date_from, '%Y-%m-%d').date() if date_from else default_start
+    except ValueError:
+        date_from = default_start
+
+    try:
+        date_to = timezone.datetime.strptime(date_to, '%Y-%m-%d').date() if date_to else today
+    except ValueError:
+        date_to = today
+
+    # Query with filters
+    entries = DailyKIEMSEntry.objects.filter(
+        entry_date__gte=date_from,
+        entry_date__lte=date_to
+    ).select_related('kiems_kit', 'phase', 'ward', 'vra').order_by('entry_date')
+
+    if phase_id:
+        entries = entries.filter(phase_id=phase_id)
+    if ward_id:
+        entries = entries.filter(ward_id=ward_id)
+    if kit_id:
+        entries = entries.filter(kiems_kit_id=kit_id)
+    if vra_id:
+        entries = entries.filter(vra_id=vra_id)
+    if uploaded == 'True':
+        entries = entries.filter(uploaded=True)
+    elif uploaded == 'False':
+        entries = entries.filter(uploaded=False)
+
+    # Aggregate statistics
     total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
     total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
     total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
     total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
     total_entries = entries.count()
 
+    # Summary groupings
     ward_summary = entries.values('ward__name').annotate(
-        registered=Sum('total_registered'), male=Sum('registered_male'),
-        female=Sum('registered_female'), transferred=Sum('total_transferred'),
+        registered=Sum('total_registered'),
+        male=Sum('registered_male'),
+        female=Sum('registered_female'),
+        transferred=Sum('total_transferred'),
         count=Count('id'),
     ).order_by('-registered')
 
     phase_summary = entries.values('phase__name').annotate(
-        registered=Sum('total_registered'), male=Sum('registered_male'),
-        female=Sum('registered_female'), transferred=Sum('total_transferred'),
+        registered=Sum('total_registered'),
+        male=Sum('registered_male'),
+        female=Sum('registered_female'),
+        transferred=Sum('total_transferred'),
         count=Count('id'),
     ).order_by('-registered')
 
     kit_summary = entries.values('kiems_kit__kit_name').annotate(
-        registered=Sum('total_registered'), male=Sum('registered_male'),
-        female=Sum('registered_female'), count=Count('id'),
+        registered=Sum('total_registered'),
+        male=Sum('registered_male'),
+        female=Sum('registered_female'),
+        count=Count('id'),
     ).order_by('-registered')[:20]
 
     filter_labels = _filter_labels(date_from, date_to, phase_id, ward_id, kit_id, vra_id, uploaded)
-    scope = " | ".join(filter_labels[1:]) or "All wards, phases and kits"
+    scope = " — ".join(filter_labels[1:]) or "All wards, phases and kits"
 
+    # Render HTML template
     html_string = render_to_string('superadmin/report_template.html', {
         'total_entries': total_entries,
         'total_registered': total_registered,
@@ -1398,13 +1769,10 @@ def generate_report_pdf(request, as_attachment=False):
     html_response = generate_report_html(request)
     html_string = html_response.content.decode('utf-8')
 
-    # THE FIX: date_from/date_to must be parsed here too - they don't
-    # exist in this function's scope otherwise.
-    f = _parse_report_filters(request)
-    date_from, date_to = f['date_from'], f['date_to']
-
+    # Convert HTML to PDF
     pdf_bytes = weasyprint.HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
 
+    # Create response
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     filename = f"KIEMS_Report_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
 
@@ -1416,58 +1784,9 @@ def generate_report_pdf(request, as_attachment=False):
     return response
 
 
+# Updated generate_report function to use the new approach
 @login_required
 @user_passes_test(is_superadmin)
 def generate_report(request):
     """Generate a branded PDF report, honoring the same filters as the list view."""
     return generate_report_pdf(request, as_attachment=True)
-
-
-@login_required
-@user_passes_test(is_superadmin)
-def generate_report_preview(request):
-    """Generate HTML preview of the report before downloading PDF"""
-    # Reuse the same logic as generate_report but return HTML instead of PDF
-    return generate_report_html(request)
-
-
-@login_required
-@user_passes_test(is_superadmin)
-def generate_report_download(request):
-    """Generate and download PDF report"""
-    # Reuse the same logic as generate_report but force download
-    return generate_report_pdf(request, as_attachment=True)
-
-
-
-
-
-def kit_report_api(request, kit_id):
-    kit = get_object_or_404(KIEMSKit, id=kit_id)
-    entries = DailyKIEMSEntry.objects.filter(kiems_kit=kit).select_related('vra').order_by('-entry_date')
-
-    data = {
-        "kit_name": kit.kit_name,
-        "serial_no": kit.serial_no,
-        "clerks": list(kit.assigned_clerks.values_list('name', flat=True)),
-        "vras": list(entries.values_list('vra__name', flat=True).distinct()),
-        "entries": [
-            {
-                "date": e.entry_date.strftime("%b %d, %Y"),
-                "vra": e.vra.name,
-                "male": e.registered_male,
-                "female": e.registered_female,
-                "total": e.total_registered,
-                "transferred": e.total_transferred,
-                "uploaded": e.uploaded,
-            }
-            for e in entries
-        ],
-        "totals": {
-            "male": sum(e.registered_male for e in entries),
-            "female": sum(e.registered_female for e in entries),
-            "total": sum(e.total_registered for e in entries),
-            "transferred": sum(e.total_transferred for e in entries),
-        },
-    }
-    return JsonResponse(data)

@@ -1,0 +1,880 @@
+{% extends "superadmin/base.html" %}
+{% block title %}Enhanced Entry List | KIEMS Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Pill Filters Styles */
+    .pill-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 16px 0;
+        padding: 0 8px;
+    }
+
+    .pill-filter {
+        display: inline-flex;
+        align-items: center;
+        background: var(--green-tint);
+        color: var(--green-dark);
+        border-radius: 20px;
+        padding: 4px 12px;
+        font-size: 13px;
+        font-weight: 500;
+        border: 1px solid var(--green);
+        transition: all 0.2s ease;
+    }
+
+    .pill-filter:hover {
+        background: var(--green);
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(107, 156, 63, 0.2);
+    }
+
+    .pill-filter .remove-btn {
+        margin-left: 8px;
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.7);
+        font-size: 10px;
+        cursor: pointer;
+    }
+
+    .pill-filter .remove-btn:hover {
+        background: rgba(255,255,255,0.9);
+    }
+
+    /* Kit Performance Cards */
+    .kit-performance-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+        margin: 20px 0;
+    }
+
+    .kit-performance-card {
+        background: var(--surface);
+        border-radius: var(--r);
+        border: 0.5px solid var(--border);
+        overflow: hidden;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .kit-performance-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+
+    .kit-performance-header {
+        padding: 12px 16px;
+        border-bottom: 0.5px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .kit-performance-header h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .kit-performance-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .kit-performance-badge.high {
+        background: #e8f5e9;
+        color: #2e7d32;
+    }
+
+    .kit-performance-badge.medium {
+        background: #fff8e1;
+        color: #f57f17;
+    }
+
+    .kit-performance-badge.low {
+        background: #ffebee;
+        color: #c62828;
+    }
+
+    .kit-performance-badge.very-low {
+        background: #f5f5f5;
+        color: #9e9e9e;
+    }
+
+    .kit-performance-body {
+        padding: 16px;
+    }
+
+    .kit-performance-metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .metric-item {
+        text-align: center;
+    }
+
+    .metric-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--green-dark);
+        display: block;
+    }
+
+    .metric-label {
+        font-size: 11px;
+        color: var(--ink-2);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .kit-performance-footer {
+        padding: 12px 16px;
+        border-top: 0.5px solid var(--border);
+        background: var(--surface-2);
+    }
+
+    .clerks-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .clerk-badge {
+        background: var(--green-tint);
+        color: var(--green-dark);
+        font-size: 10px;
+        font-weight: 500;
+        padding: 2px 8px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    /* Daily Breakdown Chart Container */
+    .daily-breakdown-container {
+        margin: 20px 0;
+    }
+
+    .daily-breakdown-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .daily-breakdown-header h3 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--ink);
+    }
+
+    .daily-breakdown-chart {
+        height: 200px;
+        background: var(--surface);
+        border-radius: var(--r);
+        border: 0.5px solid var(--border);
+        padding: 16px;
+        position: relative;
+    }
+
+    .chart-grid {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+    }
+
+    .chart-grid line {
+        stroke: var(--border);
+        stroke-width: 0.5;
+    }
+
+    .chart-grid text {
+        font-size: 10px;
+        fill: var(--ink-2);
+    }
+
+    .chart-line {
+        fill: none;
+        stroke: var(--green);
+        stroke-width: 3;
+    }
+
+    .chart-area {
+        fill: var(--green-tint);
+    }
+
+    .chart-points {
+        fill: var(--green);
+    }
+
+    .chart-tooltip {
+        position: absolute;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 12px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        z-index: 10;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .chart-tooltip.visible {
+        opacity: 1;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .kit-performance-grid {
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        }
+
+        .pill-filters {
+            justify-content: center;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .kit-performance-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .kit-performance-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+    }
+</style>
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h2>Enhanced Entry List</h2>
+        <p>Advanced filtering and performance analytics</p>
+    </div>
+    <div class="page-actions">
+        <div class="report-actions">
+            <a href="{% url 'superadmin:generate_report' %}" class="btn-pdf" target="_blank">
+                📄 PDF Report
+            </a>
+            <a href="#" id="preview-report-btn" class="btn-secondary">
+                👁️ Preview Report
+            </a>
+        </div>
+        <a href="{% url 'superadmin:entry_create' %}" class="btn-primary">
+            + Add Entry
+        </a>
+    </div>
+</div>
+
+<!-- Pill Filters -->
+{% if active_filters %}
+<div class="pill-filters">
+    {% for filter in active_filters %}
+    <span class="pill-filter" data-type="{{ filter.type }}" data-value="{{ filter.value }}">
+        {{ filter.label }}
+        <span class="remove-btn" title="Remove filter">×</span>
+    </span>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Today's Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="number">{{ today_stats.total_entries|default:"0" }}</div>
+        <div class="label">Today's Entries</div>
+        <div class="sub">{{ today_stats.unique_kits|default:"0" }} kits</div>
+    </div>
+    <div class="stat-card" style="border-left:3px solid #34c759;">
+        <div class="number">{{ today_stats.total_registered|default:"0" }}</div>
+        <div class="label">Registered Today</div>
+        <div class="sub">👨 {{ today_stats.registered_male|default:"0" }} 👩 {{ today_stats.registered_female|default:"0" }}</div>
+    </div>
+    <div class="stat-card" style="border-left:3px solid #5856d6;">
+        <div class="number">{{ today_stats.total_transferred|default:"0" }}</div>
+        <div class="label">Transferred</div>
+        <div class="sub">From other wards</div>
+    </div>
+</div>
+
+<!-- Kit Performance Section -->
+{% if kit_performance %}
+{% if kit_performance.daily_breakdown %}
+<!-- Weekly/Daily Breakdown View -->
+<div class="daily-breakdown-container">
+    <div class="daily-breakdown-header">
+        <h3>Daily Performance Trend</h3>
+        <span>Showing {{ kit_performance.dates|length }} day{{ kit_performance.dates|length|pluralize:"s" }}</span>
+    </div>
+    <div class="daily-breakdown-chart">
+        <svg class="chart-grid" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+        <svg class="chart-lines" width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="chart-tooltip" id="chart-tooltip"></div>
+    </div>
+</div>
+
+<!-- Kit Performance Cards -->
+<div class="kit-performance-grid">
+    {% for kit in kit_performance.kits %}
+    <div class="kit-performance-card">
+        <div class="kit-performance-header">
+            <h3>
+                <i class="ti ti-device-tablet"></i>
+                {{ kit.kit_name }}
+            </h3>
+            <span class="kit-performance-badge {{ kit.performance_class }}">
+                {{ kit.performance_class|title }}
+            </span>
+        </div>
+        <div class="kit-performance-body">
+            <div class="kit-performance-metrics">
+                <div class="metric-item">
+                    <div class="metric-value">{{ kit.total_registered }}</div>
+                    <div class="metric-label">Registered</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">{{ kit.total_male }}</div>
+                    <div class="metric-label">Male</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">{{ kit.total_female }}</div>
+                    <div class="metric-label">Female</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">{{ kit.total_transferred }}</div>
+                    <div class="metric-label">Transferred</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">{{ kit.entry_count }}</div>
+                    <div class="metric-label">Entries</div>
+                </div>
+            </div>
+
+            <div class="kit-performance-footer">
+                <strong>Ward:</strong> {{ kit.ward_name }}<br>
+                <strong>Assigned Clerks:</strong>
+                <div class="clerks-list" style="margin-top: 4px;">
+                    {% for clerk in kit.assigned_clerks %}
+                    <span class="clerk-badge" title="{{ clerk.name }}">
+                        <i class="ti ti-user"></i> {{ clerk.name|slice:"1" }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<!-- Single Date Kit Performance -->
+<div class="kit-performance-grid">
+    {% for kit in kit_performance %}
+    <div class="kit-performance-card">
+        <div class="kit-performance-header">
+            <h3>
+                <i class="ti ti-device-tablet"></i>
+                {{ kit.kit_name }}
+            </h3>
+            <span class="kit-performance-badge {{ kit.performance_class }}">
+                {{ kit.performance_class|title }}
+            </span>
+        </div>
+        <div class="kit-performance-body">
+            <div class="kit-performance-metrics">
+                <div class="metric-item">
+                    <div class="metric-value">{{ kit.total_registered }}</div>
+                    <div class="metric-label">Registered</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">{{ kit.total_male }}</div>
+                    <div class="metric-label">Male</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">{{ kit.total_female }}</div>
+                    <div class="metric-label">Female</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">{{ kit.total_transferred }}</div>
+                    <div class="metric-label">Transferred</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">{{ kit.entry_count }}</div>
+                    <div class="metric-label">Entries</div>
+                </div>
+            </div>
+
+            <div class="kit-performance-footer">
+                <strong>Ward:</strong> {{ kit.ward_name }}<br>
+                <strong>Assigned Clerks:</strong>
+                <div class="clerks-list" style="margin-top: 4px;">
+                    {% for clerk in kit.assigned_clerks %}
+                    <span class="clerk-badge" title="{{ clerk.name }}">
+                        <i class="ti ti-user"></i> {{ clerk.name|slice:"1" }}
+                    </span>
+                    {% endfor %}
+                </div>
+                <div style="margin-top: 8px; font-size: 12px; color: var(--ink-2);">
+                    <strong>Performance Score:</strong> {{ kit.total_registered }} registrations
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% else %}
+<div class="empty-state" style="text-align: center; padding: 40px 20px;">
+    <i class="ti ti-device-tablet-off"></i>
+    <h3>No Kit Performance Data Available</h>
+    <p>Select a date range to view kit performance analytics</p>
+</div>
+{% endif %}
+
+<!-- Entries Table -->
+<div class="table-container">
+    <div class="summary-bar">
+        <span>📋 <span class="highlight">{{ page_obj|length }}</span> entries</span>
+        <span class="sep">|</span>
+        <span>Registered: <span class="highlight">{{ total_registered }}</span></span>
+        <span class="sep">|</span>
+        <span>👨 {{ total_male }} 👩 {{ total_female }}</span>
+        {% if total_other %}
+        <span class="sep">|</span>
+        <span>👤 {{ total_other }}</span>
+        {% endif %}
+        <span class="sep">|</span>
+        <span>🔄 {{ total_transferred }}</span>
+        {% if is_filtered %}
+        <span class="sep">|</span>
+        <span>🔍 Filtered</span>
+        {% endif %}
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Kit / VRA</th>
+                    <th>Phase / Date</th>
+                    <th>Registered</th>
+                    <th>Transferred</th>
+                    <th>Status</th>
+                    <th style="text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in page_obj %}
+                <tr>
+                    <td>
+                        <div class="entry-kit">{{ entry.kiems_kit.kit_name }}</div>
+                        <span class="entry-meta">VRA: {{ entry.vra.name }}</span>
+                        <span class="entry-meta">Ward: {{ entry.ward.name }}</span>
+                    </td>
+                    <td>
+                        <div>{{ entry.phase.name }}</div>
+                        <span class="entry-meta">{{ entry.entry_date|date:"M d, Y" }}</span>
+                        <span class="entry-meta">{{ entry.venue|default:"—" }}</span>
+                    </td>
+                    <td>
+                        <div>
+                            <span class="gender-badge male">👨 {{ entry.registered_male }}</span>
+                            <span class="gender-badge female">👩 {{ entry.registered_female }}</span>
+                            {% if entry.registered_other %}
+                            <span class="gender-badge other">👤 {{ entry.registered_other }}</span>
+                            {% endif %}
+                        </div>
+                        <div style="margin-top:3px;">
+                            <span class="number-badge green">Total: {{ entry.total_registered }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        {% if entry.total_transferred %}
+                        <span class="number-badge blue">{{ entry.total_transferred }}</span>
+                        {% else %}
+                        <span style="color:#d1d1d6; font-size:12px;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display:flex; flex-direction:column; gap:2px;">
+                            <span class="status-badge {% if entry.uploaded %}uploaded{% else %}pending{% endif %}">
+                                {{ entry.uploaded|yesno:"✓ Uploaded,⏳ Pending" }}</span>
+                            <span style="font-size:10px; color:#8e8e93;">
+                                {{ entry.created_at|timesince }} ago
+                            </span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="actions-cell">
+                            <a href="{% url 'superadmin:entry_edit' entry.id %}" class="btn-edit">✏️</a>
+                            <form method="post" action="{% url 'superadmin:entry_delete' entry.id %}" style="display:inline;"
+                                  onsubmit="return confirm('Transfer this entry to archive?')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-danger">🗑️</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6">
+                        <div class="empty-state">
+                            <span class="icon">📋</span>
+                            <h3>No Entries Found</h3>
+                            <p>No daily entries match your criteria.</p>
+                            <a href="{% url 'superadmin:entry_create' %}" class="btn-primary" style="display:inline-flex;">
+                                + Create Entry
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">‹ Prev</a>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <span class="current">{{ num }}</span>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <a href="?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next ›</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Pill filter removal
+    document.querySelectorAll('.pill-filter .remove-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const pill = this.closest('.pill-filter');
+            const filterType = pill.dataset.type;
+            const filterValue = pill.dataset.value;
+
+            // Remove the pill from UI
+            pill.remove();
+
+            // Update URL to remove filter parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.delete(filterType);
+
+            // Reload page with updated filters
+            const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+            window.location.href = newUrl;
+        });
+    });
+
+    // Preview report button
+    const previewBtn = document.getElementById('preview-report-btn');
+    if (previewBtn) {
+        previewBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            // Build preview URL with current filters
+            const urlParams = new URLSearchParams(window.location.search);
+            const previewUrl = '{% url "superadmin:generate_report_preview" %}' + (urlParams.toString() ? '?' + urlParams.toString() : '');
+
+            // Open in modal
+            openReportPreviewModal(previewUrl);
+        });
+    }
+
+    // Kit performance chart rendering (if applicable)
+    {% if kit_performance_json %}
+    renderKitPerformanceChart({{ kit_performance_json|safe }});
+    {% endif %}
+});
+
+function openReportPreviewModal(url) {
+    // Create modal elements
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'report-preview-overlay';
+    modalOverlay.innerHTML = `
+        <div class="report-preview-modal">
+            <div class="report-preview-header">
+                <h3>Report Preview</h3>
+                <button class="report-preview-close">&times;</button>
+            </div>
+            <div class="report-preview-content">
+                <iframe class="report-preview-frame" src="about:blank"></iframe>
+            </div>
+            <div class="report-preview-footer">
+                <button class="btn-secondary" id="download-report-btn">📥 Download PDF</button>
+                <button class="btn-primary" id="close-preview-btn">Close</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modalOverlay);
+
+    // Get elements
+    const modal = modalOverlay.querySelector('.report-preview-modal');
+    const closeBtn = modalOverlay.querySelector('.report-preview-close');
+    const downloadBtn = modalOverlay.querySelector('#download-report-btn');
+    const closePreviewBtn = modalOverlay.querySelector('#close-preview-btn');
+    const iframe = modalOverlay.querySelector('.report-preview-frame');
+
+    // Load iframe content
+    iframe.src = url;
+
+    // Event listeners
+    const closeModal = () => {
+        modalOverlay.remove();
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    closePreviewBtn.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) closeModal();
+    });
+
+    downloadBtn.addEventListener('click', () => {
+        // Trigger actual download
+        window.open(url.replace('/preview/', '/download/'), '_blank');
+    });
+
+    // Prevent scrolling behind modal
+    document.body.style.overflow = 'hidden';
+
+    // Restore scrolling when modal closes
+    modalOverlay.addEventListener('remove', () => {
+        document.body.style.overflow = '';
+    });
+}
+
+// Kit performance chart rendering function
+function renderKitPerformanceChart(data) {
+    if (!data || !data.daily_breakdown || !data.kits.length) {
+        return;
+    }
+
+    const chartContainer = document.querySelector('.daily-breakdown-chart');
+    if (!chartContainer) return;
+
+    const width = chartContainer.clientWidth;
+    const height = chartContainer.clientHeight;
+    const padding = 20;
+
+    // Create SVG elements if they don't exist
+    let gridSVG = chartContainer.querySelector('.chart-grid');
+    let linesSVG = chartContainer.querySelector('.chart-lines');
+
+    if (!gridSVG) {
+        gridSVG = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        gridSVG.className = 'chart-grid';
+        gridSVG.setAttribute('width', '100%');
+        gridSVG.setAttribute('height', '100%');
+        gridSVG.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        chartContainer.appendChild(gridSVG);
+    }
+
+    if (!linesSVG) {
+        linesSVG = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        linesSVG.className = 'chart-lines';
+        linesSVG.setAttribute('width', '100%');
+        linesSVG.setAttribute('height', '100%');
+        linesSVG.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        chartContainer.appendChild(linesSVG);
+    }
+
+    // Clear existing content
+    gridSVG.innerHTML = '';
+    linesSVG.innerHTML = '';
+
+    // Extract data
+    const dates = data.dates;
+    const kits = data.kits;
+
+    if (dates.length === 0 || kits.length === 0) {
+        return;
+    }
+
+    // Calculate scales
+    const xPadding = padding;
+    const yPadding = padding;
+    const chartWidth = width - 2 * padding;
+    const chartHeight = height - 2 * padding;
+
+    // Find max value for scaling
+    let maxValue = 0;
+    kits.forEach(kit => {
+        Object.values(kit.daily_stats).forEach(day => {
+            if (day.registered > maxValue) {
+                maxValue = day.registered;
+            }
+        });
+    });
+
+    if (maxValue === 0) maxValue = 1; // Avoid division by zero
+
+    // Draw grid
+    // Vertical lines (dates)
+    dates.forEach((date, index) => {
+        const x = xPadding + (index / (dates.length - 1)) * chartWidth;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x);
+        line.setAttribute('y1', yPadding);
+        line.setAttribute('x2', x);
+        line.setAttribute('y2', height - yPadding);
+        line.setAttribute('stroke', '#e0e0e0');
+        line.setAttribute('stroke-width', '0.5');
+        gridSVG.appendChild(line);
+
+        // Date labels
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x);
+        text.setAttribute('y', height - yPadding + 20);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('font-size', '10');
+        text.setAttribute('fill', '#666');
+        const dateObj = new Date(date);
+        text.textContent = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        gridSVG.appendChild(text);
+    });
+
+    // Horizontal lines (value grid)
+    for (let i = 0; i <= 5; i++) {
+        const value = (maxValue * i) / 5;
+        const y = height - yPadding - (i / 5) * chartHeight;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', xPadding);
+        line.setAttribute('y1', y);
+        line.setAttribute('x2', width - xPadding);
+        line.setAttribute('y2', y);
+        line.setAttribute('stroke', '#e0e0e0');
+        line.setAttribute('stroke-width', '0.5');
+        gridSVG.appendChild(line);
+
+        // Value labels
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', xPadding - 10);
+        text.setAttribute('y', y + 4);
+        text.setAttribute('text-anchor', 'end');
+        text.setAttribute('font-size', '10');
+        text.setAttribute('fill', '#666');
+        text.textContent = Math.round(value);
+        gridSVG.appendChild(text);
+    }
+
+    // Draw lines for each kit (limit to first 3 for clarity)
+    const colors = ['#2E7D32', '#1565C0', '#EF5350'];
+    kits.slice(0, 3).forEach((kit, kitIndex) => {
+        const color = colors[kitIndex % colors.length];
+
+        // Create path for line
+        const pathData = [];
+        dates.forEach((date, index) => {
+            const x = xPadding + (index / (dates.length - 1)) * chartWidth;
+            const dayData = kit.daily_stats[date] || { registered: 0 };
+            const y = height - yPadding - (dayData.registered / maxValue) * chartHeight;
+
+            if (index === 0) {
+                pathData.push(`M ${x} ${y}`);
+            } else {
+                pathData.push(`L ${x} ${y}`);
+            }
+        });
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathData.join(' '));
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', color);
+        path.setAttribute('stroke-width', '2');
+        linesSVG.appendChild(path);
+
+        // Create points
+        dates.forEach((date, index) => {
+            const x = xPadding + (index / (dates.length - 1)) * chartWidth;
+            const dayData = kit.daily_stats[date] || { registered: 0 };
+            const y = height - yPadding - (dayData.registered / maxValue) * chartHeight;
+
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('r', '3');
+            circle.setAttribute('fill', color);
+            linesSVG.appendChild(circle);
+        });
+    });
+
+    // Add legend
+    const legend = document.createElement('div');
+    legend.style.position = 'absolute';
+    legend.style.top = '10px';
+    legend.style.right = '10px';
+    legend.style.background = 'rgba(255,255,255,0.9)';
+    legend.style.padding = '8px';
+    legend.style.borderRadius = '4px';
+    legend.style.fontSize = '12px';
+    legend.style.border = '1px solid #ddd';
+
+    kits.slice(0, 3).forEach((kit, kitIndex) => {
+        const color = colors[kitIndex % colors.length];
+        const legendItem = document.createElement('div');
+        legendItem.style.display = 'flex';
+        legendItem.style.alignItems = 'center';
+        legendItem.style.marginBottom = '4px';
+
+        const colorBox = document.createElement('div');
+        colorBox.style.width = '12px';
+        colorBox.style.height = '12px';
+        colorBox.style.backgroundColor = color;
+        colorBox.style.marginRight = '6px';
+
+        const label = document.createElement('span');
+        label.textContent = kit.kit_name;
+
+        legendItem.appendChild(colorBox);
+        legendItem.appendChild(label);
+        legend.appendChild(legendItem);
+    });
+
+    chartContainer.appendChild(legend);
+}
+</script>
+{% endblock %}

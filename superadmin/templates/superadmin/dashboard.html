@@ -271,8 +271,8 @@
                 </svg>
             </div>
         </div>
-        <div class="stat-value">{{ metrics.active_kits }}</div>
-        <div class="stat-value-small">{{ metrics.inactive_kits }} inactive · {{ metrics.repair_kits }} in repair</div>
+        <div class="stat-value">{{ metrics.total_kits }}</div>
+        <div class="stat-value-small">{{ metrics.inactive_kits }} inactive </div>
     </div>
 
     <div class="stat-card">
@@ -291,7 +291,7 @@
 
     <div class="stat-card">
         <div class="stat-meta">
-            <span class="stat-label">Clerks Online</span>
+            <span class="stat-label">Clerks </span>
             <div class="stat-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -300,8 +300,7 @@
                 </svg>
             </div>
         </div>
-        <div class="stat-value">{{ metrics.online_clerks }}</div>
-        <div class="stat-value-small">Out of {{ metrics.total_clerks }} total</div>
+        <div class="stat-value">{{ metrics.total_clerks }}</div>
     </div>
 </div>
 

@@ -83,7 +83,7 @@ class DailyKIEMSEntryForm(forms.ModelForm):
         fields = [
             'kiems_kit', 'phase', 'ward', 'vra', 'entry_date', 'venue',
             'registered_male', 'registered_female',
-            'total_transferred', 'total_deleted', 'uploaded'
+            'total_transferred', 'uploaded'
         ]
         widgets = {
             'kiems_kit': forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}),
@@ -95,7 +95,6 @@ class DailyKIEMSEntryForm(forms.ModelForm):
             'registered_male': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
             'registered_female': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
             'total_transferred': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
-            'total_deleted': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
             'uploaded': forms.CheckboxInput(attrs={'class': 'form-checkbox', 'style': 'width:18px;height:18px;'})
         }
 
