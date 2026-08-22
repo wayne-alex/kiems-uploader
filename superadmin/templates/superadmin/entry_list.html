@@ -1164,7 +1164,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     for (let [key, value] of params.entries()) {
                         if (!value) params.delete(key);
                     }
-                    const url = action + '?' + params.toString();
+                    // Construct URL properly - check if action already has query parameters
+                    const separator = action.includes('?') ? '&' : '?';
+                    const url = action + separator + params.toString();
                     window.open(url, '_blank');
                     return;
                 }
@@ -1188,7 +1190,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             params.append('format', 'xlsx');
                         }
                     }
-                    const url = action + '?' + params.toString();
+                    // Construct URL properly - check if action already has query parameters
+                    const separator = action.includes('?') ? '&' : '?';
+                    const url = action + separator + params.toString();
                     window.location.href = url;
                     return;
                 }
