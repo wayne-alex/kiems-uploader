@@ -140,12 +140,60 @@
         background: #4846c6;
     }
 
+    .btn-export {
+        background: #007aff;
+        padding: 8px 16px;
+        border-radius: 6px;
+        text-decoration: none;
+        color: #fff;
+        font-weight: 500;
+        font-size: 13px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .btn-export:hover {
+        background: #0066d9;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 32px 0 16px 0;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #f2f2f7;
+    }
+
+    .section-header h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: #000;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .section-header .badge {
+        background: #f2f2f7;
+        padding: 2px 12px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #8e8e93;
+    }
+
     .table-container {
         background: #ffffff;
         border-radius: 12px;
         border: 0.5px solid rgba(0,0,0,0.08);
         overflow: hidden;
         box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        margin-bottom: 24px;
     }
 
     .table-wrapper {
@@ -156,7 +204,7 @@
     table {
         width: 100%;
         border-collapse: collapse;
-        min-width: 800px;
+        min-width: 700px;
     }
 
     thead {
@@ -253,6 +301,23 @@
         white-space: nowrap;
     }
 
+    .kit-tag {
+        display: inline-block;
+        background: #e8f0fe;
+        color: #1a73e8;
+        padding: 2px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        margin: 2px 4px 2px 0;
+        font-weight: 500;
+    }
+
+    .kit-tag.empty {
+        background: #f2f2f7;
+        color: #8e8e93;
+        font-weight: 400;
+    }
+
     .actions-cell {
         display: flex;
         gap: 8px;
@@ -261,28 +326,28 @@
     }
 
     .empty-state {
-        padding: 60px 20px;
+        padding: 40px 20px;
         text-align: center;
         color: #8e8e93;
     }
 
     .empty-state .icon {
-        font-size: 48px;
-        margin-bottom: 16px;
+        font-size: 36px;
+        margin-bottom: 12px;
         display: block;
     }
 
-    .empty-state h3 {
-        font-size: 18px;
+    .empty-state h4 {
+        font-size: 16px;
         font-weight: 600;
         color: #000;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
     }
 
     .empty-state p {
-        font-size: 14px;
+        font-size: 13px;
         color: #8e8e93;
-        margin-bottom: 20px;
+        margin-bottom: 12px;
     }
 
     .stats-bar {
@@ -360,6 +425,19 @@
         flex-wrap: wrap;
     }
 
+    .export-buttons {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .section-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
     @media (max-width: 768px) {
         .page-header {
             flex-direction: column;
@@ -388,6 +466,16 @@
         th {
             padding: 12px 16px;
         }
+
+        .section-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .section-actions {
+            width: 100%;
+        }
     }
 </style>
 {% endblock %}
@@ -396,16 +484,11 @@
 <div class="page-header">
     <div>
         <h2>Staff Management</h2>
-        <div class="subtitle">Manage all clerks and VRAs</div>
+        <div class="subtitle">Manage all clerks and VRAs across all wards</div>
     </div>
     <div class="search-bar">
-        <input type="text" class="search-input" id="searchInput" placeholder="Search staff..." onkeyup="filterTable()">
-        <select class="filter-select" id="typeFilter" onchange="filterTable()">
-            <option value="">All Types</option>
-            <option value="clerk">Clerks</option>
-            <option value="vra">VRAs</option>
-        </select>
-        <select class="filter-select" id="statusFilter" onchange="filterTable()">
+        <input type="text" class="search-input" id="searchInput" placeholder="Search staff..." onkeyup="filterAllTables()">
+        <select class="filter-select" id="statusFilter" onchange="filterAllTables()">
             <option value="">All Status</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -445,57 +528,160 @@
         </div>
     </div>
 
+    <!-- Clerks Section -->
+    <div class="section-header">
+        <h3>
+            Clerks
+            <span class="badge">{{ stats.total_clerks }}</span>
+        </h3>
+        <div class="section-actions">
+            <a href="{% url 'superadmin:export_staff' %}?type=clerk&format=csv" class="btn-export">
+                📥 Export Clerks
+            </a>
+            <a href="{% url 'superadmin:export_staff' %}?type=clerk&format=xlsx" class="btn-export">
+                📊 Export Excel
+            </a>
+        </div>
+    </div>
+
     <div class="table-wrapper">
-        <table id="staffTable">
+        <table id="clerksTable">
             <thead>
                 <tr>
                     <th>Name</th>
-                    <th>Type</th>
                     <th>Ward</th>
-                    <th>Device Token</th>
+                    <th>Assigned Kits</th>
                     <th>Status</th>
                     <th style="text-align: right;">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {% for staff in staff_list %}
-                <tr data-type="{{ staff.type }}" data-status="{{ staff.active|yesno:'active,inactive' }}">
+                {% for clerk in clerks %}
+                <tr data-status="{{ clerk.active|yesno:'active,inactive' }}">
                     <td>
                         <div class="staff-info">
-                            <span class="staff-name">{{ staff.name }}</span>
-                            <span class="staff-detail">ID: {{ staff.id }}</span>
+                            <span class="staff-name">{{ clerk.name }}</span>
+                            <span class="staff-detail">ID: {{ clerk.id }}</span>
                         </div>
                     </td>
+                    <td>{{ clerk.ward.name|default:"Not Assigned" }}</td>
                     <td>
-                        <span class="type-badge {{ staff.type }}">
-                            {{ staff.details.type_label }}
-                        </span>
-                    </td>
-                    <td>
-                        {{ staff.ward.name|default:"Not Assigned" }}
-                    </td>
-                    <td>
-                        {% if staff.type == 'vra' %}
-                            <span class="device-token" title="{{ staff.details.device_token|default:'No token' }}">
-                                {{ staff.details.device_token|default:"No token"|truncatechars:16 }}
-                            </span>
+                        {% if clerk.kits.all %}
+                            {% for kit in clerk.kits.all %}
+                                <span class="kit-tag">{{ kit.kit_name }}</span>
+                            {% endfor %}
                         {% else %}
-                            <span style="color: #8e8e93; font-size: 12px;">N/A</span>
+                            <span class="kit-tag empty">No kits assigned</span>
                         {% endif %}
                     </td>
                     <td>
-                        <span class="status-badge {{ staff.active|yesno:'active,inactive' }}">
-                            {{ staff.active|yesno:"Active,Inactive" }}
+                        <span class="status-badge {{ clerk.active|yesno:'active,inactive' }}">
+                            {{ clerk.active|yesno:"Active,Inactive" }}
                         </span>
                     </td>
                     <td>
                         <div class="actions-cell">
-                            <a href="{% url 'superadmin:staff_edit' staff.id staff.type %}" class="btn-edit">
+                            <a href="{% url 'superadmin:staff_edit' clerk.id 'clerk' %}" class="btn-edit">
                                 ✏️ Edit
                             </a>
-                            <form method="post" action="{% url 'superadmin:staff_delete' staff.id staff.type %}"
+                            <form method="post" action="{% url 'superadmin:staff_delete' clerk.id 'clerk' %}"
                                   style="display: inline;"
-                                  onsubmit="return confirm('Are you sure you want to delete this {{ staff.details.type_label }}? This action cannot be undone.')">
+                                  onsubmit="return confirm('Are you sure you want to delete this clerk? This action cannot be undone.')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-danger">
+                                    🗑️ Delete
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5">
+                        <div class="empty-state">
+                            <span class="icon">👤</span>
+                            <h4>No Clerks Found</h4>
+                            <p>Start by creating clerks to manage KIEMS kits.</p>
+                            <a href="{% url 'superadmin:staff_create' %}?type=clerk" class="btn-add-clerk" style="display: inline-flex;">
+                                <span style="font-size: 16px;">+</span> Create First Clerk
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- VRAs Section -->
+    <div class="section-header" style="margin-top: 40px;">
+        <h3>
+            VRAs (Voter Registration Assistants)
+            <span class="badge">{{ stats.total_vras }}</span>
+        </h3>
+        <div class="section-actions">
+            <a href="{% url 'superadmin:export_staff' %}?type=vra&format=csv" class="btn-export">
+                📥 Export VRAs
+            </a>
+            <a href="{% url 'superadmin:export_staff' %}?type=vra&format=xlsx" class="btn-export">
+                📊 Export Excel
+            </a>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table id="vrasTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Ward</th>
+                    <th>Device Token</th>
+                    <th>Device Fingerprint</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vra in vras %}
+                <tr data-status="{{ vra.active|yesno:'active,inactive' }}">
+                    <td>
+                        <div class="staff-info">
+                            <span class="staff-name">{{ vra.name }}</span>
+                            <span class="staff-detail">ID: {{ vra.id }}</span>
+                        </div>
+                    </td>
+                    <td>{{ vra.ward.name|default:"Not Assigned" }}</td>
+                    <td>
+                        {% if vra.device_token %}
+                            <span class="device-token" title="{{ vra.device_token }}">
+                                {{ vra.device_token|truncatechars:16 }}
+                            </span>
+                        {% else %}
+                            <span style="color: #8e8e93; font-size: 12px;">No token</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if vra.device_fingerprint %}
+                            <span class="device-token" title="{{ vra.device_fingerprint }}">
+                                {{ vra.device_fingerprint|truncatechars:12 }}
+                            </span>
+                        {% else %}
+                            <span style="color: #8e8e93; font-size: 12px;">No fingerprint</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="status-badge {{ vra.active|yesno:'active,inactive' }}">
+                            {{ vra.active|yesno:"Active,Inactive" }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="actions-cell">
+                            <a href="{% url 'superadmin:staff_edit' vra.id 'vra' %}" class="btn-edit">
+                                ✏️ Edit
+                            </a>
+                            <form method="post" action="{% url 'superadmin:staff_delete' vra.id 'vra' %}"
+                                  style="display: inline;"
+                                  onsubmit="return confirm('Are you sure you want to delete this VRA? This action cannot be undone.')">
                                 {% csrf_token %}
                                 <button type="submit" class="btn-danger">
                                     🗑️ Delete
@@ -508,17 +694,12 @@
                 <tr>
                     <td colspan="6">
                         <div class="empty-state">
-                            <span class="icon">👥</span>
-                            <h3>No Staff Found</h3>
-                            <p>Start by creating clerks and VRAs to manage the electoral process.</p>
-                            <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-                                <a href="{% url 'superadmin:staff_create' %}?type=clerk" class="btn-add-clerk" style="display: inline-flex;">
-                                    <span style="font-size: 20px; line-height: 1;">+</span> Create First Clerk
-                                </a>
-                                <a href="{% url 'superadmin:staff_create' %}?type=vra" class="btn-add-vra" style="display: inline-flex;">
-                                    <span style="font-size: 20px; line-height: 1;">+</span> Create First VRA
-                                </a>
-                            </div>
+                            <span class="icon">📋</span>
+                            <h4>No VRAs Found</h4>
+                            <p>Start by creating VRAs to manage voter registration.</p>
+                            <a href="{% url 'superadmin:staff_create' %}?type=vra" class="btn-add-vra" style="display: inline-flex;">
+                                <span style="font-size: 16px;">+</span> Create First VRA
+                            </a>
                         </div>
                     </td>
                 </tr>
@@ -529,19 +710,26 @@
 </div>
 
 <script>
-function filterTable() {
-    const input = document.getElementById('searchInput');
-    const searchFilter = input.value.toLowerCase();
-    const typeFilter = document.getElementById('typeFilter').value.toLowerCase();
+function filterAllTables() {
+    const searchInput = document.getElementById('searchInput');
+    const searchFilter = searchInput.value.toLowerCase();
     const statusFilter = document.getElementById('statusFilter').value.toLowerCase();
-    const table = document.getElementById('staffTable');
-    const rows = table.getElementsByTagName('tr');
 
-    for (let i = 1; i < rows.length; i++) {
+    // Filter both tables
+    filterTable('clerksTable', searchFilter, statusFilter);
+    filterTable('vrasTable', searchFilter, statusFilter);
+}
+
+function filterTable(tableId, searchFilter, statusFilter) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+
+    const rows = table.getElementsByTagName('tbody')[0]?.getElementsByTagName('tr') || [];
+
+    for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         const cells = row.getElementsByTagName('td');
         let matchesSearch = false;
-        let matchesType = true;
         let matchesStatus = true;
 
         // Check search
@@ -550,26 +738,28 @@ function filterTable() {
             matchesSearch = searchText.toLowerCase().indexOf(searchFilter) > -1;
         }
 
-        // Check type
-        if (typeFilter) {
-            const type = row.getAttribute('data-type') || '';
-            matchesType = type === typeFilter;
-        }
-
         // Check status
         if (statusFilter) {
             const status = row.getAttribute('data-status') || '';
             matchesStatus = status === statusFilter;
         }
 
-        row.style.display = (matchesSearch && matchesType && matchesStatus) ? '' : 'none';
+        row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
     }
 }
 
+// Auto-filter on Enter key
 document.getElementById('searchInput').addEventListener('keyup', function(e) {
     if (e.key === 'Enter') {
-        filterTable();
+        filterAllTables();
     }
+});
+
+// Also filter on input change (debounced)
+let searchTimeout;
+document.getElementById('searchInput').addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(filterAllTables, 300);
 });
 </script>
 {% endblock %}

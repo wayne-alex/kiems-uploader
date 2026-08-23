@@ -1,4 +1,6 @@
 import uuid
+
+from django.contrib.auth.models import User
 from django.db import models
 
 
@@ -97,7 +99,6 @@ class DailyKIEMSEntry(models.Model):
     total_transferred = models.PositiveIntegerField(default=0)
     total_updated = models.PositiveIntegerField(default=0)
 
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     edit_count = models.PositiveIntegerField(default=0)
@@ -126,3 +127,41 @@ class DailyKIEMSEntry(models.Model):
 
     def __str__(self):
         return f"{self.kiems_kit.kit_name} – {self.entry_date}"
+
+# ==================== WHATSAPP MODELS ====================
+# ==================== WHATSAPP MODELS ====================
+
+class WhatsAppGroup(models.Model):
+    """WhatsApp Groups configuration"""
+    group_id = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=200)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.group_id})"
+
+    class Meta:
+        ordering = ['name']
+
+
+class WhatsAppSetting(models.Model):
+    """User settings for WhatsApp"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='whatsapp_settings')
+    default_group = models.ForeignKey(WhatsAppGroup, on_delete=models.SET_NULL, null=True, blank=True)
+
+    # Notification toggles
+    notify_vra = models.BooleanField(default=True, help_text="Send notification when VRA submits")
+    notify_edit = models.BooleanField(default=True, help_text="Send notification when VRA edits")
+    notify_daily = models.BooleanField(default=True, help_text="Send daily report")
+    notify_grand_total = models.BooleanField(default=True, help_text="Send grand total when all wards submit")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username} - WhatsApp Settings"
+
+    class Meta:
+        ordering = ['user__username']

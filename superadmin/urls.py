@@ -27,6 +27,7 @@ urlpatterns = [
     path('staff/create/', views.staff_create, name='staff_create'),
     path('staff/edit/<int:pk>/<str:staff_type>/', views.staff_edit, name='staff_edit'),
     path('staff/delete/<int:pk>/<str:staff_type>/', views.staff_delete, name='staff_delete'),
+    path('staff/export/', views.export_staff, name='export_staff'),
 
     # KIEMS Kits
     path('kits/', views.kit_list, name='kit_list'),
@@ -54,4 +55,13 @@ urlpatterns = [
     path('api/kit-report/<int:kit_id>/', views.kit_report_api, name='kit_report_api'),
     path('filtered-preview/', views.filtered_preview, name='filtered_preview'),
     path('performance/', views.performance_dashboard, name='performance_dashboard'),
+
+    # WhatsApp Bot URLs
+    path('whatsapp/', views.whatsapp_status, name='whatsapp_status'),
+    path('api/whatsapp/status/', views.whatsapp_bot_status, name='whatsapp_bot_status'),
+    path('api/whatsapp/groups/', views.whatsapp_groups, name='whatsapp_groups'),
+    path('api/whatsapp/settings/', views.whatsapp_save_settings, name='whatsapp_settings'),
+    path('api/whatsapp/settings/get/', views.whatsapp_get_settings, name='whatsapp_get_settings'),
+    path('api/whatsapp/test/', views.whatsapp_test, name='whatsapp_test'),
+    path('api/whatsapp/send-daily-report/', views.send_daily_report_manual, name='send_daily_report_manual'),
 ]

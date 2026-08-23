@@ -1,8 +1,7 @@
 import csv
 import io
 import json
-import os
-import urllib
+import logging
 from datetime import datetime, timedelta
 
 import openpyxl
@@ -18,7 +17,10 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
+
+logger = logging.getLogger(__name__)
 
 # Optional: ReportLab as fallback if PDF.co fails
 try:
@@ -34,11 +36,11 @@ except ImportError:
     REPORTLAB_AVAILABLE = False
 
 from home.models import (
-    Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry
+    Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry, WhatsAppSetting, WhatsAppGroup
 )
 from .forms import (
     WardForm, VRAForm, ClerkForm, KIEMSKitForm, PhaseForm,
-    DailyKIEMSEntryForm, DailyEntryFilterForm, ImportForm, ExportForm
+    DailyKIEMSEntryForm, DailyEntryFilterForm, ImportForm
 )
 
 
@@ -297,44 +299,12 @@ def ward_delete(request, pk):
 @login_required
 @user_passes_test(is_superadmin)
 def staff_list(request):
-    """List all clerks and VRAs"""
-    clerks = Clerk.objects.select_related('ward').all().order_by('ward__name', 'name')
+    """List all clerks and VRAs in separate tables"""
+    # Get all clerks with their related data
+    clerks = Clerk.objects.select_related('ward').prefetch_related('kits').all().order_by('ward__name', 'name')
+
+    # Get all VRAs with their related data
     vras = VRA.objects.select_related('ward').all().order_by('ward__name', 'name')
-
-    # Combine both with a type indicator
-    staff_list = []
-    for clerk in clerks:
-        staff_list.append({
-            'id': clerk.id,
-            'type': 'clerk',
-            'name': clerk.name,
-            'ward': clerk.ward,
-            'active': clerk.active,
-            'created_at': clerk.created_at,
-            'details': {
-                'role': 'Clerk',
-                'type_label': 'Clerk'
-            }
-        })
-
-    for vra in vras:
-        staff_list.append({
-            'id': vra.id,
-            'type': 'vra',
-            'name': vra.name,
-            'ward': vra.ward,
-            'active': vra.active,
-            'created_at': vra.created_at,
-            'details': {
-                'role': 'VRA',
-                'type_label': 'VRA',
-                'device_token': vra.device_token,
-                'device_fingerprint': vra.device_fingerprint
-            }
-        })
-
-    # Sort combined list by ward name, then name
-    staff_list.sort(key=lambda x: (x['ward'].name if x['ward'] else '', x['name']))
 
     # Statistics
     stats = {
@@ -342,14 +312,13 @@ def staff_list(request):
         'total_vras': vras.count(),
         'active_clerks': clerks.filter(active=True).count(),
         'active_vras': vras.filter(active=True).count(),
-        'total_staff': len(staff_list),
+        'total_staff': clerks.count() + vras.count(),
     }
 
     return render(request, 'superadmin/staff_list.html', {
-        'staff_list': staff_list,
+        'clerks': clerks,
+        'vras': vras,
         'stats': stats,
-        'clerks_count': clerks.count(),
-        'vras_count': vras.count(),
     })
 
 
@@ -598,6 +567,36 @@ def entry_create(request):
         if form.is_valid():
             entry = form.save()
             messages.success(request, 'Daily entry created successfully!')
+
+            print("=" * 50)
+            print("ENTRY CREATED - SENDING WHATSAPP")
+            print(f"Ward: {entry.ward.name}")
+            print(f"Kit: {entry.kiems_kit.kit_name}")
+            print(f"VRA: {entry.vra.name}")
+            print("=" * 50)
+
+            # Send WhatsApp notification
+            try:
+                # Get user settings
+                settings = get_whatsapp_settings(request.user)
+                print(f"WhatsApp settings: notify_vra={settings.notify_vra if settings else 'None'}")
+
+                # Send VRA submission message if enabled
+                if settings and settings.notify_vra:
+                    message = format_vra_message(entry)
+                    print("Sending VRA submission message...")
+                    print(message)
+                    send_whatsapp_message(message, request.user)
+
+                # Check if all wards submitted and send grand total
+                print("Checking if all wards submitted...")
+                check_and_send_daily_report(request.user)
+
+            except Exception as e:
+                print(f"WhatsApp error: {str(e)}")
+                import traceback
+                traceback.print_exc()
+
             return redirect('superadmin:entry_list')
     else:
         form = DailyKIEMSEntryForm()
@@ -614,6 +613,16 @@ def entry_edit(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, 'Daily entry updated successfully!')
+
+            # Send WhatsApp notification for update
+            try:
+                settings = get_whatsapp_settings(request.user)
+                if settings and settings.notify_edit:
+                    message = format_vra_update_message(entry)
+                    send_whatsapp_message(message, request.user)
+            except Exception as e:
+                print(f"WhatsApp error: {str(e)}")
+
             return redirect('superadmin:entry_list')
     else:
         form = DailyKIEMSEntryForm(instance=entry)
@@ -1807,3 +1816,680 @@ def performance_dashboard(request):
     }
 
     return render(request, 'superadmin/performance_dashboard.html', context)
+
+
+# ==================== WHATSAPP BOT INTEGRATION ====================
+
+@login_required
+@user_passes_test(is_superadmin)
+def whatsapp_status(request):
+    """View for WhatsApp integration status page"""
+    return render(request, 'superadmin/whatsapp_status.html')
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def whatsapp_bot_status(request):
+    """Get WhatsApp bot status"""
+    try:
+        bot_url = getattr(settings, 'WHATSAPP_BOT_URL', 'http://localhost:3000')
+        response = requests.get(
+            f"{bot_url}/status",
+            timeout=5,
+            headers={'Content-Type': 'application/json'}
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+
+            # Handle QR code properly
+            qr_data = None
+            if data.get('hasQr') and data.get('qr'):
+                qr_data = data.get('qr')
+                # If QR is not a data URL, it might be raw
+                if not qr_data.startswith('data:image'):
+                    qr_data = None
+
+            return JsonResponse({
+                'success': True,
+                'isReady': data.get('isReady', False),
+                'status': data.get('status', 'unknown'),
+                'hasQr': data.get('hasQr', False),
+                'qr': qr_data,
+                'uptime': data.get('uptime', 0)
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'isReady': False,
+                'status': 'error',
+                'error': f'Bot returned status {response.status_code}'
+            }, status=503)
+
+    except requests.exceptions.ConnectionError:
+        return JsonResponse({
+            'success': False,
+            'isReady': False,
+            'status': 'offline',
+            'error': 'WhatsApp bot is not running. Please start the bot server.'
+        }, status=503)
+    except requests.exceptions.Timeout:
+        return JsonResponse({
+            'success': False,
+            'isReady': False,
+            'status': 'timeout',
+            'error': 'Connection timeout. Bot server not responding.'
+        }, status=503)
+    except Exception as e:
+        logger.error(f"WhatsApp status error: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'isReady': False,
+            'status': 'error',
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def whatsapp_groups(request):
+    """Get WhatsApp groups and save them to database"""
+    try:
+        bot_url = getattr(settings, 'WHATSAPP_BOT_URL', 'http://localhost:3000')
+
+        # First check if bot is ready
+        status_response = requests.get(
+            f"{bot_url}/status",
+            timeout=3,
+            headers={'Content-Type': 'application/json'}
+        )
+
+        if status_response.status_code != 200:
+            return JsonResponse({
+                'success': False,
+                'data': [],
+                'error': 'Bot is not responding'
+            }, status=503)
+
+        status_data = status_response.json()
+        if not status_data.get('isReady', False):
+            return JsonResponse({
+                'success': False,
+                'data': [],
+                'error': 'Bot is not ready. Please scan QR code first.'
+            }, status=503)
+
+        # Now get groups
+        response = requests.get(
+            f"{bot_url}/groups",
+            timeout=10,
+            headers={'Content-Type': 'application/json'}
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            groups = data.get('data', [])
+
+            # Save each group to database
+            saved_groups = []
+            for group_data in groups:
+                group_id = group_data.get('id')
+                group_name = group_data.get('name', f'WhatsApp Group {group_id[:10]}...')
+
+                if group_id:
+                    try:
+                        # Try to get existing group
+                        group, created = WhatsAppGroup.objects.get_or_create(
+                            group_id=group_id,
+                            defaults={
+                                'name': group_name,
+                                'is_active': True
+                            }
+                        )
+                        # Update name if it changed
+                        if not created and group.name != group_name:
+                            group.name = group_name
+                            group.save()
+
+                        saved_groups.append({
+                            'id': group.group_id,
+                            'name': group.name,
+                            'participants': group_data.get('participants', 0),
+                            'isActive': group.is_active
+                        })
+                        print(f"📱 Group saved: {group.name} ({group.group_id})")
+                    except Exception as e:
+                        print(f"Error saving group {group_id}: {str(e)}")
+
+            return JsonResponse({
+                'success': True,
+                'data': saved_groups
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'data': [],
+                'error': f'Bot returned status {response.status_code}'
+            }, status=503)
+
+    except requests.exceptions.ConnectionError:
+        return JsonResponse({
+            'success': False,
+            'data': [],
+            'error': 'WhatsApp bot is not running'
+        }, status=503)
+    except Exception as e:
+        logger.error(f"WhatsApp groups error: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'data': [],
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+@csrf_exempt
+def whatsapp_save_settings(request):
+    """Save WhatsApp notification settings to database"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    try:
+        # Parse request data
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+
+        group_id = data.get('group_id')
+        print(f"📱 Group ID received: {group_id}")
+
+        notify_vra = data.get('notify_vra', 'true') == 'true'
+        notify_edit = data.get('notify_edit', 'true') == 'true'
+        notify_daily = data.get('notify_daily', 'true') == 'true'
+        notify_grand_total = data.get('notify_grand_total', 'true') == 'true'
+
+        # Get or create WhatsAppSetting for this user
+        setting, created = WhatsAppSetting.objects.get_or_create(
+            user=request.user,
+            defaults={
+                'notify_vra': notify_vra,
+                'notify_edit': notify_edit,
+                'notify_daily': notify_daily,
+                'notify_grand_total': notify_grand_total,
+            }
+        )
+
+        # Update group if provided
+        if group_id:
+            try:
+                # Try to find existing group
+                group = WhatsAppGroup.objects.get(group_id=group_id, is_active=True)
+                print(f"✅ Found existing group: {group.name}")
+            except WhatsAppGroup.DoesNotExist:
+                # Group doesn't exist, create it
+                try:
+                    # Try to get group name from WhatsApp bot
+                    bot_url = getattr(settings, 'WHATSAPP_BOT_URL', 'http://localhost:3000')
+                    groups_response = requests.get(
+                        f"{bot_url}/groups",
+                        timeout=5,
+                        headers={'Content-Type': 'application/json'}
+                    )
+                    group_name = f"WhatsApp Group {group_id[:10]}..."
+
+                    if groups_response.status_code == 200:
+                        groups_data = groups_response.json()
+                        for g in groups_data.get('data', []):
+                            if g.get('id') == group_id:
+                                group_name = g.get('name', group_name)
+                                break
+
+                    group = WhatsAppGroup.objects.create(
+                        group_id=group_id,
+                        name=group_name,
+                        is_active=True
+                    )
+                    print(f"✅ Created new group: {group.name} with ID: {group.group_id}")
+                except Exception as e:
+                    print(f"❌ Error creating group: {str(e)}")
+                    # Fallback: create with minimal info
+                    group = WhatsAppGroup.objects.create(
+                        group_id=group_id,
+                        name=f"Group {group_id[:15]}...",
+                        is_active=True
+                    )
+
+            if group:
+                setting.default_group = group
+                print(f"✅ Set default_group to: {group.name}")
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Failed to create or find the WhatsApp group'
+                }, status=404)
+
+        # Update notification settings
+        setting.notify_vra = notify_vra
+        setting.notify_edit = notify_edit
+        setting.notify_daily = notify_daily
+        setting.notify_grand_total = notify_grand_total
+        setting.save()
+
+        # Also save in session for quick access
+        request.session['whatsapp_settings'] = {
+            'group_id': setting.default_group.group_id if setting.default_group else '',
+            'notify_vra': setting.notify_vra,
+            'notify_edit': setting.notify_edit,
+            'notify_daily': setting.notify_daily,
+            'notify_grand_total': setting.notify_grand_total,
+        }
+        request.session.modified = True
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Settings saved successfully!',
+            'data': {
+                'group_id': setting.default_group.group_id if setting.default_group else '',
+                'group_name': setting.default_group.name if setting.default_group else '',
+                'notify_vra': setting.notify_vra,
+                'notify_edit': setting.notify_edit,
+                'notify_daily': setting.notify_daily,
+                'notify_grand_total': setting.notify_grand_total,
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error saving WhatsApp settings: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+@csrf_exempt
+def whatsapp_test(request):
+    """Send test message via WhatsApp bot"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    try:
+        # Parse request data
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+
+        group_id = data.get('group_id')
+        message = data.get('message')
+
+        if not group_id:
+            return JsonResponse({
+                'success': False,
+                'error': 'Please select a group first'
+            }, status=400)
+
+        if not message:
+            return JsonResponse({
+                'success': False,
+                'error': 'Message is required'
+            }, status=400)
+
+        bot_url = getattr(settings, 'WHATSAPP_BOT_URL', 'http://localhost:3000')
+        response = requests.post(
+            f"{bot_url}/send",
+            json={'groupId': group_id, 'message': message},
+            timeout=10,
+            headers={'Content-Type': 'application/json'}
+        )
+
+        if response.status_code == 200:
+            return JsonResponse({
+                'success': True,
+                'message': 'Test message sent successfully!'
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': f'Bot returned status {response.status_code}'
+            }, status=503)
+
+    except requests.exceptions.ConnectionError:
+        return JsonResponse({
+            'success': False,
+            'error': 'WhatsApp bot is not running. Please start the bot server.'
+        }, status=503)
+    except Exception as e:
+        logger.error(f"Error sending test message: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def whatsapp_get_settings(request):
+    """Get WhatsApp notification settings from database"""
+    try:
+        setting = WhatsAppSetting.objects.filter(user=request.user).first()
+
+        if setting:
+            data = {
+                'group_id': setting.default_group.group_id if setting.default_group else '',
+                'group_name': setting.default_group.name if setting.default_group else '',
+                'notify_vra': setting.notify_vra,
+                'notify_edit': setting.notify_edit,
+                'notify_daily': setting.notify_daily,
+                'notify_grand_total': setting.notify_grand_total,
+            }
+        else:
+            data = {
+                'group_id': '',
+                'group_name': '',
+                'notify_vra': True,
+                'notify_edit': True,
+                'notify_daily': True,
+                'notify_grand_total': True,
+            }
+
+        return JsonResponse({
+            'success': True,
+            'data': data
+        })
+    except Exception as e:
+        logger.error(f"Error getting WhatsApp settings: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_GET
+def export_staff(request):
+    """Export clerks or VRAs to CSV or Excel"""
+    staff_type = request.GET.get('type', 'clerk')
+    export_format = request.GET.get('format', 'csv')
+
+    # Validate
+    if staff_type not in ['clerk', 'vra']:
+        messages.error(request, 'Invalid staff type')
+        return redirect('superadmin:staff_list')
+
+    if export_format not in ['csv', 'xlsx']:
+        messages.error(request, 'Invalid format')
+        return redirect('superadmin:staff_list')
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"export_{staff_type}s_{timestamp}"
+
+    if staff_type == 'clerk':
+        clerks = Clerk.objects.select_related('ward').prefetch_related('kits').all().order_by('ward__name', 'name')
+        headers = ['ID', 'Name', 'Ward', 'Assigned Kits', 'Active', 'Created At']
+        rows = []
+        for clerk in clerks:
+            kit_names = ', '.join([kit.kit_name for kit in clerk.kits.all()]) or 'None'
+            rows.append([
+                clerk.id,
+                clerk.name,
+                clerk.ward.name if clerk.ward else 'Not Assigned',
+                kit_names,
+                'Active' if clerk.active else 'Inactive',
+                clerk.created_at.strftime('%Y-%m-%d %H:%M') if clerk.created_at else ''
+            ])
+    else:  # vra
+        vras = VRA.objects.select_related('ward').all().order_by('ward__name', 'name')
+        headers = ['ID', 'Name', 'Ward', 'Device Token', 'Device Fingerprint', 'Active', 'Created At']
+        rows = []
+        for vra in vras:
+            rows.append([
+                vra.id,
+                vra.name,
+                vra.ward.name if vra.ward else 'Not Assigned',
+                vra.device_token or '',
+                vra.device_fingerprint or '',
+                'Active' if vra.active else 'Inactive',
+                vra.created_at.strftime('%Y-%m-%d %H:%M') if vra.created_at else ''
+            ])
+
+    if export_format == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
+        writer = csv.writer(response)
+        writer.writerow(headers)
+        writer.writerows(rows)
+        return response
+
+    elif export_format == 'xlsx':
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="{filename}.xlsx"'
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = staff_type.capitalize() + 's'
+        ws.append(headers)
+        for row in rows:
+            ws.append(row)
+        wb.save(response)
+        return response
+
+    messages.error(request, 'Invalid export format')
+    return redirect('superadmin:staff_list')
+
+
+# ==================== WHATSAPP HELPER FUNCTIONS ====================
+
+def get_whatsapp_group(user=None):
+    """Get the default WhatsApp group for a user"""
+    try:
+        if user:
+            # Get user's saved group
+            setting = WhatsAppSetting.objects.filter(user=user).first()
+            if setting and setting.default_group and setting.default_group.is_active:
+                return setting.default_group.group_id
+
+        # Fallback: get first active group
+        group = WhatsAppGroup.objects.filter(is_active=True).first()
+        if group:
+            return group.group_id
+    except Exception as e:
+        print(f"Error getting WhatsApp group: {str(e)}")
+    return None
+
+
+def get_whatsapp_settings(user):
+    """Get WhatsApp settings for a user"""
+    try:
+        setting, created = WhatsAppSetting.objects.get_or_create(
+            user=user,
+            defaults={
+                'notify_vra': True,
+                'notify_edit': True,
+                'notify_daily': True,
+                'notify_grand_total': True,
+            }
+        )
+        return setting
+    except Exception as e:
+        print(f"Error getting WhatsApp settings: {str(e)}")
+        return None
+
+
+def send_whatsapp_message(message, user=None):
+    """Send a message to WhatsApp group"""
+    try:
+        group_id = get_whatsapp_group(user)
+        if not group_id:
+            print("No WhatsApp group configured")
+            return False
+
+        bot_url = getattr(settings, 'WHATSAPP_BOT_URL', 'http://localhost:3000')
+        response = requests.post(
+            f"{bot_url}/send",
+            json={'groupId': group_id, 'message': message},
+            timeout=10,
+            headers={'Content-Type': 'application/json'}
+        )
+
+        if response.status_code == 200:
+            print("✅ WhatsApp message sent successfully")
+            return True
+        else:
+            print(f"❌ WhatsApp send failed: {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ WhatsApp error: {str(e)}")
+        return False
+
+
+def format_vra_message(entry):
+    """Format VRA submission message - Super Simple"""
+    message = f"{entry.ward.name.upper()} CONFIRMED ✅ \n"
+    message += f"{entry.kiems_kit.kit_name}: MALE:{entry.registered_male} FEMALE:{entry.registered_female} = {entry.total_registered}"
+    if entry.total_transferred and entry.total_transferred > 0:
+        message += f"\nTransferred: {entry.total_transferred}"
+    return message
+
+
+def format_vra_update_message(entry):
+    """Format VRA update message - Super Simple"""
+    message = f"{entry.ward.name.upper()} UPDATED ✏️ \n"
+    message += f"{entry.kiems_kit.kit_name}: MALE:{entry.registered_male} FEMALE:{entry.registered_female} = {entry.total_registered}"
+    if entry.total_transferred and entry.total_transferred > 0:
+        message += f"\nTransferred: {entry.total_transferred}"
+    return message
+
+
+def format_grand_total_message(entries, total_wards):
+    """Format grand total message when all wards submit - Super Simple"""
+    today = timezone.now().date()
+
+    # Calculate grand totals
+    total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
+    total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
+    total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
+    total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
+
+    # Get per ward breakdown
+    ward_data = entries.values('ward__name').annotate(
+        male=Sum('registered_male'),
+        female=Sum('registered_female'),
+        total=Sum('total_registered')
+    ).order_by('ward__name')
+
+    # Build message - Simple format
+    message = f"DATE:{today.strftime('%d %b %Y')}\n"
+    message += f"✅ All {total_wards} Wards Submitted!\n\n"
+
+    # Per ward breakdown - one line each
+    for w in ward_data:
+        message += f"{w['ward__name']}: MALE:{w['male']}  FEMALE:{w['female']} = {w['total']}\n"
+
+    # Grand totals at the end
+    message += f"\nTOTAL: {total_male}♂ {total_female}♀ = {total_registered}"
+    if total_transferred > 0:
+        message += f" | Transferred: {total_transferred}"
+
+    return message
+
+
+def check_and_send_daily_report(user=None):
+    """Check if all wards submitted and send daily report"""
+    today = timezone.now().date()
+
+    # Get total wards
+    total_wards = Ward.objects.count()
+    if total_wards == 0:
+        print("No wards found")
+        return
+
+    # Get wards that have submitted today
+    submitted_wards = DailyKIEMSEntry.objects.filter(
+        entry_date=today
+    ).values('ward').distinct().count()
+
+    print(f"Total wards: {total_wards}, Submitted: {submitted_wards}")
+
+    # If not all wards submitted, return
+    if submitted_wards < total_wards:
+        print("Not all wards submitted yet")
+        return
+
+    print("All wards submitted! Sending grand total...")
+
+    # Get settings for the user
+    settings = get_whatsapp_settings(user) if user else None
+
+    # Check if grand total notifications are enabled
+    if settings and not settings.notify_grand_total:
+        print("Grand total notifications disabled in settings")
+        return
+
+    # Get all entries for today
+    entries = DailyKIEMSEntry.objects.filter(entry_date=today)
+
+    if not entries.exists():
+        print("No entries found")
+        return
+
+    # Format and send message
+    message = format_grand_total_message(entries, total_wards)
+    send_whatsapp_message(message, user)
+
+
+def send_daily_report_job():
+    """Job function to send daily report - called from cron or manually"""
+    today = timezone.now().date()
+
+    # Get total wards
+    total_wards = Ward.objects.count()
+    if total_wards == 0:
+        print("No wards found")
+        return
+
+    # Get entries for today
+    entries = DailyKIEMSEntry.objects.filter(entry_date=today)
+
+    if not entries.exists():
+        print(f"No entries found for {today}")
+        return
+
+    # Get admin user for settings
+    admin_user = User.objects.filter(is_superuser=True).first()
+    if not admin_user:
+        print("No admin user found")
+        return
+
+    # Get settings
+    settings = get_whatsapp_settings(admin_user)
+
+    # Check if daily reports are enabled
+    if settings and not settings.notify_daily:
+        print("Daily reports disabled")
+        return
+
+    # Format and send daily report
+    message = format_grand_total_message(entries, total_wards)
+    send_whatsapp_message(message, admin_user)
+    print(f"Daily report sent for {today}")
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def send_daily_report_manual(request):
+    """Manually trigger daily report"""
+    if request.method == 'POST':
+        try:
+            send_daily_report_job()
+            messages.success(request, 'Daily report sent successfully!')
+        except Exception as e:
+            messages.error(request, f'Failed to send daily report: {str(e)}')
+        return redirect('superadmin:whatsapp_status')
+
+    return redirect('superadmin:whatsapp_status')

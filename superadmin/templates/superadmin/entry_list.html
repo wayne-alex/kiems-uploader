@@ -308,6 +308,11 @@
         border: 0.5px solid rgba(0,0,0,0.06);
         overflow: hidden;
         box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+        transition: opacity 0.3s ease;
+    }
+
+    .table-container.refreshing {
+        opacity: 0.6;
     }
 
     .table-wrapper {
@@ -511,6 +516,161 @@
         flex-wrap: wrap;
     }
 
+    /* Auto-refresh bar */
+    .auto-refresh-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 16px;
+        background: #f9f9fb;
+        border-radius: 8px;
+        margin-top: 12px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+    }
+
+    .auto-refresh-bar .status {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 12px;
+        color: #8e8e93;
+    }
+
+    .auto-refresh-bar .countdown {
+        font-weight: 600;
+        color: #000;
+        min-width: 30px;
+    }
+
+    .auto-refresh-bar .countdown.warning {
+        color: #ff3b30;
+    }
+
+    .auto-refresh-bar .countdown.paused {
+        color: #ff9500;
+    }
+
+    .auto-refresh-bar .last-updated {
+        color: #8e8e93;
+        font-size: 11px;
+    }
+
+    .auto-refresh-bar .controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .btn-toggle {
+        padding: 4px 12px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+
+    .btn-toggle.active {
+        background: #90EE90;
+        color: #000;
+    }
+
+    .btn-toggle.active:hover {
+        background: #7fe07f;
+    }
+
+    .btn-toggle.paused {
+        background: #ff9500;
+        color: #fff;
+    }
+
+    .btn-toggle.paused:hover {
+        background: #e08600;
+    }
+
+    .btn-refresh-sm {
+        background: #f2f2f7;
+        padding: 4px 12px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s;
+    }
+
+    .btn-refresh-sm:hover {
+        background: #e5e5ea;
+    }
+
+    .btn-refresh-sm:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Notification toast */
+    .entry-toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        z-index: 9999;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideIn 0.3s ease-out;
+        max-width: 400px;
+        pointer-events: none;
+    }
+
+    .entry-toast.success {
+        background: #34c759;
+        color: #fff;
+    }
+
+    .entry-toast.warning {
+        background: #ff9500;
+        color: #fff;
+    }
+
+    .entry-toast.error {
+        background: #ff3b30;
+        color: #fff;
+    }
+
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes slideOut {
+        from { transform: translateX(0); opacity: 1; }
+        to { transform: translateX(100%); opacity: 0; }
+    }
+
+    .live-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #34c759;
+        animation: pulse-dot 1.5s ease-in-out infinite;
+    }
+
+    .live-dot.paused {
+        animation: none;
+        background: #ff9500;
+    }
+
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
     @media (max-width: 768px) {
         .filters-grid {
             grid-template-columns: 1fr 1fr;
@@ -541,6 +701,17 @@
         .summary-bar {
             font-size: 11px;
             gap: 10px;
+        }
+
+        .auto-refresh-bar {
+            flex-direction: column;
+            gap: 8px;
+            align-items: stretch;
+        }
+
+        .auto-refresh-bar .status {
+            flex-wrap: wrap;
+            justify-content: center;
         }
     }
 
@@ -793,24 +964,24 @@
 </div>
 
 <!-- Stats Grid -->
-<div class="stats-grid">
+<div class="stats-grid" id="statsGrid">
     <div class="stat-card">
-        <div class="number">{{ today_stats.total_entries|default:"0" }}</div>
+        <div class="number" id="totalEntries">{{ today_stats.total_entries|default:"0" }}</div>
         <div class="label">Today's Entries</div>
-        <div class="sub">{{ today_stats.unique_kits|default:"0" }} kits</div>
+        <div class="sub" id="uniqueKits">{{ today_stats.unique_kits|default:"0" }} kits</div>
     </div>
     <div class="stat-card" style="border-left:3px solid #34c759;">
-        <div class="number">{{ today_stats.total_registered|default:"0" }}</div>
+        <div class="number" id="totalRegistered">{{ today_stats.total_registered|default:"0" }}</div>
         <div class="label">Registered Today</div>
         <div class="sub">
             <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6"/><line x1="14.5" y1="9.5" x2="21" y2="3"/><polyline points="16 3 21 3 21 8"/></svg>
-            {{ today_stats.registered_male|default:"0" }}
+            <span id="registeredMale">{{ today_stats.registered_male|default:"0" }}</span>
             <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
-            {{ today_stats.registered_female|default:"0" }}
+            <span id="registeredFemale">{{ today_stats.registered_female|default:"0" }}</span>
         </div>
     </div>
     <div class="stat-card" style="border-left:3px solid #5856d6;">
-        <div class="number">{{ today_stats.total_transferred|default:"0" }}</div>
+        <div class="number" id="totalTransferred">{{ today_stats.total_transferred|default:"0" }}</div>
         <div class="label">Transferred</div>
         <div class="sub">From other wards</div>
     </div>
@@ -857,12 +1028,6 @@
             <div style="display:flex; flex-wrap:wrap; gap:4px;">
                 <button type="submit" class="btn-sm primary">Apply</button>
                 <a href="{% url 'superadmin:entry_list' %}" class="btn-sm">Clear</a>
-                <!--
-                    Preview / CSV / Excel / PDF below are plain server-rendered links
-                    (no JS, no fetch, no event delegation) -- mirrors how Apply/Clear
-                    already work reliably. request.GET.urlencode() carries the current
-                    filter querystring through to each destination URL.
-                -->
                 <div class="export-buttons">
                     <a class="btn-sm" target="_blank" rel="noopener"
                        href="{% url 'superadmin:filtered_preview' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
@@ -888,32 +1053,32 @@
 </div>
 
 <!-- Table -->
-<div class="table-container">
-    <div class="summary-bar">
+<div class="table-container" id="tableContainer">
+    <div class="summary-bar" id="summaryBar">
         <span>
             <svg class="icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            <span class="highlight">{{ page_obj|length }}</span> entries
+            <span class="highlight" id="entryCount">{{ page_obj|length }}</span> entries
         </span>
         <span class="sep">|</span>
-        <span>Registered: <span class="highlight">{{ total_registered }}</span></span>
+        <span>Registered: <span class="highlight" id="totalRegisteredSum">{{ total_registered }}</span></span>
         <span class="sep">|</span>
         <span>
             <svg class="icon" viewBox="0 0 24 24"><circle cx="10" cy="14" r="6"/><line x1="14.5" y1="9.5" x2="21" y2="3"/><polyline points="16 3 21 3 21 8"/></svg>
-            {{ total_male }}
+            <span id="totalMale">{{ total_male }}</span>
             <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
-            {{ total_female }}
+            <span id="totalFemale">{{ total_female }}</span>
         </span>
         {% if total_other %}
         <span class="sep">|</span>
         <span>
             <svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            {{ total_other }}
+            <span id="totalOther">{{ total_other }}</span>
         </span>
         {% endif %}
         <span class="sep">|</span>
         <span>
             <svg class="icon" viewBox="0 0 24 24"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-            {{ total_transferred }}
+            <span id="totalTransferredSum">{{ total_transferred }}</span>
         </span>
         {% if is_filtered %}
         <span class="sep">|</span>
@@ -924,7 +1089,7 @@
         {% endif %}
     </div>
 
-    <div class="table-wrapper">
+    <div class="table-wrapper" id="tableWrapper">
         <table>
             <thead>
                 <tr>
@@ -937,7 +1102,7 @@
                     <th style="text-align:right;">Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="entriesBody">
                 {% for entry in page_obj %}
                 <tr data-kit="{{ entry.kiems_kit.kit_name }}"
                     data-vra="{{ entry.vra.name }}"
@@ -1053,7 +1218,7 @@
     </div>
 
     {% if page_obj.has_other_pages %}
-    <div class="pagination">
+    <div class="pagination" id="pagination">
         {% if page_obj.has_previous %}
         <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
             <svg class="icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
@@ -1077,6 +1242,22 @@
         {% endif %}
     </div>
     {% endif %}
+</div>
+
+<!-- Auto-refresh Bar -->
+<div class="auto-refresh-bar">
+    <div class="status">
+        <span class="live-dot" id="liveDot"></span>
+        <span>Auto-refresh</span>
+        <span class="countdown" id="refreshCountdown">10s</span>
+        <span class="last-updated" id="lastUpdated">Last updated: --</span>
+    </div>
+    <div class="controls">
+        <button class="btn-toggle active" id="autoRefreshToggle" onclick="toggleAutoRefresh()">Pause</button>
+        <button class="btn-refresh-sm" onclick="refreshEntries()" id="refreshBtn">
+            ↻ Refresh
+        </button>
+    </div>
 </div>
 
 <!-- Kit Report Modal -->
@@ -1103,6 +1284,14 @@
 </div>
 
 <script>
+// ==================== AUTO-REFRESH ====================
+
+let autoRefreshInterval = null;
+let countdownInterval = null;
+let isAutoRefreshEnabled = true;
+let countdown = 10;
+const REFRESH_INTERVAL = 10000; // 10 seconds
+
 document.addEventListener('DOMContentLoaded', function() {
     // Filter VRAs by ward
     const wardField = document.getElementById('id_ward');
@@ -1130,7 +1319,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Close kit report modal on overlay click or Escape
     const kitModalOverlay = document.getElementById('kitModalOverlay');
-
     if (kitModalOverlay) {
         kitModalOverlay.addEventListener('click', function(e) {
             if (e.target === this) closeKitReport();
@@ -1142,7 +1330,203 @@ document.addEventListener('DOMContentLoaded', function() {
             closeKitReport();
         }
     });
+
+    // Start auto-refresh
+    startAutoRefresh();
+    updateLastUpdated();
 });
+
+function startAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+
+    countdown = Math.floor(REFRESH_INTERVAL / 1000);
+    updateCountdown();
+
+    countdownInterval = setInterval(function() {
+        if (isAutoRefreshEnabled) {
+            countdown--;
+            if (countdown <= 0) {
+                countdown = Math.floor(REFRESH_INTERVAL / 1000);
+            }
+            updateCountdown();
+        }
+    }, 1000);
+
+    autoRefreshInterval = setInterval(function() {
+        if (isAutoRefreshEnabled) {
+            refreshEntries();
+        }
+    }, REFRESH_INTERVAL);
+}
+
+function updateCountdown() {
+    const el = document.getElementById('refreshCountdown');
+    if (el) {
+        el.textContent = countdown + 's';
+        if (countdown <= 3) {
+            el.className = 'countdown warning';
+        } else {
+            el.className = 'countdown';
+        }
+    }
+}
+
+function updateLastUpdated() {
+    const el = document.getElementById('lastUpdated');
+    if (el) {
+        const now = new Date();
+        const time = now.toLocaleTimeString();
+        el.textContent = 'Last updated: ' + time;
+    }
+}
+
+function toggleAutoRefresh() {
+    isAutoRefreshEnabled = !isAutoRefreshEnabled;
+    const btn = document.getElementById('autoRefreshToggle');
+    const dot = document.getElementById('liveDot');
+
+    if (isAutoRefreshEnabled) {
+        btn.textContent = 'Pause';
+        btn.className = 'btn-toggle active';
+        dot.className = 'live-dot';
+        countdown = Math.floor(REFRESH_INTERVAL / 1000);
+        updateCountdown();
+        showToast('🔄 Auto-refresh resumed', 'success');
+    } else {
+        btn.textContent = 'Resume';
+        btn.className = 'btn-toggle paused';
+        dot.className = 'live-dot paused';
+        document.getElementById('refreshCountdown').textContent = '⏸️';
+        document.getElementById('refreshCountdown').className = 'countdown paused';
+        showToast('⏸️ Auto-refresh paused', 'warning');
+    }
+}
+
+async function refreshEntries() {
+    const btn = document.getElementById('refreshBtn');
+    const container = document.getElementById('tableContainer');
+
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Loading...';
+    container.classList.add('refreshing');
+
+    try {
+        const url = window.location.href;
+        const response = await fetch(url, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        if (response.ok) {
+            const html = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            // Update table body
+            const newBody = doc.querySelector('#entriesBody');
+            if (newBody) {
+                const currentBody = document.getElementById('entriesBody');
+                if (currentBody) {
+                    currentBody.innerHTML = newBody.innerHTML;
+                }
+            }
+
+            // Update summary bar values
+            const summaryIds = ['entryCount', 'totalRegisteredSum', 'totalMale', 'totalFemale', 'totalOther', 'totalTransferredSum'];
+            summaryIds.forEach(id => {
+                const newEl = doc.getElementById(id);
+                if (newEl) {
+                    const currentEl = document.getElementById(id);
+                    if (currentEl) {
+                        currentEl.textContent = newEl.textContent;
+                    }
+                }
+            });
+
+            // Update stats
+            const statsIds = ['totalEntries', 'uniqueKits', 'totalRegistered', 'registeredMale', 'registeredFemale', 'totalTransferred'];
+            statsIds.forEach(id => {
+                const newEl = doc.getElementById(id);
+                if (newEl) {
+                    const currentEl = document.getElementById(id);
+                    if (currentEl) {
+                        currentEl.textContent = newEl.textContent;
+                    }
+                }
+            });
+
+            // Update pagination
+            const newPagination = doc.querySelector('#pagination');
+            if (newPagination) {
+                const currentPagination = document.getElementById('pagination');
+                if (currentPagination) {
+                    currentPagination.innerHTML = newPagination.innerHTML;
+                }
+            }
+
+            showToast('✅ Entries refreshed', 'success');
+            updateLastUpdated();
+
+            // Reset countdown
+            countdown = Math.floor(REFRESH_INTERVAL / 1000);
+            updateCountdown();
+
+        } else {
+            showToast('❌ Failed to refresh', 'error');
+        }
+    } catch (error) {
+        console.error('Refresh error:', error);
+        showToast('❌ Network error', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '↻ Refresh';
+        container.classList.remove('refreshing');
+    }
+}
+
+function showToast(message, type = 'success') {
+    const existing = document.querySelector('.entry-toast');
+    if (existing) {
+        existing.remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'entry-toast ' + type;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-in';
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+    }, 3000);
+}
+
+// Tab visibility detection
+document.addEventListener('visibilitychange', function() {
+    if (!document.hidden && isAutoRefreshEnabled) {
+        refreshEntries();
+    }
+});
+
+// Clean up on page unload
+window.addEventListener('beforeunload', function() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+});
+
+// ==================== KIT REPORT ====================
 
 let currentKitReportData = null;
 

@@ -150,3 +150,5 @@ IEBC_LOGO_URL="https://cvr.iebc.or.ke/images/logoiebc.png"
 
 PDF_CO_API_KEY = os.getenv('PDF_CO_API_KEY')
 PDF_CO_API_URL = os.getenv('PDF_CO_API_URL', 'https://api.pdf.co/v1')
+WHATSAPP_BOT_URL = os.getenv('WHATSAPP_BOT_URL', 'http://localhost:3000')
+

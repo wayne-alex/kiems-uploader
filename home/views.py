@@ -1,10 +1,165 @@
+from django.db.models import Sum
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
+import requests
+from django.conf import settings
 
 from .models import Ward, VRA, Phase, KIEMSKit, DailyKIEMSEntry
 
+
+# ==================== WHATSAPP HELPER FUNCTIONS ====================
+
+def get_whatsapp_group_for_vra(vra):
+    """Get WhatsApp group for VRA submissions - uses superadmin settings"""
+    try:
+        from django.contrib.auth.models import User
+        from .models import WhatsAppSetting, WhatsAppGroup
+
+        # Get the first superadmin user
+        admin_user = User.objects.filter(is_superuser=True).first()
+        if admin_user:
+            setting = WhatsAppSetting.objects.filter(user=admin_user).first()
+            if setting and setting.default_group and setting.default_group.is_active:
+                return setting.default_group.group_id
+
+        # Fallback: get first active group
+        group = WhatsAppGroup.objects.filter(is_active=True).first()
+        if group:
+            return group.group_id
+    except Exception as e:
+        print(f"WhatsApp group error: {str(e)}")
+    return None
+
+
+def send_whatsapp_message_from_vra(message, vra):
+    """Send WhatsApp message from VRA submission"""
+    try:
+        group_id = get_whatsapp_group_for_vra(vra)
+        if not group_id:
+            print("No WhatsApp group configured for VRA submissions")
+            return False
+
+        bot_url = getattr(settings, 'WHATSAPP_BOT_URL', 'http://localhost:3000')
+        response = requests.post(
+            f"{bot_url}/send",
+            json={'groupId': group_id, 'message': message},
+            timeout=10,
+            headers={'Content-Type': 'application/json'}
+        )
+
+        if response.status_code == 200:
+            print("✅ WhatsApp message sent successfully from VRA")
+            return True
+        else:
+            print(f"❌ WhatsApp send failed: {response.text}")
+            return False
+    except Exception as e:
+        print(f"❌ WhatsApp error: {str(e)}")
+        return False
+
+
+def format_vra_submission_message(entry, is_update=False):
+    """Format VRA submission or update message - Super Simple"""
+
+    # Header
+    if is_update:
+        message = f"{entry.ward.name.upper()} UPDATED ✏️\n"
+    else:
+        message = f"{entry.ward.name.upper()} CONFIRMED ✅ \n"
+
+    # Kit line: Kit Name: M / F = Total
+    message += f"{entry.kiems_kit.kit_name}: MALE:{entry.registered_male} FEMALE:{entry.registered_female} = {entry.total_registered}\n"
+
+    # Transferred if any
+    if entry.total_transferred and entry.total_transferred > 0:
+        message += f"Transferred: {entry.total_transferred}"
+
+    return message
+
+
+def format_grand_total_message(entries, total_wards):
+    """Format grand total message when all wards submit - Super Simple"""
+    today = timezone.now().date()
+
+    # Calculate grand totals
+    total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
+    total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
+    total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
+    total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
+
+    # Get per ward breakdown
+    ward_data = entries.values('ward__name').annotate(
+        male=Sum('registered_male'),
+        female=Sum('registered_female'),
+        total=Sum('total_registered')
+    ).order_by('ward__name')
+
+    # Build message - Simple format
+    message = f"{today.strftime('%d %b %Y')}\n"
+    message += f"✅ All {total_wards} Wards Submitted!\n\n"
+
+    # Per ward breakdown - one line each
+    for w in ward_data:
+        message += f"{w['ward__name']}: MALE:{w['male']} FEMALE:{w['female']} = {w['total']}\n"
+
+    # Grand totals at the end
+    message += f"\nTOTAL: MALE:{total_male} FEMALE:{total_female} = {total_registered}"
+    if total_transferred > 0:
+        message += f" | Transferred: {total_transferred}"
+
+    return message
+
+
+def check_and_send_daily_report_from_vra(vra):
+    """Check if all wards submitted and send grand total"""
+    try:
+        from django.db.models import Sum
+        from .models import Ward, DailyKIEMSEntry
+        from django.contrib.auth.models import User
+        from .models import WhatsAppSetting
+
+        today = timezone.now().date()
+
+        # Get total wards
+        total_wards = Ward.objects.count()
+        if total_wards == 0:
+            return
+
+        # Get wards that have submitted today
+        submitted_wards = DailyKIEMSEntry.objects.filter(
+            entry_date=today
+        ).values('ward').distinct().count()
+
+        # If not all wards submitted, return
+        if submitted_wards < total_wards:
+            return
+
+        # Check if grand total notifications are enabled
+        admin_user = User.objects.filter(is_superuser=True).first()
+        if admin_user:
+            setting = WhatsAppSetting.objects.filter(user=admin_user).first()
+            if setting and not setting.notify_grand_total:
+                print("Grand total notifications disabled")
+                return
+
+        # Get all entries for today
+        entries = DailyKIEMSEntry.objects.filter(entry_date=today)
+
+        if not entries.exists():
+            return
+
+        # Format and send message
+        message = format_grand_total_message(entries, total_wards)
+        send_whatsapp_message_from_vra(message, vra)
+
+    except Exception as e:
+        print(f"Error checking daily report: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+# ==================== ORIGINAL VIEWS ====================
 
 @require_GET
 def resolve_vra(request):
@@ -166,6 +321,7 @@ def submit_daily_entries(request):
 
     errors = {}
     saved = 0
+    entries_created = []
 
     for i, kit_id in enumerate(kit_ids):
         venue = venues[i].strip() if i < len(venues) else ""
@@ -199,15 +355,46 @@ def submit_daily_entries(request):
                 "registered_female": female_count,
             },
         )
+
+        is_update = False
         if not created:
+            is_update = True
             entry.venue = venue
             entry.registered_male = male_count
             entry.registered_female = female_count
             entry.edit_count += 1
             entry.save(update_fields=["venue", "registered_male", "registered_female",
                                       "edit_count", "updated_at"])
+
+        entries_created.append(entry)
         saved += 1
+
+    # ==================== SEND WHATSAPP NOTIFICATIONS ====================
+    try:
+        # Send notification for each entry created/updated
+        for entry in entries_created:
+            # Check if this is a new entry or update
+            is_update = entry.edit_count > 0
+
+            # Format and send message
+            message = format_vra_submission_message(entry, is_update)
+            send_whatsapp_message_from_vra(message, vra)
+            print(f"WhatsApp: {'Update' if is_update else 'Submission'} sent for {entry.ward.name}")
+
+        # Check if all wards submitted and send grand total
+        if entries_created:
+            check_and_send_daily_report_from_vra(vra)
+
+    except Exception as e:
+        print(f"WhatsApp error in submit: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
     if errors:
         return JsonResponse({"ok": False, "errors": errors, "saved": saved}, status=400)
-    return JsonResponse({"ok": True, "saved": saved})
+
+    return JsonResponse({
+        "ok": True,
+        "saved": saved,
+        "message": "Entries submitted successfully!"
+    })
