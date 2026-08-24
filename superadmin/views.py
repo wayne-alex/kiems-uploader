@@ -4,6 +4,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 
+
 import openpyxl
 import requests
 from django.conf import settings
@@ -679,7 +680,7 @@ def export_data(request):
     if request.GET.get('uploaded'):
         filter_params['uploaded'] = request.GET.get('uploaded')
 
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = timezone.localtime().strftime('%Y%m%d_%H%M%S')
     filename = f"export_{model_type}_{timestamp}"
 
     # Map model types to data with filter support
@@ -1204,7 +1205,7 @@ def generate_report_html(request):
         'kit_summary': kit_summary,
         'filter_labels': filter_labels,
         'scope': scope,
-        'generated_at': timezone.now().strftime('%d %b %Y, %H:%M'),
+        'generated_at': timezone.localtime().strftime('%d %b %Y, %H:%M'),
         'date_from': date_from,
         'date_to': date_to,
         'brand_logo_url': getattr(settings, 'BRAND_LOGO_URL', '')
@@ -1392,7 +1393,7 @@ def generate_report_pdf_fallback(request, as_attachment=False):
             ward = Ward.objects.filter(id=ward_id).first()
             if ward: filter_text += f" | Ward: {ward.name}"
         story.append(
-            Paragraph(f"Generated: {timezone.now().strftime('%d %b %Y, %H:%M')} | {filter_text}", subtitle_style))
+            Paragraph(f"Generated: {timezone.localtime().strftime('%d %b %Y, %H:%M')} | {filter_text}", subtitle_style))
 
         story.append(Spacer(1, 12))
 
@@ -1662,7 +1663,7 @@ def filtered_preview(request):
         'totals': totals,
         'filter_summary': filter_summary,
         'query_string': query_string,
-        'generated_at': timezone.now().strftime('%Y-%m-%d %H:%M'),
+        'generated_at': timezone.localtime().strftime('%d %b %Y, %H:%M'),
     }
 
     return render(request, 'superadmin/filtered_preview.html', context)
@@ -2227,7 +2228,7 @@ def export_staff(request):
         messages.error(request, 'Invalid format')
         return redirect('superadmin:staff_list')
 
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = timezone.localtime().strftime('%Y%m%d_%H%M%S')
     filename = f"export_{staff_type}s_{timestamp}"
 
     if staff_type == 'clerk':
