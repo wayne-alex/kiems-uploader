@@ -1,0 +1,148 @@
+{% extends "superadmin/base.html" %}
+{% block title %}Device Logs | KIEMS Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    .log-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 0.5px solid rgba(0,0,0,0.06);
+    }
+    .log-table th {
+        background: #f8f8fa;
+        padding: 12px 16px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 600;
+        color: #6e6e73;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    .log-table td {
+        padding: 10px 16px;
+        border-top: 0.5px solid rgba(0,0,0,0.04);
+        font-size: 13px;
+    }
+    .log-table .badge {
+        font-size: 10px;
+        font-weight: 600;
+        padding: 2px 10px;
+        border-radius: 12px;
+        text-transform: uppercase;
+    }
+    .badge-burn { background: #e8f5e9; color: #2e7d32; }
+    .badge-unburn { background: #ffebee; color: #c62828; }
+    .badge-revoke { background: #fff8e1; color: #f57f17; }
+    .badge-restore { background: #e3f2fd; color: #1565c0; }
+    
+    .log-table .fp {
+        font-family: monospace;
+        font-size: 11px;
+        color: #6e6e73;
+    }
+    .pagination {
+        display: flex;
+        gap: 4px;
+        justify-content: center;
+        margin-top: 20px;
+    }
+    .pagination a, .pagination span {
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        text-decoration: none;
+        color: #3a3a3c;
+    }
+    .pagination a:hover {
+        background: #f2f2f7;
+    }
+    .pagination .active {
+        background: #90EE90;
+        font-weight: 600;
+    }
+    @media (max-width: 600px) {
+        .log-table {
+            font-size: 12px;
+        }
+        .log-table th, .log-table td {
+            padding: 8px 10px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 style="font-size:24px;font-weight:700;margin-bottom:16px;">Device Activity Logs</h2>
+
+<div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;border:0.5px solid rgba(0,0,0,0.06);">
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div><strong>Total Logs:</strong> {{ total_logs }}</div>
+        <div><strong>Burns:</strong> {{ burn_count }}</div>
+        <div><strong>Unburns:</strong> {{ unburn_count }}</div>
+    </div>
+</div>
+
+<table class="log-table">
+    <thead>
+        <tr>
+            <th>Timestamp</th>
+            <th>Action</th>
+            <th>Device</th>
+            <th>Performed By</th>
+            <th>Notes</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in page_obj %}
+        <tr>
+            <td style="font-size:12px;color:#6e6e73;">{{ log.created_at|date:"M d, Y H:i" }}</td>
+            <td>
+                <span class="badge badge-{{ log.action|lower }}">
+                    {{ log.get_action_display }}
+                </span>
+            </td>
+            <td>
+                <span class="fp">{{ log.device.fingerprint|slice:":16" }}...</span>
+                {% if log.device.vra %}
+                <br><small style="color:#6e6e73;">{{ log.device.vra.name }}</small>
+                {% endif %}
+            </td>
+            <td>{{ log.performed_by.get_full_name|default:log.performed_by.username }}</td>
+            <td style="font-size:12px;color:#6e6e73;">{{ log.notes|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="5" style="text-align:center;padding:40px;color:#8e8e93;">
+                <i class="bi bi-inbox" style="font-size:32px;display:block;margin-bottom:8px;"></i>
+                No logs found
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if page_obj.has_other_pages %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+        <a href="?page=1">&laquo;</a>
+        <a href="?page={{ page_obj.previous_page_number }}">‹</a>
+    {% endif %}
+    
+    {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+            <span class="active">{{ num }}</span>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <a href="?page={{ num }}">{{ num }}</a>
+        {% endif %}
+    {% endfor %}
+    
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}">›</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}">&raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

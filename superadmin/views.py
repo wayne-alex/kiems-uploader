@@ -13,6 +13,7 @@ from django.contrib.auth import logout, authenticate, login
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Sum, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
@@ -37,7 +38,7 @@ except ImportError:
     REPORTLAB_AVAILABLE = False
 
 from home.models import (
-    Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry, WhatsAppSetting, WhatsAppGroup
+    Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry, WhatsAppSetting, WhatsAppGroup, Device, DeviceBurnLog
 )
 from .forms import (
     WardForm, VRAForm, ClerkForm, KIEMSKitForm, PhaseForm,
@@ -2494,3 +2495,385 @@ def send_daily_report_manual(request):
         return redirect('superadmin:whatsapp_status')
 
     return redirect('superadmin:whatsapp_status')
+
+
+def device_list(request):
+    """List all devices with filtering and pagination"""
+    devices = Device.objects.select_related('vra', 'vra__ward').all()
+
+    # Filtering
+    status_filter = request.GET.get('status', '')
+    if status_filter == 'burned':
+        devices = devices.filter(is_burned=True)
+    elif status_filter == 'unburned':
+        devices = devices.filter(is_burned=False)
+    elif status_filter == 'active':
+        devices = devices.filter(is_active=True)
+    elif status_filter == 'inactive':
+        devices = devices.filter(is_active=False)
+
+    # Search
+    search = request.GET.get('search', '')
+    if search:
+        devices = devices.filter(
+            Q(fingerprint__icontains=search) |
+            Q(vra__name__icontains=search) |
+            Q(vra__ward__name__icontains=search)
+        )
+
+    # Pagination
+    paginator = Paginator(devices.order_by('-last_seen'), 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Statistics
+    total_devices = Device.objects.count()
+    burned_count = Device.objects.filter(is_burned=True).count()
+    unburned_count = Device.objects.filter(is_burned=False).count()
+    active_count = Device.objects.filter(is_active=True).count()
+
+    context = {
+        'page_obj': page_obj,
+        'total_devices': total_devices,
+        'burned_count': burned_count,
+        'unburned_count': unburned_count,
+        'active_count': active_count,
+        'search': search,
+        'status_filter': status_filter,
+        'vras': VRA.objects.filter(active=True).select_related('ward'),
+    }
+    return render(request, 'superadmin/device_list.html', context)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def device_burn(request):
+    """Burn (authorize) a device"""
+    if request.method == 'POST':
+        fingerprint = request.POST.get('fingerprint')
+        vra_id = request.POST.get('vra_id')
+        notes = request.POST.get('notes', '')
+
+        if not fingerprint or not vra_id:
+            messages.error(request, 'Fingerprint and VRA selection are required.')
+            return redirect('superadmin:device_list')
+
+        try:
+            device = Device.objects.get(fingerprint=fingerprint)
+            vra = VRA.objects.get(id=vra_id)
+
+            # Burn the device
+            device.is_burned = True
+            device.is_active = True
+            device.vra = vra
+            device.burn_date = timezone.now()
+            device.burn_notes = notes
+            device.save()
+
+            # Log the burn
+            DeviceBurnLog.objects.create(
+                device=device,
+                action='BURN',
+                performed_by=request.user,
+                notes=notes
+            )
+
+            # Update VRA's device token
+            vra.device_token = fingerprint
+            vra.save(update_fields=['device_token'])
+
+            messages.success(request, f'Device burned successfully for VRA: {vra.name}')
+
+        except Device.DoesNotExist:
+            messages.error(request, 'Device not found.')
+        except VRA.DoesNotExist:
+            messages.error(request, 'VRA not found.')
+        except Exception as e:
+            messages.error(request, f'Error: {str(e)}')
+
+    return redirect('superadmin:device_list')
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def device_unburn(request, device_id):
+    """Unburn (deauthorize) a device"""
+    if request.method == 'POST':
+        try:
+            device = get_object_or_404(Device, id=device_id)
+
+            # Unburn the device
+            device.is_burned = False
+            device.is_active = False
+            device.vra = None
+            device.burn_date = None
+            device.burn_notes = ''
+            device.save()
+
+            # Log the unburn
+            DeviceBurnLog.objects.create(
+                device=device,
+                action='UNBURN',
+                performed_by=request.user,
+                notes='Unburned by admin'
+            )
+
+            messages.success(request, f'Device unburned successfully.')
+
+        except Exception as e:
+            messages.error(request, f'Error: {str(e)}')
+
+    return redirect('superadmin:device_list')
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def device_bulk_burn(request):
+    """Bulk burn multiple devices"""
+    if request.method == 'POST':
+        fingerprint_list = request.POST.getlist('fingerprints[]')
+        vra_id = request.POST.get('vra_id')
+        notes = request.POST.get('notes', '')
+
+        if not fingerprint_list or not vra_id:
+            messages.error(request, 'Select devices and a VRA.')
+            return redirect('superadmin:device_list')
+
+        try:
+            vra = VRA.objects.get(id=vra_id)
+            burned_count = 0
+
+            for fingerprint in fingerprint_list:
+                try:
+                    device = Device.objects.get(fingerprint=fingerprint)
+                    if not device.is_burned:
+                        device.is_burned = True
+                        device.is_active = True
+                        device.vra = vra
+                        device.burn_date = timezone.now()
+                        device.burn_notes = notes
+                        device.save()
+
+                        DeviceBurnLog.objects.create(
+                            device=device,
+                            action='BURN',
+                            performed_by=request.user,
+                            notes=notes
+                        )
+                        burned_count += 1
+                except Device.DoesNotExist:
+                    continue
+
+            messages.success(request, f'Successfully burned {burned_count} devices for VRA: {vra.name}')
+
+        except VRA.DoesNotExist:
+            messages.error(request, 'VRA not found.')
+        except Exception as e:
+            messages.error(request, f'Error: {str(e)}')
+
+    return redirect('superadmin:device_list')
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def device_logs(request):
+    """View device burn logs"""
+    logs = DeviceBurnLog.objects.select_related(
+        'device', 'performed_by'
+    ).all().order_by('-created_at')
+
+    paginator = Paginator(logs, 50)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'total_logs': logs.count(),
+    }
+    return render(request, 'superadmin/device_logs.html', context)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def api_get_vras_by_ward(request):
+    """API endpoint to get VRAs by ward"""
+    ward_id = request.GET.get('ward_id')
+    if ward_id:
+        vras = VRA.objects.filter(ward_id=ward_id, active=True).values('id', 'name')
+        return JsonResponse({'vras': list(vras)})
+    return JsonResponse({'vras': []})
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def api_device_status(request):
+    """API endpoint to check device status"""
+    fingerprint = request.GET.get('fingerprint')
+    if fingerprint:
+        try:
+            device = Device.objects.select_related('vra', 'vra__ward').get(fingerprint=fingerprint)
+            return JsonResponse({
+                'exists': True,
+                'is_burned': device.is_burned,
+                'is_active': device.is_active,
+                'vra_id': device.vra_id,
+                'vra_name': device.vra.name if device.vra else None,
+                'ward_name': device.vra.ward.name if device.vra and device.vra.ward else None,
+                'burn_date': device.burn_date.isoformat() if device.burn_date else None,
+            })
+        except Device.DoesNotExist:
+            return JsonResponse({'exists': False})
+    return JsonResponse({'error': 'Fingerprint required'}, status=400)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def device_export(request):
+    """Export device data as CSV"""
+    import csv
+    from django.http import HttpResponse
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="devices_export.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'Device ID', 'Fingerprint', 'Platform', 'Screen Resolution',
+        'First Seen', 'Last Seen', 'Is Burned', 'Is Active',
+        'VRA Name', 'Ward Name', 'Burn Date', 'Burn Notes'
+    ])
+
+    devices = Device.objects.select_related('vra', 'vra__ward').all()
+    for d in devices:
+        writer.writerow([
+            d.id,
+            d.fingerprint,
+            d.platform,
+            d.screen_resolution,
+            d.first_seen.isoformat() if d.first_seen else '',
+            d.last_seen.isoformat() if d.last_seen else '',
+            'Yes' if d.is_burned else 'No',
+            'Yes' if d.is_active else 'No',
+            d.vra.name if d.vra else '',
+            d.vra.ward.name if d.vra and d.vra.ward else '',
+            d.burn_date.isoformat() if d.burn_date else '',
+            d.burn_notes,
+        ])
+
+    return response
+
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_POST
+def authorize_device(request):
+    """Authorize (burn) a device"""
+    try:
+        fingerprint = request.POST.get('fingerprint')
+        vra_id = request.POST.get('vra_id')
+        notes = request.POST.get('notes', '')
+
+        if not fingerprint:
+            messages.error(request, 'Fingerprint required.')
+            return redirect('superadmin:device_list')
+
+        device = get_object_or_404(Device, fingerprint=fingerprint)
+        vra = get_object_or_404(VRA, id=vra_id) if vra_id else None
+
+        with transaction.atomic():
+            device.is_burned = True
+            device.is_active = True
+            if vra:
+                device.vra = vra
+                vra.device_token = fingerprint
+                vra.save(update_fields=['device_token'])
+            device.burn_date = timezone.now()
+            device.burn_notes = notes
+            device.save()
+
+            DeviceBurnLog.objects.create(
+                device=device,
+                action='BURN',
+                performed_by=request.user,
+                notes=notes
+            )
+
+        messages.success(request, f'Device authorized successfully!')
+    except Exception as e:
+        messages.error(request, f'Error: {str(e)}')
+
+    return redirect('superadmin:device_list')
+
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_POST
+def deauthorize_device(request):
+    """Deauthorize (unburn) a device"""
+    try:
+        fingerprint = request.POST.get('fingerprint')
+        notes = request.POST.get('notes', '')
+
+        if not fingerprint:
+            messages.error(request, 'Fingerprint required.')
+            return redirect('superadmin:device_list')
+
+        device = get_object_or_404(Device, fingerprint=fingerprint)
+
+        with transaction.atomic():
+            device.is_burned = False
+            device.is_active = False
+
+            if device.vra:
+                if device.vra.device_token == fingerprint:
+                    device.vra.device_token = None
+                    device.vra.save(update_fields=['device_token'])
+                device.vra = None
+
+            device.burn_date = None
+            device.burn_notes = ''
+            device.save()
+
+            DeviceBurnLog.objects.create(
+                device=device,
+                action='UNBURN',
+                performed_by=request.user,
+                notes=notes
+            )
+
+        messages.success(request, 'Device deauthorized successfully!')
+    except Exception as e:
+        messages.error(request, f'Error: {str(e)}')
+
+    return redirect('superadmin:device_list')
+
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_POST
+def delete_device(request):
+    """Delete a device permanently"""
+    try:
+        fingerprint = request.POST.get('fingerprint')
+
+        if not fingerprint:
+            messages.error(request, 'Fingerprint required.')
+            return redirect('superadmin:device_list')
+
+        device = get_object_or_404(Device, fingerprint=fingerprint)
+
+        # Delete associated logs first
+        DeviceBurnLog.objects.filter(device=device).delete()
+
+        # Remove VRA reference if any
+        if device.vra and device.vra.device_token == fingerprint:
+            device.vra.device_token = None
+            device.vra.save(update_fields=['device_token'])
+
+        device.delete()
+
+        messages.success(request, 'Device deleted successfully!')
+    except Exception as e:
+        messages.error(request, f'Error: {str(e)}')
+
+    return redirect('superadmin:device_list')

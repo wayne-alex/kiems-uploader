@@ -371,6 +371,28 @@
                     Performance
                 </a>
             </li>
+            <!-- Add this in the sidebar menu section -->
+<div class="menu-category">Device Management</div>
+<li class="menu-item {% if 'device' in request.path %}active{% endif %}">
+    <a href="{% url 'superadmin:device_list' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+            <path d="M2 3h20v14H2z"/>
+        </svg>
+        Device Management
+    </a>
+</li>
+<li class="menu-item {% if 'device-logs' in request.path %}active{% endif %}">
+    <a href="{% url 'superadmin:device_logs' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 8v4l3 3"/>
+            <circle cx="12" cy="12" r="10"/>
+        </svg>
+        Device Logs
+    </a>
+</li>
 
 
             <div class="menu-category">Data & Logs</div>

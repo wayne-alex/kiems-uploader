@@ -129,7 +129,6 @@ class DailyKIEMSEntry(models.Model):
         return f"{self.kiems_kit.kit_name} – {self.entry_date}"
 
 # ==================== WHATSAPP MODELS ====================
-# ==================== WHATSAPP MODELS ====================
 
 class WhatsAppGroup(models.Model):
     """WhatsApp Groups configuration"""
@@ -165,3 +164,67 @@ class WhatsAppSetting(models.Model):
 
     class Meta:
         ordering = ['user__username']
+
+
+# models.py - Add these new models
+
+class Device(models.Model):
+    """Registered devices for KIEMS system"""
+    fingerprint = models.CharField(max_length=255, unique=True, db_index=True)
+    user_agent = models.TextField(blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    # Device metadata
+    screen_resolution = models.CharField(max_length=50, blank=True)
+    language = models.CharField(max_length=10, blank=True)
+    platform = models.CharField(max_length=50, blank=True)
+    timezone = models.CharField(max_length=50, blank=True)
+
+    # Status
+    is_burned = models.BooleanField(default=False)  # Device is burned/authorized
+    is_active = models.BooleanField(default=True)
+    burn_date = models.DateTimeField(null=True, blank=True)
+    burn_notes = models.TextField(blank=True)
+
+    # Associated VRA
+    vra = models.ForeignKey(
+        'VRA',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='devices'
+    )
+
+    # Timestamps
+    first_seen = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-last_seen']
+        indexes = [
+            models.Index(fields=['fingerprint']),
+            models.Index(fields=['is_burned', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.fingerprint[:12]}... ({'Burned' if self.is_burned else 'Unburned'})"
+
+
+class DeviceBurnLog(models.Model):
+    """Log of device burning/unburning operations"""
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='burn_logs')
+    action = models.CharField(max_length=20, choices=[
+        ('BURN', 'Burn Device'),
+        ('UNBURN', 'Unburn Device'),
+        ('REVOKE', 'Revoke Access'),
+        ('RESTORE', 'Restore Access'),
+    ])
+    performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.device.fingerprint[:12]} - {self.action} by {self.performed_by}"

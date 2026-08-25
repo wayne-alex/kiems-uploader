@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>KIEMS Entry - IEBC</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/iconfont/tabler-icons.min.css">
+  <!-- FingerprintJS -->
+  <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3.4.1/dist/fp.min.js"></script>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
@@ -105,7 +107,6 @@
     .date-badge { display: inline-flex; align-items: center; gap: 4px; background: var(--green-tint); color: var(--green-dark); font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 10px; margin-top: 6px; }
     .date-badge i { font-size: 11px; }
     input[readonly] { background: var(--surface-2); cursor: not-allowed; opacity: 0.8; }
-    /* summary bar on top */
     .summary-bar {
       background: var(--surface);
       border-radius: var(--r);
@@ -139,6 +140,81 @@
     .summary-bar .kit-badge { font-size: 11px; color: var(--ink-2); background: var(--surface-2); padding: 2px 10px; border-radius: 20px; }
     .stat-summary { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
     .stat-summary .stat-item { font-size: 12px; display: flex; align-items: center; gap: 3px; background: var(--surface-2); padding: 2px 8px; border-radius: 12px; }
+
+    /* Device lock styles */
+    .device-locked {
+      background: #FFF3CD;
+      border: 2px solid #FFC107;
+      border-radius: var(--r);
+      padding: 20px;
+      text-align: center;
+      margin: 20px 0;
+    }
+    .device-locked i {
+      font-size: 48px;
+      display: block;
+      margin-bottom: 12px;
+    }
+    .device-locked h3 {
+      margin: 0 0 8px 0;
+    }
+    .device-locked p {
+      margin: 0;
+      font-size: 14px;
+    }
+    .device-locked .lock-code {
+      font-family: monospace;
+      background: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-top: 10px;
+      font-size: 13px;
+      color: #333;
+    }
+    .device-locked.error {
+      background: #FFEBEA;
+      border-color: var(--error);
+    }
+    .device-locked.error i { color: var(--error); }
+    .device-locked.error h3 { color: var(--error); }
+    .device-locked.error p { color: var(--error); }
+    .device-locked.success {
+      background: var(--green-tint);
+      border-color: var(--green);
+    }
+    .device-locked.success i { color: var(--green); }
+    .device-locked.success h3 { color: var(--green-dark); }
+    .device-locked.success p { color: var(--green-dark); }
+
+    .device-info-bar {
+      background: var(--surface);
+      border-radius: var(--r);
+      border: 0.5px solid var(--border);
+      padding: 8px 14px;
+      margin-bottom: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--ink-2);
+    }
+    .device-info-bar .status-badge {
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 10px;
+    }
+    .status-badge.authorized {
+      background: var(--green-tint);
+      color: var(--green-dark);
+    }
+    .status-badge.unauthorized {
+      background: #FFEBEA;
+      color: var(--error);
+    }
   </style>
 </head>
 <body>
@@ -154,6 +230,15 @@
   </div>
 </div>
 <div class="content">
+  <!-- Device Lock/Error Messages -->
+  <div id="device-message-container"></div>
+
+  <!-- Device Info Bar -->
+  <div id="device-info-bar" class="device-info-bar hidden">
+    <span id="device-status-text">Device: <span id="device-status-label">Unknown</span></span>
+    <span id="device-id-display" style="font-family:monospace;font-size:10px;"></span>
+  </div>
+
   {% if active_phase %}
   <div class="phase-pill"><i class="ti ti-circle-filled"></i>{{ active_phase.name }}</div>
   {% else %}
@@ -182,7 +267,6 @@
       <span id="vra-badge"></span>
       <span class="badge-count" id="kit-count"></span>
     </div>
-    <!-- SUMMARY BAR: total kits, total registered, male/female -->
     <div id="summary-bar" class="summary-bar hidden">
       <div class="total-big"><i class="ti ti-users"></i> <span id="summary-total">0</span></div>
       <div class="gender-totals">
@@ -201,35 +285,451 @@
 </div>
 
 <script>
+// ============================================================
+// DEVICE FINGERPRINTING SYSTEM (Using FingerprintJS)
+// ============================================================
+
+class DeviceFingerprint {
+    constructor() {
+        this.fingerprint = null;
+        this.burnData = null;
+        this.initialized = false;
+        this.fpInstance = null;
+        this.fingerprintData = null;
+    }
+
+    async initialize() {
+        if (this.initialized) return this;
+
+        // Initialize FingerprintJS
+        try {
+            this.fpInstance = await FingerprintJS.load();
+        } catch (error) {
+            console.warn('FingerprintJS failed to load, falling back to basic fingerprint:', error);
+            // Fallback to basic fingerprint
+            return this.fallbackInitialize();
+        }
+
+        // Get fingerprint
+        try {
+            const result = await this.fpInstance.get();
+            this.fingerprintData = result;
+            this.fingerprint = result.visitorId;
+
+            // Generate additional components
+            const components = result.components || [];
+            this.fingerprintDetails = this.extractFingerprintDetails(components);
+
+            // Store in localStorage
+            localStorage.setItem('device_fingerprint', this.fingerprint);
+            localStorage.setItem('device_fingerprint_details', JSON.stringify(this.fingerprintDetails));
+
+            this.burnData = this.getBurnData();
+            this.initialized = true;
+            return this;
+        } catch (error) {
+            console.error('FingerprintJS get failed:', error);
+            return this.fallbackInitialize();
+        }
+    }
+
+    fallbackInitialize() {
+        // Fallback to basic fingerprint generation
+        this.fingerprint = this.generateBasicFingerprint();
+        this.fingerprintDetails = this.getBasicFingerprintDetails();
+        localStorage.setItem('device_fingerprint', this.fingerprint);
+        localStorage.setItem('device_fingerprint_details', JSON.stringify(this.fingerprintDetails));
+        this.burnData = this.getBurnData();
+        this.initialized = true;
+        return this;
+    }
+
+    generateBasicFingerprint() {
+        const data = {
+            userAgent: navigator.userAgent,
+            screenWidth: screen.width,
+            screenHeight: screen.height,
+            colorDepth: screen.colorDepth,
+            language: navigator.language,
+            platform: navigator.platform,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            canvasFingerprint: this.getCanvasFingerprint(),
+            webglFingerprint: this.getWebGLFingerprint()
+        };
+        const str = JSON.stringify(data);
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return hash.toString(36);
+    }
+
+    getCanvasFingerprint() {
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 200;
+            canvas.height = 50;
+            const ctx = canvas.getContext('2d');
+            ctx.textBaseline = 'top';
+            ctx.font = '14px Arial';
+            ctx.fillStyle = '#f60';
+            ctx.fillRect(125, 1, 62, 20);
+            ctx.fillStyle = '#069';
+            ctx.fillText('KIEMS Fingerprint', 2, 15);
+            ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+            ctx.fillText('IEBC', 4, 17);
+            return canvas.toDataURL();
+        } catch(e) {
+            return 'canvas_error';
+        }
+    }
+
+    getWebGLFingerprint() {
+        try {
+            const canvas = document.createElement('canvas');
+            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+            if (!gl) return 'webgl_not_supported';
+            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+            if (!debugInfo) return 'webgl_debug_not_available';
+            const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+            const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+            return `${vendor}_${renderer}`;
+        } catch(e) {
+            return 'webgl_error';
+        }
+    }
+
+    getBasicFingerprintDetails() {
+        return {
+            userAgent: navigator.userAgent,
+            screenResolution: `${screen.width}x${screen.height}`,
+            colorDepth: screen.colorDepth,
+            language: navigator.language,
+            platform: navigator.platform,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        };
+    }
+
+    extractFingerprintDetails(components) {
+        const details = {};
+        const componentMap = {
+            'userAgent': 'userAgent',
+            'screenFrame': 'screenFrame',
+            'colorDepth': 'colorDepth',
+            'deviceMemory': 'deviceMemory',
+            'hardwareConcurrency': 'hardwareConcurrency',
+            'platform': 'platform',
+            'timezone': 'timezone',
+            'language': 'language',
+            'webglVendor': 'webglVendor',
+            'webglRenderer': 'webglRenderer',
+            'canvas': 'canvas',
+            'audio': 'audio'
+        };
+
+        components.forEach(comp => {
+            const key = componentMap[comp.key] || comp.key;
+            if (comp.value !== undefined && comp.value !== null) {
+                details[key] = comp.value;
+            }
+        });
+
+        // Add screen resolution (not directly available in components)
+        details.screenResolution = `${screen.width}x${screen.height}`;
+
+        return details;
+    }
+
+    async verifyFingerprint(storedFingerprint) {
+        // Re-initialize to get current fingerprint
+        try {
+            const result = await this.fpInstance.get();
+            const currentFingerprint = result.visitorId;
+            return storedFingerprint === currentFingerprint;
+        } catch (error) {
+            console.warn('Fingerprint verification failed, using stored:', error);
+            return true; // Fallback to trusting stored
+        }
+    }
+
+    getBurnData() {
+        try {
+            const data = localStorage.getItem('device_burn_data');
+            return data ? JSON.parse(data) : null;
+        } catch {
+            return null;
+        }
+    }
+
+    setBurnData(data) {
+        localStorage.setItem('device_burn_data', JSON.stringify(data));
+        this.burnData = data;
+    }
+
+    clearBurnData() {
+        localStorage.removeItem('device_burn_data');
+        this.burnData = null;
+    }
+
+    async getDeviceInfo() {
+        await this.initialize();
+        return {
+            fingerprint: this.fingerprint,
+            fingerprintDetails: this.fingerprintDetails,
+            userAgent: navigator.userAgent,
+            screenResolution: `${screen.width}x${screen.height}`,
+            colorDepth: screen.colorDepth,
+            language: navigator.language,
+            platform: navigator.platform,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            burnData: this.burnData
+        };
+    }
+}
+
+// ============================================================
+// MAIN APPLICATION
+// ============================================================
+
 const CSRF = "{{ csrf_token }}";
+let deviceFingerprint = null;
+let currentVRA = null;
+let kitsData = [];
+let isDeviceAuthorized = false;
+
 function getDeviceToken() {
   let t = localStorage.getItem('vra_device_token');
   if (!t) { t = crypto.randomUUID(); localStorage.setItem('vra_device_token', t); }
   return t;
 }
-const token = getDeviceToken();
-let currentVRA = null;
-let kitsData = [];
 
 function initials(name) {
   if (!name) return '?';
   return name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
 }
+
 function setMsgBox(el, text) {
   const span = el.querySelector('span');
   if (span) span.textContent = text; else el.textContent = text;
   el.classList.remove('hidden');
 }
 
-async function resolveVRA() {
-  try {
-    const res = await fetch(`/kiems/resolve-vra/?token=${token}`);
-    const data = await res.json();
-    if (data.bound) {
-      currentVRA = data;
-      await enterForm();
+function showDeviceMessage(message, type = 'error', showCode = true) {
+    const container = document.getElementById('device-message-container');
+    const code = deviceFingerprint ? deviceFingerprint.fingerprint.substring(0, 16) : 'Unknown';
+
+    let icon = 'ti ti-alert-circle';
+    let title = 'Device Not Authorized';
+    let cssClass = 'error';
+
+    if (type === 'success') {
+        icon = 'ti ti-check-circle';
+        title = 'Device Authorized';
+        cssClass = 'success';
+    } else if (type === 'info') {
+        icon = 'ti ti-info-circle';
+        title = 'Device Information';
+        cssClass = 'info';
     }
-  } catch (e) { console.error(e); }
+
+    container.innerHTML = `
+        <div class="device-locked ${cssClass}">
+            <i class="${icon}"></i>
+            <h3>${title}</h3>
+            <p>${message}</p>
+            ${showCode ? `<div class="lock-code">Device ID: ${code}</div>` : ''}
+        </div>
+    `;
+    container.classList.remove('hidden');
+}
+
+function hideDeviceMessage() {
+    document.getElementById('device-message-container').classList.add('hidden');
+    document.getElementById('device-message-container').innerHTML = '';
+}
+
+function updateDeviceInfoBar(isAuthorized, vraName = null, wardName = null) {
+    const bar = document.getElementById('device-info-bar');
+    const statusLabel = document.getElementById('device-status-label');
+    const idDisplay = document.getElementById('device-id-display');
+
+    bar.classList.remove('hidden');
+
+    if (isAuthorized) {
+        statusLabel.textContent = 'Authorized ✓';
+        statusLabel.style.color = 'var(--green-dark)';
+        const info = vraName ? ` - ${vraName}${wardName ? ` (${wardName})` : ''}` : '';
+        document.getElementById('device-status-text').textContent = `Device: Authorized${info}`;
+    } else {
+        statusLabel.textContent = 'Not Authorized ✗';
+        statusLabel.style.color = 'var(--error)';
+        document.getElementById('device-status-text').textContent = 'Device: Not Authorized';
+    }
+
+    if (deviceFingerprint) {
+        idDisplay.textContent = `ID: ${deviceFingerprint.fingerprint.substring(0, 12)}...`;
+    }
+}
+
+// ============================================================
+// DEVICE REGISTRATION & AUTHENTICATION
+// ============================================================
+
+async function registerDevice() {
+    try {
+        // Initialize FingerprintJS
+        const fp = new DeviceFingerprint();
+        await fp.initialize();
+        deviceFingerprint = fp;
+
+        const deviceInfo = await fp.getDeviceInfo();
+        const response = await fetch('/kiems/register-device/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                fingerprint: deviceInfo.fingerprint,
+                fingerprint_details: deviceInfo.fingerprintDetails,
+                device_info: deviceInfo
+            })
+        });
+
+        const data = await response.json();
+
+        if (!data.ok) {
+            throw new Error(data.error || 'Device registration failed');
+        }
+
+        // Check if device is authorized (burned)
+        isDeviceAuthorized = data.is_burned;
+
+        if (!data.is_burned) {
+            showDeviceMessage(
+                'This device has been deauthorized. Please contact your ICT officer to reauthorize it.',
+                'error',
+                true
+            );
+            updateDeviceInfoBar(false);
+            return false;
+        }
+
+        if (!data.is_active) {
+            showDeviceMessage(
+                'This device has been deactivated. Please contact your ICT officer for assistance.',
+                'error',
+                true
+            );
+            updateDeviceInfoBar(false);
+            return false;
+        }
+
+        // Device is authorized
+        hideDeviceMessage();
+
+        // Store burn data locally
+        if (data.vra_id) {
+            deviceFingerprint.setBurnData({
+                vra_id: data.vra_id,
+                vra_name: data.vra_name,
+                ward_id: data.ward_id,
+                ward_name: data.ward_name,
+            });
+
+            updateDeviceInfoBar(true, data.vra_name, data.ward_name);
+
+            // Auto-bind to VRA if device is authorized with one
+            await autoBindToVRA(data.vra_id);
+        } else {
+            // No VRA assigned, show ward selection
+            updateDeviceInfoBar(true);
+            document.getElementById('identify-card').style.display = 'block';
+        }
+
+        return true;
+
+    } catch (error) {
+        console.error('Device initialization failed:', error);
+        showDeviceMessage(
+            'Device error: ' + error.message + '. Please contact your ICT officer.',
+            'error',
+            true
+        );
+        return false;
+    }
+}
+
+async function autoBindToVRA(vraId) {
+    try {
+        const deviceInfo = await deviceFingerprint.getDeviceInfo();
+        const response = await fetch('/kiems/auto-bind-vra/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': CSRF,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                vra_id: vraId,
+                fingerprint: deviceInfo.fingerprint
+            })
+        });
+        const data = await response.json();
+        if (data.ok) {
+            currentVRA = data;
+            // Store burn data immediately so it survives a page reload
+            if (deviceFingerprint) {
+              deviceFingerprint.setBurnData({
+                vra_id: data.vra_id,
+                vra_name: data.vra_name,
+                ward_id: data.ward_id,
+                ward_name: data.ward_name,
+              });
+            }
+            await enterForm();
+        } else {
+            throw new Error(data.error || 'Auto-bind failed');
+        }
+    } catch (error) {
+        console.error('Auto-bind failed:', error);
+        showDeviceMessage(
+            'Failed to bind to VRA: ' + error.message + '. Please contact your ICT officer.',
+            'error',
+            true
+        );
+    }
+}
+
+// ============================================================
+// ORIGINAL APPLICATION FUNCTIONS (Updated)
+// ============================================================
+
+async function resolveVRA() {
+    try {
+        // Use fingerprint-based auth
+        if (deviceFingerprint) {
+            const deviceInfo = await deviceFingerprint.getDeviceInfo();
+            const response = await fetch(`/kiems/resolve-vra/?fingerprint=${deviceInfo.fingerprint}`);
+            const data = await response.json();
+
+            if (data.bound && data.is_authorized) {
+                currentVRA = data;
+                await enterForm();
+                return;
+            }
+        }
+
+        // Fallback to token-based auth
+        const token = getDeviceToken();
+        const res = await fetch(`/kiems/resolve-vra/?token=${token}`);
+        const data = await res.json();
+        if (data.bound) {
+            currentVRA = data;
+            await enterForm();
+        }
+    } catch (e) { console.error(e); }
 }
 
 function initDatePicker() {
@@ -249,10 +749,11 @@ document.getElementById('bind-btn').addEventListener('click', async () => {
   btn.disabled = true;
   btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite;"></i> Loading...';
   try {
+    const deviceInfo = await deviceFingerprint.getDeviceInfo();
     const res = await fetch('/kiems/bind-ward/', {
       method: 'POST',
       headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `token=${token}&ward_id=${wardId}`
+      body: `token=${getDeviceToken()}&ward_id=${wardId}&fingerprint=${deviceInfo.fingerprint}`
     });
     const data = await res.json();
     const errBox = document.getElementById('bind-error');
@@ -264,6 +765,15 @@ document.getElementById('bind-btn').addEventListener('click', async () => {
     }
     errBox.classList.add('hidden');
     currentVRA = data;
+    // Store burn data immediately so it survives a page reload
+    if (deviceFingerprint) {
+      deviceFingerprint.setBurnData({
+        vra_id: data.vra_id,
+        vra_name: data.vra_name,
+        ward_id: data.ward_id,
+        ward_name: data.ward_name,
+      });
+    }
     await enterForm();
   } catch (e) {
     setMsgBox(document.getElementById('bind-error'), 'Network error. Please try again.');
@@ -286,8 +796,21 @@ async function loadKits() {
   try {
     const datePicker = document.getElementById('date-picker');
     const selectedDate = datePicker.value;
-    const res = await fetch(`/kiems/kits-with-entries/?token=${token}&date=${selectedDate}`);
+
+    // Get device info for fingerprint
+    const deviceInfo = await deviceFingerprint.getDeviceInfo();
+    let url = `/kiems/kits-with-entries/?date=${selectedDate}`;
+
+    // Use fingerprint if available
+    if (deviceInfo && deviceInfo.fingerprint) {
+      url += `&fingerprint=${deviceInfo.fingerprint}`;
+    } else {
+      url += `&token=${getDeviceToken()}`;
+    }
+
+    const res = await fetch(url);
     const data = await res.json();
+
     if (data.error) {
       container.innerHTML = `<div class="empty-state"><i class="ti ti-alert-circle"></i><p style="color:var(--error);">${data.error}</p></div>`;
       document.getElementById('summary-bar').classList.add('hidden');
@@ -450,7 +973,19 @@ function updateSummary() {
 document.getElementById('submit-btn').addEventListener('click', async () => {
   const kitCards = document.querySelectorAll('.kit-card');
   const body = new URLSearchParams();
-  body.append('token', token);
+
+  // Get device info for fingerprint
+  const deviceInfo = await deviceFingerprint.getDeviceInfo();
+  if (deviceInfo && deviceInfo.fingerprint) {
+    body.append('fingerprint', deviceInfo.fingerprint);
+  } else {
+    body.append('token', getDeviceToken());
+  }
+
+  // Add date
+  const datePicker = document.getElementById('date-picker');
+  body.append('date', datePicker.value);
+
   let hasEntries = false;
   let valid = true;
   let firstError = null;
@@ -523,8 +1058,23 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
   }
 });
 
-resolveVRA();
-initDatePicker();
+// ============================================================
+// INITIALIZATION
+// ============================================================
+
+async function initializeApp() {
+    // First, register and authenticate the device
+    const deviceOk = await registerDevice();
+
+    if (deviceOk) {
+        // Device is authorized, proceed with normal flow
+        initDatePicker();
+        resolveVRA();
+    }
+}
+
+// Start the app
+initializeApp();
 </script>
 </body>
 </html>

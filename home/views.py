@@ -1,4 +1,6 @@
-from django.db.models import Sum
+import json
+from django.db import transaction
+from django.db.models import Sum, Q
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
@@ -6,25 +8,23 @@ from django.views.decorators.http import require_GET, require_POST
 import requests
 from django.conf import settings
 
-from .models import Ward, VRA, Phase, KIEMSKit, DailyKIEMSEntry
+from .models import Ward, VRA, Phase, KIEMSKit, DailyKIEMSEntry, Device, DeviceBurnLog
 
 
 # ==================== WHATSAPP HELPER FUNCTIONS ====================
 
 def get_whatsapp_group_for_vra(vra):
-    """Get WhatsApp group for VRA submissions - uses superadmin settings"""
+    """Get WhatsApp group for VRA submissions"""
     try:
         from django.contrib.auth.models import User
         from .models import WhatsAppSetting, WhatsAppGroup
 
-        # Get the first superadmin user
         admin_user = User.objects.filter(is_superuser=True).first()
         if admin_user:
             setting = WhatsAppSetting.objects.filter(user=admin_user).first()
             if setting and setting.default_group and setting.default_group.is_active:
                 return setting.default_group.group_id
 
-        # Fallback: get first active group
         group = WhatsAppGroup.objects.filter(is_active=True).first()
         if group:
             return group.group_id
@@ -38,7 +38,6 @@ def send_whatsapp_message_from_vra(message, vra):
     try:
         group_id = get_whatsapp_group_for_vra(vra)
         if not group_id:
-            print("No WhatsApp group configured for VRA submissions")
             return False
 
         bot_url = getattr(settings, 'WHATSAPP_BOT_URL', 'http://localhost:3000')
@@ -48,31 +47,21 @@ def send_whatsapp_message_from_vra(message, vra):
             timeout=10,
             headers={'Content-Type': 'application/json'}
         )
-
-        if response.status_code == 200:
-            print("✅ WhatsApp message sent successfully from VRA")
-            return True
-        else:
-            print(f"❌ WhatsApp send failed: {response.text}")
-            return False
+        return response.status_code == 200
     except Exception as e:
-        print(f"❌ WhatsApp error: {str(e)}")
+        print(f"WhatsApp error: {str(e)}")
         return False
 
 
 def format_vra_submission_message(entry, is_update=False):
-    """Format VRA submission or update message - Super Simple"""
-
-    # Header
+    """Format VRA submission message"""
     if is_update:
-        message = f"{entry.ward.name.upper()} UPDATED ✏️\n"
+        message = f"{entry.ward.name.upper()} UPDATED\n"
     else:
-        message = f"{entry.ward.name.upper()} CONFIRMED ✅ \n"
+        message = f"{entry.ward.name.upper()} CONFIRMED\n"
 
-    # Kit line: Kit Name: M / F = Total
     message += f"{entry.kiems_kit.kit_name}: MALE:{entry.registered_male} FEMALE:{entry.registered_female} = {entry.total_registered}\n"
 
-    # Transferred if any
     if entry.total_transferred and entry.total_transferred > 0:
         message += f"Transferred: {entry.total_transferred}"
 
@@ -80,31 +69,26 @@ def format_vra_submission_message(entry, is_update=False):
 
 
 def format_grand_total_message(entries, total_wards):
-    """Format grand total message when all wards submit - Super Simple"""
+    """Format grand total message"""
     today = timezone.now().date()
 
-    # Calculate grand totals
     total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
     total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
     total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
     total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
 
-    # Get per ward breakdown
     ward_data = entries.values('ward__name').annotate(
         male=Sum('registered_male'),
         female=Sum('registered_female'),
         total=Sum('total_registered')
     ).order_by('ward__name')
 
-    # Build message - Simple format
     message = f"{today.strftime('%d %b %Y')}\n"
-    message += f"✅ All {total_wards} Wards Submitted!\n\n"
+    message += f"All {total_wards} Wards Submitted!\n\n"
 
-    # Per ward breakdown - one line each
     for w in ward_data:
         message += f"{w['ward__name']}: MALE:{w['male']} FEMALE:{w['female']} = {w['total']}\n"
 
-    # Grand totals at the end
     message += f"\nTOTAL: MALE:{total_male} FEMALE:{total_female} = {total_registered}"
     if total_transferred > 0:
         message += f" | Transferred: {total_transferred}"
@@ -115,72 +99,270 @@ def format_grand_total_message(entries, total_wards):
 def check_and_send_daily_report_from_vra(vra):
     """Check if all wards submitted and send grand total"""
     try:
-        from django.db.models import Sum
-        from .models import Ward, DailyKIEMSEntry
-        from django.contrib.auth.models import User
-        from .models import WhatsAppSetting
-
         today = timezone.now().date()
-
-        # Get total wards
         total_wards = Ward.objects.count()
         if total_wards == 0:
             return
 
-        # Get wards that have submitted today
         submitted_wards = DailyKIEMSEntry.objects.filter(
             entry_date=today
         ).values('ward').distinct().count()
 
-        # If not all wards submitted, return
         if submitted_wards < total_wards:
             return
 
-        # Check if grand total notifications are enabled
-        admin_user = User.objects.filter(is_superuser=True).first()
-        if admin_user:
-            setting = WhatsAppSetting.objects.filter(user=admin_user).first()
-            if setting and not setting.notify_grand_total:
-                print("Grand total notifications disabled")
-                return
-
-        # Get all entries for today
         entries = DailyKIEMSEntry.objects.filter(entry_date=today)
-
         if not entries.exists():
             return
 
-        # Format and send message
         message = format_grand_total_message(entries, total_wards)
         send_whatsapp_message_from_vra(message, vra)
 
     except Exception as e:
         print(f"Error checking daily report: {str(e)}")
-        import traceback
-        traceback.print_exc()
 
-# ==================== ORIGINAL VIEWS ====================
+
+# ==================== DEVICE AUTHENTICATION HELPERS ====================
+
+def get_vra_from_request(request):
+    """Get VRA from request using fingerprint or token"""
+    fingerprint = request.GET.get('fingerprint') or request.POST.get('fingerprint')
+
+    if fingerprint:
+        try:
+            device = Device.objects.select_related('vra', 'vra__ward').get(
+                fingerprint=fingerprint,
+                is_burned=True,
+                is_active=True
+            )
+            if device.vra:
+                return device.vra
+        except Device.DoesNotExist:
+            pass
+
+    # Fallback to token
+    token = request.GET.get('token') or request.POST.get('token')
+    if token:
+        return VRA.objects.filter(device_token=token, active=True).select_related('ward').first()
+
+    return None
+
+
+def get_device_from_fingerprint(fingerprint):
+    """Get device from fingerprint"""
+    if not fingerprint:
+        return None
+    try:
+        return Device.objects.select_related('vra', 'vra__ward').get(
+            fingerprint=fingerprint,
+            is_burned=True,
+            is_active=True
+        )
+    except Device.DoesNotExist:
+        return None
+
+
+# ==================== CLIENT-SIDE VIEWS ====================
+
+def kiems_entry_view(request):
+    """Main entry view for VRA"""
+    wards = Ward.objects.all()
+    active_phase = Phase.objects.filter(active=True).first()
+    return render(request, "home.html", {"wards": wards, "active_phase": active_phase})
+
+
+@require_POST
+def register_device(request):
+    """Register a device with its fingerprint - auto-authorize by default"""
+    try:
+        data = json.loads(request.body)
+        fingerprint = data.get('fingerprint')
+        device_info = data.get('device_info', {})
+
+        if not fingerprint:
+            return JsonResponse({
+                'ok': False,
+                'error': 'Device fingerprint required'
+            }, status=400)
+
+        # Check if device exists
+        device, created = Device.objects.get_or_create(
+            fingerprint=fingerprint,
+            defaults={
+                'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+                'ip_address': request.META.get('REMOTE_ADDR'),
+                'screen_resolution': device_info.get('screenResolution', ''),
+                'language': device_info.get('language', ''),
+                'platform': device_info.get('platform', ''),
+                'timezone': device_info.get('timezone', ''),
+                'is_burned': True,  # AUTO-AUTHORIZE by default
+                'is_active': True,
+            }
+        )
+
+        # Update device info
+        if not created:
+            device.user_agent = request.META.get('HTTP_USER_AGENT', device.user_agent)
+            device.ip_address = request.META.get('REMOTE_ADDR', device.ip_address)
+            device.screen_resolution = device_info.get('screenResolution', device.screen_resolution)
+            device.language = device_info.get('language', device.language)
+            device.platform = device_info.get('platform', device.platform)
+            device.timezone = device_info.get('timezone', device.timezone)
+            device.save(update_fields=['user_agent', 'ip_address', 'screen_resolution',
+                                       'language', 'platform', 'timezone'])
+
+        # Auto-bind to VRA if fingerprint matches a VRA's device_token or device_fingerprint
+        vra = VRA.objects.filter(
+            Q(device_token=fingerprint) | Q(device_fingerprint=fingerprint),
+            active=True
+        ).first()
+
+        if vra and not device.vra:
+            device.vra = vra
+            device.save(update_fields=['vra'])
+            if not vra.device_fingerprint:
+                vra.device_fingerprint = fingerprint
+                vra.save(update_fields=['device_fingerprint'])
+
+        return JsonResponse({
+            'ok': True,
+            'device_id': device.id,
+            'is_burned': device.is_burned,
+            'is_active': device.is_active,
+            'vra_id': device.vra_id,
+            'vra_name': device.vra.name if device.vra else None,
+            'ward_id': device.vra.ward_id if device.vra else None,
+            'ward_name': device.vra.ward.name if device.vra else None,
+            'created': created,
+            'auto_authorized': True
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'ok': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_GET
+def check_device_status(request):
+    """Check if a device is authorized"""
+    fingerprint = request.GET.get('fingerprint')
+
+    if not fingerprint:
+        return JsonResponse({
+            'ok': False,
+            'error': 'Fingerprint required'
+        }, status=400)
+
+    try:
+        device = Device.objects.select_related('vra', 'vra__ward').get(fingerprint=fingerprint)
+
+        return JsonResponse({
+            'ok': True,
+            'is_authorized': device.is_burned,
+            'is_active': device.is_active,
+            'vra_id': device.vra_id,
+            'vra_name': device.vra.name if device.vra else None,
+            'ward_id': device.vra.ward_id if device.vra else None,
+            'ward_name': device.vra.ward.name if device.vra else None,
+            'authorized_date': device.burn_date.isoformat() if device.burn_date else None,
+            'device_id': device.id,
+        })
+
+    except Device.DoesNotExist:
+        return JsonResponse({
+            'ok': True,
+            'is_authorized': False,
+            'is_active': False,
+            'vra_id': None,
+            'vra_name': None,
+            'ward_id': None,
+            'ward_name': None,
+        })
+
 
 @require_GET
 def resolve_vra(request):
+    """Resolve VRA using fingerprint (modern method)"""
+    fingerprint = request.GET.get('fingerprint')
+
+    if fingerprint:
+        try:
+            device = Device.objects.select_related('vra', 'vra__ward').get(
+                fingerprint=fingerprint,
+                is_burned=True,
+                is_active=True
+            )
+            if device.vra:
+                return JsonResponse({
+                    "bound": True,
+                    "vra_id": device.vra.id,
+                    "vra_name": device.vra.name,
+                    "ward_id": device.vra.ward_id,
+                    "ward_name": device.vra.ward.name,
+                    "device_id": device.id,
+                    "is_authorized": True
+                })
+        except Device.DoesNotExist:
+            pass
+
+    # Fallback to token-based method (legacy support)
     token = request.GET.get("token")
-    vra = VRA.objects.filter(device_token=token, active=True).select_related("ward").first()
-    if vra:
-        return JsonResponse({
-            "bound": True,
-            "vra_id": vra.id,
-            "vra_name": vra.name,
-            "ward_id": vra.ward_id,
-            "ward_name": vra.ward.name
-        })
+    if token:
+        vra = VRA.objects.filter(device_token=token, active=True).select_related("ward").first()
+        if vra:
+            return JsonResponse({
+                "bound": True,
+                "vra_id": vra.id,
+                "vra_name": vra.name,
+                "ward_id": vra.ward_id,
+                "ward_name": vra.ward.name
+            })
+
     return JsonResponse({"bound": False})
 
 
 @require_POST
 def bind_ward(request):
-    """One VRA per ward – selecting the ward identifies the VRA directly."""
+    """Bind a VRA to a device using ward selection (legacy method)"""
     token = request.POST.get("token")
     ward_id = request.POST.get("ward_id")
+    fingerprint = request.POST.get("fingerprint")
+
+    # Try fingerprint first
+    if fingerprint:
+        try:
+            device = Device.objects.get(fingerprint=fingerprint, is_burned=True, is_active=True)
+            vra = VRA.objects.filter(ward_id=ward_id, active=True).first()
+            if vra:
+                device.vra = vra
+                device.save(update_fields=['vra'])
+                vra.device_fingerprint = fingerprint
+                vra.save(update_fields=['device_fingerprint'])
+
+                # Also set the device token for legacy support
+                if not vra.device_token:
+                    vra.device_token = fingerprint
+                    vra.save(update_fields=['device_token'])
+
+                return JsonResponse({
+                    "ok": True,
+                    "vra_id": vra.id,
+                    "vra_name": vra.name,
+                    "ward_id": vra.ward_id,
+                    "ward_name": vra.ward.name,
+                    "device_id": device.id
+                })
+        except Device.DoesNotExist:
+            pass
+
+    # Fallback to token-based (legacy)
+    if not token:
+        return JsonResponse({
+            "ok": False,
+            "error": "No authentication provided"
+        }, status=400)
 
     vra = VRA.objects.filter(ward_id=ward_id, active=True).first()
     if not vra:
@@ -208,18 +390,74 @@ def bind_ward(request):
     })
 
 
+@require_POST
+def auto_bind_vra(request):
+    """Auto-bind a VRA to a device using fingerprint"""
+    try:
+        data = json.loads(request.body) if request.body else request.POST
+        vra_id = data.get('vra_id')
+        fingerprint = data.get('fingerprint')
+
+        if not fingerprint:
+            return JsonResponse({"ok": False, "error": "Fingerprint required"}, status=400)
+
+        device = get_object_or_404(Device, fingerprint=fingerprint, is_burned=True, is_active=True)
+        vra = get_object_or_404(VRA, id=vra_id, active=True)
+
+        # Update device
+        device.vra = vra
+        device.save(update_fields=['vra'])
+
+        # Update VRA
+        vra.device_fingerprint = fingerprint
+        if not vra.device_token:
+            vra.device_token = fingerprint
+        vra.save(update_fields=['device_fingerprint', 'device_token'])
+
+        return JsonResponse({
+            "ok": True,
+            "vra_id": vra.id,
+            "vra_name": vra.name,
+            "ward_id": vra.ward_id,
+            "ward_name": vra.ward.name
+        })
+
+    except Device.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "Device not found or not authorized"}, status=404)
+    except VRA.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "VRA not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=500)
+
+
 @require_GET
 def kits_with_entries(request):
-    """All kits for the VRA's ward, each with existing entry (if any) for the given date."""
-    token = request.GET.get("token")
-    date_str = request.GET.get("date")
+    """Get kits with entries - uses fingerprint for auth"""
+    fingerprint = request.GET.get('fingerprint')
+    date_str = request.GET.get('date')
 
-    if not token:
-        return JsonResponse({"error": "No token provided", "kits": []}, status=400)
+    # Try to find VRA by fingerprint
+    if fingerprint:
+        try:
+            device = Device.objects.select_related('vra', 'vra__ward').get(
+                fingerprint=fingerprint,
+                is_burned=True,
+                is_active=True
+            )
+            vra = device.vra
+        except Device.DoesNotExist:
+            return JsonResponse({"error": "Device not authorized", "kits": []}, status=401)
+    else:
+        # Fallback to token-based
+        token = request.GET.get("token")
+        if not token:
+            return JsonResponse({"error": "No authentication provided", "kits": []}, status=400)
+        vra = VRA.objects.filter(device_token=token, active=True).select_related("ward").first()
+        if not vra:
+            return JsonResponse({"error": "VRA not found or inactive", "kits": []}, status=404)
 
-    vra = VRA.objects.filter(device_token=token, active=True).select_related("ward").first()
     if not vra:
-        return JsonResponse({"error": "VRA not found or inactive", "kits": []}, status=404)
+        return JsonResponse({"error": "No VRA associated with this device", "kits": []}, status=404)
 
     active_phase = Phase.objects.filter(active=True).first()
     if not active_phase:
@@ -250,7 +488,6 @@ def kits_with_entries(request):
     data = []
     for kit in kits:
         entry = existing.get(kit.id)
-        # Calculate total from male + female
         total = 0
         if entry:
             total = entry.registered_male + entry.registered_female
@@ -276,26 +513,38 @@ def kits_with_entries(request):
         "vra_name": vra.name,
         "kit_count": len(data),
         "selected_date": selected_date.strftime('%Y-%m-%d'),
-        "is_today": selected_date == timezone.localdate()
+        "is_today": selected_date == timezone.localdate(),
+        "device_authorized": True
     })
-
-
-def kiems_entry_view(request):
-    wards = Ward.objects.all()
-    active_phase = Phase.objects.filter(active=True).first()
-    return render(request, "home.html", {"wards": wards, "active_phase": active_phase})
 
 
 @require_POST
 def submit_daily_entries(request):
-    """Bulk submit – one row per kit with male/female breakdown."""
-    token = request.POST.get("token")
+    """Submit entries - uses fingerprint for auth"""
+    fingerprint = request.POST.get('fingerprint')
+
+    # Try to find VRA by fingerprint
+    if fingerprint:
+        try:
+            device = Device.objects.select_related('vra').get(
+                fingerprint=fingerprint,
+                is_burned=True,
+                is_active=True
+            )
+            vra = device.vra
+        except Device.DoesNotExist:
+            return JsonResponse({"ok": False, "error": "Device not authorized"}, status=401)
+    else:
+        # Fallback to token-based
+        token = request.POST.get("token")
+        if not token:
+            return JsonResponse({"ok": False, "error": "No authentication provided"}, status=400)
+        vra = get_object_or_404(VRA, device_token=token, active=True)
+
+    if not vra:
+        return JsonResponse({"ok": False, "error": "No VRA associated with this device"}, status=404)
+
     date_str = request.POST.get("date")
-
-    if not token:
-        return JsonResponse({"ok": False, "error": "No token provided"}, status=400)
-
-    vra = get_object_or_404(VRA, device_token=token, active=True)
     active_phase = Phase.objects.filter(active=True).first()
 
     if not active_phase:
@@ -325,18 +574,14 @@ def submit_daily_entries(request):
 
     for i, kit_id in enumerate(kit_ids):
         venue = venues[i].strip() if i < len(venues) else ""
-
-        # Parse values
         male_count = int(male_vals[i]) if i < len(male_vals) and male_vals[i] and male_vals[i].isdigit() else 0
         female_count = int(female_vals[i]) if i < len(female_vals) and female_vals[i] and female_vals[
             i].isdigit() else 0
 
-        # Validate
         if not venue:
             errors[kit_id] = "Venue is required."
             continue
 
-        # Check if at least one person was registered
         if male_count == 0 and female_count == 0:
             errors[kit_id] = "Enter at least one registered voter (Male/Female)."
             continue
@@ -369,26 +614,17 @@ def submit_daily_entries(request):
         entries_created.append(entry)
         saved += 1
 
-    # ==================== SEND WHATSAPP NOTIFICATIONS ====================
+    # Send WhatsApp notifications
     try:
-        # Send notification for each entry created/updated
         for entry in entries_created:
-            # Check if this is a new entry or update
             is_update = entry.edit_count > 0
-
-            # Format and send message
             message = format_vra_submission_message(entry, is_update)
             send_whatsapp_message_from_vra(message, vra)
-            print(f"WhatsApp: {'Update' if is_update else 'Submission'} sent for {entry.ward.name}")
 
-        # Check if all wards submitted and send grand total
         if entries_created:
             check_and_send_daily_report_from_vra(vra)
-
     except Exception as e:
-        print(f"WhatsApp error in submit: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"WhatsApp error: {str(e)}")
 
     if errors:
         return JsonResponse({"ok": False, "errors": errors, "saved": saved}, status=400)

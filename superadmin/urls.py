@@ -64,4 +64,15 @@ urlpatterns = [
     path('api/whatsapp/settings/get/', views.whatsapp_get_settings, name='whatsapp_get_settings'),
     path('api/whatsapp/test/', views.whatsapp_test, name='whatsapp_test'),
     path('api/whatsapp/send-daily-report/', views.send_daily_report_manual, name='send_daily_report_manual'),
+
+    path('devices/', views.device_list, name='device_list'),
+    path('device/authorize/', views.authorize_device, name='authorize_device'),
+    path('device/deauthorize/', views.deauthorize_device, name='deauthorize_device'),
+    path('device/delete/', views.delete_device, name='delete_device'),
+    path('device/logs/', views.device_logs, name='device_logs'),
+    path('device/export/', views.device_export, name='device_export'),
+
+    # API endpoints
+    path('api/device-status/', views.api_device_status, name='api_device_status'),
+    path('api/vras-by-ward/', views.api_get_vras_by_ward, name='api_get_vras_by_ward'),
 ]
