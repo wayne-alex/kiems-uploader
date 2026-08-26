@@ -6,222 +6,296 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>KIEMS Entry - IEBC</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/iconfont/tabler-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <!-- FingerprintJS -->
   <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3.4.1/dist/fp.min.js"></script>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, sans-serif;
-      background: #F2F2F7;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, sans-serif;
+      background: #F0F1EC;
       color: #1C1C1E;
       -webkit-font-smoothing: antialiased;
+      line-height: 1.3;
     }
     :root {
       --green: #6B9C3F;
-      --green-dark: #547B30;
+      --green-dark: #4C7128;
       --green-tint: #EAF3DD;
-      --bg: #F2F2F7;
+      --ink-stamp: #2F5A18;
+      --bg: #F0F1EC;
       --surface: #FFFFFF;
-      --surface-2: #F7F8F5;
+      --surface-2: #F6F6F2;
+      --paper: #FCFBF7;
       --ink: #1C1C1E;
       --ink-2: #6E6E73;
-      --ink-3: #AEAEB2;
-      --border: #E5E5EA;
-      --error: #FF3B30;
-      --male: #1565c0;
-      --female: #c62828;
-      --r: 12px;
+      --ink-3: #ACACA8;
+      --border: #E7E7E2;
+      --border-dash: #D8D8D2;
+      --error: #D3372A;
+      --male: #1E5FA8;
+      --male-tint: #E9F1FB;
+      --female: #B23A32;
+      --female-tint: #FBEAE8;
+      --r: 13px;
+      --r-lg: 20px;
+      --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+      --shadow-sm: 0 1px 2px rgba(28,28,30,0.05);
+      --shadow-md: 0 8px 22px rgba(28,28,30,0.08), 0 1px 3px rgba(28,28,30,0.05);
+      --shadow-lg: 0 24px 60px rgba(20,22,18,0.22), 0 6px 16px rgba(20,22,18,0.10);
+      --ease: cubic-bezier(0.4, 0, 0.2, 1);
     }
     .navbar {
       position: sticky; top: 0; z-index: 10;
-      background: rgba(242,242,247,0.9);
+      background: rgba(240,241,236,0.86);
       backdrop-filter: saturate(180%) blur(20px);
       -webkit-backdrop-filter: saturate(180%) blur(20px);
       border-bottom: 1px solid var(--border);
-      padding: 12px 16px;
+      padding: 10px 16px;
     }
-    .brand-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-    .brand-row img { height: 20px; width: 20px; border-radius: 50%; object-fit: contain; background: white; }
-    .brand-row span { font-size: 13px; font-weight: 700; color: var(--green-dark); display: flex; align-items: center; gap: 5px; }
-    .title { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; margin: 0; }
-    .date-selector { margin-top: 8px; display: flex; align-items: center; }
-    .date-label { font-size: 12px; color: var(--ink-2); margin-right: 8px; display: flex; align-items: center; gap: 4px; }
-    .date-input { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 14px; background: var(--surface); color: var(--ink); min-width: 120px; }
-    .date-input:focus { outline: 2px solid var(--green); border-color: var(--green); }
-    .content { max-width: 420px; margin: 0 auto; padding: 12px 14px 32px; }
-    .phase-pill { display: inline-flex; align-items: center; gap: 5px; background: var(--green-tint); color: var(--green-dark); font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 999px; margin-bottom: 10px; }
-    .phase-pill i { font-size: 8px; }
-    .who { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--ink-2); margin: 0 0 10px 2px; flex-wrap: wrap; }
-    .avatar { width: 20px; height: 20px; border-radius: 50%; background: var(--green-tint); color: var(--green-dark); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .badge-count { font-size: 10px; background: var(--green-tint); color: var(--green-dark); padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-    .group { background: var(--surface); border-radius: var(--r); overflow: hidden; margin-bottom: 4px; }
-    .row { padding: 8px 14px; border-bottom: 0.5px solid var(--border); position: relative; }
+    .brand-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+    .brand-row img { height: 18px; width: 18px; border-radius: 50%; object-fit: contain; background: white; }
+    .brand-row span { font-size: 11.5px; font-weight: 700; color: var(--green-dark); display: flex; align-items: center; gap: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .title { font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 21px; font-weight: 700; letter-spacing: -0.4px; margin: 0; line-height: 1.15; }
+    .date-selector { margin-top: 6px; display: flex; align-items: center; }
+    .date-label { font-size: 11.5px; color: var(--ink-2); margin-right: 7px; display: flex; align-items: center; gap: 3px; font-weight: 500; }
+    .date-input { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 13px; background: var(--surface); color: var(--ink); min-width: 116px; box-shadow: var(--shadow-sm); transition: border-color .15s var(--ease); font-family: inherit; }
+    .date-input:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px var(--green-tint); }
+    .content { max-width: 420px; margin: 0 auto; padding: 12px 14px 36px; }
+    .phase-pill { display: inline-flex; align-items: center; gap: 5px; background: var(--green-tint); color: var(--green-dark); font-size: 10.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; margin-bottom: 9px; }
+    .phase-pill i { font-size: 7px; }
+    .who { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 500; color: var(--ink-2); margin: 0 0 8px 2px; flex-wrap: wrap; }
+    .avatar { width: 20px; height: 20px; border-radius: 50%; background: linear-gradient(145deg, var(--green-tint), #d9ecc4); color: var(--green-dark); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .badge-count { font-size: 9.5px; background: var(--green-tint); color: var(--green-dark); padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .group { background: var(--surface); border-radius: var(--r); overflow: hidden; margin-bottom: 4px; box-shadow: var(--shadow-sm); }
+    .row { padding: 9px 14px; border-bottom: 0.5px solid var(--border); position: relative; }
     .row:last-child { border-bottom: none; }
-    .row label { font-size: 11px; color: var(--ink-2); display: block; margin-bottom: 1px; font-weight: 500; }
-    .row select { border: none; outline: none; font-size: 15px; color: var(--ink); background: transparent; width: 100%; -webkit-appearance: none; appearance: none; font-family: inherit; cursor: pointer; padding: 2px 0; }
+    .row label { font-size: 10px; color: var(--ink-2); display: block; margin-bottom: 1px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+    .row select { border: none; outline: none; font-size: 14.5px; color: var(--ink); background: transparent; width: 100%; -webkit-appearance: none; appearance: none; font-family: inherit; cursor: pointer; padding: 1px 0; font-weight: 500; }
     .row.select-row::after { content: ""; position: absolute; right: 14px; top: 50%; width: 7px; height: 7px; border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3); transform: translateY(-60%) rotate(45deg); pointer-events: none; }
-    .btn-primary { width: 100%; padding: 12px; border: none; border-radius: var(--r); background: var(--green); color: #fff; font-weight: 700; font-size: 14px; margin-top: 8px; cursor: pointer; transition: opacity 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
-    .btn-primary:active { opacity: 0.75; }
-    .btn-primary:disabled { background: #C7C7CC; cursor: not-allowed; }
-    .kit-card { background: var(--surface); border-radius: var(--r); border: 0.5px solid var(--border); padding: 12px 14px; margin-bottom: 8px; }
+    .btn-primary {
+      width: 100%; padding: 12px; border: none; border-radius: 11px;
+      background: linear-gradient(180deg, #78ab4c, var(--green));
+      color: #fff; font-weight: 700; font-size: 14px; margin-top: 6px; cursor: pointer;
+      transition: transform .15s var(--ease), opacity .15s var(--ease), box-shadow .15s var(--ease);
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      box-shadow: 0 4px 14px rgba(107,156,63,0.32);
+      font-family: inherit;
+    }
+    .btn-primary:active:not(:disabled) { transform: scale(0.98); }
+    .btn-primary:disabled { background: #D1D1D6; box-shadow: none; cursor: not-allowed; opacity: 0.85; }
+    .btn-secondary {
+      width: 100%; padding: 12px; border: none; border-radius: 11px;
+      background: var(--surface-2); color: var(--ink); font-weight: 600; font-size: 14px;
+      cursor: pointer; transition: background .15s var(--ease), transform .15s var(--ease);
+      display: flex; align-items: center; justify-content: center; gap: 6px; font-family: inherit;
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:active { transform: scale(0.98); background: #EFEFEA; }
+    .spin { animation: spin 0.85s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    /* ===================== Section labels ===================== */
+    .section-label {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
+      color: var(--ink-2); margin: 14px 2px 7px;
+    }
+    .section-label:first-child { margin-top: 2px; }
+    .section-label .count { background: var(--surface-2); color: var(--ink-2); padding: 1px 7px; border-radius: 8px; font-size: 10px; letter-spacing: 0; }
+    .section-label.pending { color: var(--green-dark); }
+    .section-label.pending::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+
+    /* ===================== Entry form cards (pending / editable) ===================== */
+    .kit-card { background: var(--surface); border-radius: var(--r); border: 1px solid var(--border); box-shadow: var(--shadow-sm); padding: 12px 14px; margin-bottom: 8px; }
     .kit-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
-    .kit-head-left { display: flex; gap: 8px; flex: 1; min-width: 0; }
-    .kit-icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 15px; background: var(--green-tint); color: var(--green-dark); }
+    .kit-head-left { display: flex; gap: 9px; flex: 1; min-width: 0; }
+    .kit-icon { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; background: var(--surface-2); color: var(--ink-2); }
+    .kit-icon.pending { background: #FFF4DE; color: #A5690C; }
     .kit-info { flex: 1; min-width: 0; }
-    .kit-name { font-size: 13px; font-weight: 600; color: var(--ink); display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-    .kit-serial { font-size: 10px; font-weight: 400; color: var(--ink-3); font-family: monospace; background: var(--bg); padding: 1px 6px; border-radius: 4px; }
+    .kit-name { font-size: 13px; font-weight: 600; color: var(--ink); display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+    .kit-serial { font-size: 9.5px; font-weight: 500; color: var(--ink-3); font-family: var(--mono); background: var(--surface-2); padding: 1px 6px; border-radius: 5px; }
     .kit-sub { font-size: 11px; color: var(--ink-2); margin-top: 1px; display: flex; align-items: center; gap: 4px; }
-    .edit-btn { display: flex; align-items: center; gap: 4px; background: none; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); color: var(--ink); font-size: 12px; font-weight: 500; padding: 4px 10px; cursor: pointer; transition: all 0.2s; }
-    .edit-btn:hover { background: var(--green-tint); color: var(--green-dark); border-color: var(--green); }
-    .stat-row { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; padding-top: 6px; border-top: 0.5px solid var(--border); flex-wrap: wrap; }
-    .stat-num { font-size: 20px; font-weight: 700; color: var(--ink); }
-    .stat-label { font-size: 11px; color: var(--ink-2); }
-    .stat-gender { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 4px; background: var(--surface-2); margin: 1px 3px 1px 0; }
-    .stat-gender.male { color: var(--male); }
-    .stat-gender.female { color: var(--female); }
-    .input-row { display: flex; align-items: center; gap: 6px; background: var(--surface-2); border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; border: 1px solid var(--border); transition: border 0.2s; }
-    .input-row:focus-within { border-color: var(--green); background: var(--surface); }
-    .input-row i { font-size: 14px; color: var(--ink-3); flex-shrink: 0; }
-    .input-row input { border: none; outline: none; background: none; font-size: 13px; color: var(--ink); width: 100%; font-family: inherit; padding: 2px 0; }
-    .input-row input::placeholder { color: var(--ink-3); }
-    .input-row .gender-label { font-size: 12px; font-weight: 700; flex-shrink: 0; display: flex; align-items: center; }
+    .input-row { display: flex; align-items: center; gap: 7px; background: var(--surface-2); border-radius: 9px; padding: 6px 10px; margin-bottom: 6px; border: 1px solid transparent; transition: border-color .15s var(--ease), background .15s var(--ease); }
+    .input-row:focus-within { border-color: var(--green); background: var(--surface); box-shadow: 0 0 0 3px var(--green-tint); }
+    .input-row i { font-size: 13px; color: var(--ink-3); flex-shrink: 0; }
+    .input-row input { border: none; outline: none; background: none; font-size: 13px; color: var(--ink); width: 100%; font-family: inherit; padding: 1px 0; font-weight: 500; }
+    .input-row input::placeholder { color: var(--ink-3); font-weight: 400; }
+    .input-row .gender-label { font-size: 11.5px; font-weight: 700; flex-shrink: 0; display: flex; align-items: center; }
     .input-row .gender-label.m { color: var(--male); }
     .input-row .gender-label.f { color: var(--female); }
     .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
-    .input-grid .input-row { margin-bottom: 0; }
+    .input-grid .input-row { margin-bottom: 0; border-left: 3px solid transparent; }
+    .input-grid .input-row:nth-child(1) { border-left-color: var(--male); }
+    .input-grid .input-row:nth-child(2) { border-left-color: var(--female); }
     .input-grid .input-row input { font-size: 13px; text-align: center; }
-    .field-error { color: var(--error); font-size: 11px; margin: 2px 0 4px 2px; }
-    .msg-success { display: flex; align-items: center; gap: 6px; color: var(--green-dark); font-size: 13px; font-weight: 600; margin-top: 10px; padding: 10px 14px; background: var(--green-tint); border-radius: var(--r); }
-    .msg-error { display: flex; align-items: center; gap: 6px; color: var(--error); font-size: 12px; margin-top: 10px; padding: 10px 14px; background: #FFEBEA; border-radius: var(--r); }
+    .field-error { color: var(--error); font-size: 10.5px; margin: 3px 0 1px 2px; display: flex; align-items: center; gap: 4px; }
+    .total-display { display: flex; align-items: center; justify-content: flex-end; gap: 7px; padding: 3px 0; font-size: 11.5px; color: var(--ink-2); }
+    .total-display .num { font-weight: 700; color: var(--green-dark); font-size: 14px; font-family: var(--mono); }
+    .msg-success { display: flex; align-items: center; gap: 6px; color: var(--green-dark); font-size: 12.5px; font-weight: 600; margin-top: 9px; padding: 9px 13px; background: var(--green-tint); border-radius: var(--r); }
+    .msg-error { display: flex; align-items: center; gap: 6px; color: var(--error); font-size: 11.5px; margin-top: 9px; padding: 9px 13px; background: #FBE8E6; border-radius: var(--r); }
+    .msg-note { display: flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 11.5px; margin-top: 8px; padding: 9px 13px; background: var(--surface-2); border-radius: var(--r); }
     .hidden { display: none !important; }
-    .empty-state { text-align: center; padding: 24px 16px; color: var(--ink-3); }
-    .empty-state i { font-size: 32px; display: block; margin-bottom: 8px; }
-    .footer-note { display: flex; align-items: center; justify-content: center; gap: 5px; text-align: center; font-size: 10px; color: var(--ink-3); margin-top: 14px; }
-    .total-display { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 4px 0; font-size: 12px; color: var(--ink-2); }
-    .total-display .num { font-weight: 700; color: var(--green-dark); font-size: 15px; }
-    .loading-spinner { text-align: center; padding: 20px; color: var(--ink-3); }
-    .loading-spinner i { font-size: 24px; animation: spin 1s linear infinite; }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
-    @media (max-width: 400px) { .content { padding: 8px 10px 24px; } .input-grid { grid-template-columns: 1fr 1fr; gap: 4px; } }
-    .date-badge { display: inline-flex; align-items: center; gap: 4px; background: var(--green-tint); color: var(--green-dark); font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 10px; margin-top: 6px; }
-    .date-badge i { font-size: 11px; }
+    .empty-state { text-align: center; padding: 28px 16px; color: var(--ink-3); background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow-sm); }
+    .empty-state i { font-size: 30px; display: block; margin-bottom: 8px; }
+    .footer-note { display: flex; align-items: center; justify-content: center; gap: 5px; text-align: center; font-size: 9.5px; color: var(--ink-3); margin-top: 14px; }
+    .loading-spinner { text-align: center; padding: 24px; color: var(--ink-3); }
+    .loading-spinner i { font-size: 22px; animation: spin 1s linear infinite; display: inline-block; }
+    @media (max-width: 400px) { .content { padding: 9px 10px 24px; } .input-grid { gap: 5px; } }
     input[readonly] { background: var(--surface-2); cursor: not-allowed; opacity: 0.8; }
+
     .summary-bar {
-      background: var(--surface);
-      border-radius: var(--r);
-      border: 0.5px solid var(--border);
-      padding: 10px 14px;
-      margin-bottom: 12px;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
+      background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow-sm);
+      padding: 10px 14px; margin-bottom: 10px;
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px;
     }
-    .summary-bar .total-big {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--green-dark);
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .summary-bar .total-big i { font-size: 18px; }
-    .summary-bar .gender-totals {
-      display: flex;
-      gap: 12px;
-      font-size: 12px;
-      font-weight: 600;
-    }
-    .summary-bar .gender-totals span { display: flex; align-items: center; gap: 4px; }
-    .summary-bar .gender-totals .m { color: var(--male); }
-    .summary-bar .gender-totals .f { color: var(--female); }
-    .summary-bar .kit-badge { font-size: 11px; color: var(--ink-2); background: var(--surface-2); padding: 2px 10px; border-radius: 20px; }
-    .stat-summary { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
-    .stat-summary .stat-item { font-size: 12px; display: flex; align-items: center; gap: 3px; background: var(--surface-2); padding: 2px 8px; border-radius: 12px; }
+    .summary-bar .total-big { font-family: var(--mono); font-size: 17px; font-weight: 700; color: var(--green-dark); display: flex; align-items: center; gap: 5px; }
+    .summary-bar .total-big i { font-size: 15px; }
+    .summary-bar .gender-totals { display: flex; gap: 7px; font-size: 11px; font-weight: 600; }
+    .summary-bar .gender-totals span { display: flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-family: var(--mono); }
+    .summary-bar .gender-totals .m { color: var(--male); background: var(--male-tint); }
+    .summary-bar .gender-totals .f { color: var(--female); background: var(--female-tint); }
+    .summary-bar .kit-badge { font-size: 10.5px; color: var(--ink-2); background: var(--surface-2); padding: 2px 10px; border-radius: 20px; font-weight: 500; }
 
     /* Device lock styles */
-    .device-locked {
-      background: #FFF3CD;
-      border: 2px solid #FFC107;
-      border-radius: var(--r);
-      padding: 20px;
-      text-align: center;
-      margin: 20px 0;
-    }
-    .device-locked i {
-      font-size: 48px;
-      display: block;
-      margin-bottom: 12px;
-    }
-    .device-locked h3 {
-      margin: 0 0 8px 0;
-    }
-    .device-locked p {
-      margin: 0;
-      font-size: 14px;
-    }
-    .device-locked .lock-code {
-      font-family: monospace;
-      background: white;
-      padding: 8px 12px;
-      border-radius: 6px;
-      display: inline-block;
-      margin-top: 10px;
-      font-size: 13px;
-      color: #333;
-    }
-    .device-locked.error {
-      background: #FFEBEA;
-      border-color: var(--error);
-    }
-    .device-locked.error i { color: var(--error); }
-    .device-locked.error h3 { color: var(--error); }
-    .device-locked.error p { color: var(--error); }
-    .device-locked.success {
-      background: var(--green-tint);
-      border-color: var(--green);
-    }
-    .device-locked.success i { color: var(--green); }
-    .device-locked.success h3 { color: var(--green-dark); }
-    .device-locked.success p { color: var(--green-dark); }
+    .device-locked { background: #FFF7E0; border: 1px solid #FFD666; border-radius: var(--r); padding: 20px 16px; text-align: center; margin: 14px 0; box-shadow: var(--shadow-sm); }
+    .device-locked i { font-size: 36px; display: block; margin-bottom: 8px; }
+    .device-locked h3 { margin: 0 0 5px 0; font-size: 14px; font-weight: 700; }
+    .device-locked p { margin: 0; font-size: 12.5px; line-height: 1.4; }
+    .device-locked .lock-code { font-family: var(--mono); background: white; padding: 7px 11px; border-radius: 8px; display: inline-block; margin-top: 10px; font-size: 11px; color: #555; border: 1px solid var(--border); }
+    .device-locked.error { background: #FBE8E6; border-color: #F2B7B0; }
+    .device-locked.error i, .device-locked.error h3, .device-locked.error p { color: var(--error); }
+    .device-locked.success { background: var(--green-tint); border-color: #c3e0a4; }
+    .device-locked.success i, .device-locked.success h3, .device-locked.success p { color: var(--green-dark); }
 
     .device-info-bar {
-      background: var(--surface);
-      border-radius: var(--r);
-      border: 0.5px solid var(--border);
-      padding: 8px 14px;
-      margin-bottom: 10px;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--ink-2);
+      background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow-sm);
+      padding: 8px 13px; margin-bottom: 9px; display: flex; flex-wrap: wrap;
+      align-items: center; justify-content: space-between; gap: 5px; font-size: 10.5px; color: var(--ink-2); font-weight: 500;
     }
-    .device-info-bar .status-badge {
-      font-weight: 600;
-      padding: 2px 10px;
-      border-radius: 12px;
-      font-size: 10px;
+    .status-badge.authorized { background: var(--green-tint); color: var(--green-dark); }
+    .status-badge.unauthorized { background: #FBE8E6; color: var(--error); }
+
+    /* ===================== TALLY SHEET (view / review mode) ===================== */
+    /* Deliberately unlike the entry-form cards above: a ledger, not a form. */
+    .tally-sheet {
+      position: relative;
+      background:
+        repeating-linear-gradient(135deg, rgba(107,156,63,0.025) 0px, rgba(107,156,63,0.025) 1px, transparent 1px, transparent 14px),
+        var(--paper);
+      border-radius: 16px;
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      margin-bottom: 12px;
     }
-    .status-badge.authorized {
-      background: var(--green-tint);
-      color: var(--green-dark);
+    .tally-head {
+      padding: 14px 16px 11px;
+      border-bottom: 1px dashed var(--border-dash);
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
     }
-    .status-badge.unauthorized {
-      background: #FFEBEA;
-      color: var(--error);
+    .tally-head .eyebrow { font-size: 9.5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--ink-3); }
+    .tally-head .ward-line { font-family: 'Space Grotesk', sans-serif; font-size: 14.5px; font-weight: 700; margin-top: 2px; }
+    .tally-head .stamp-mini {
+      display: flex; align-items: center; gap: 4px; font-size: 9.5px; font-weight: 700;
+      color: var(--ink-stamp); border: 1.5px dashed var(--green); border-radius: 20px; padding: 3px 9px;
+      transform: rotate(-3deg); flex-shrink: 0; white-space: nowrap;
     }
+    .tally-rows { padding: 2px 0; }
+    .tally-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px dashed var(--border-dash);
+      position: relative; cursor: pointer;
+      transition: background .15s var(--ease);
+      animation: fadeInUp .35s var(--ease) both;
+    }
+    .tally-row:last-child { border-bottom: none; }
+    .tally-row:active { background: rgba(107,156,63,0.05); }
+    .tally-row.flash { animation: fadeInUp .35s var(--ease) both, rowFlash 1.5s var(--ease); }
+    .tally-row .stamp {
+      width: 25px; height: 25px; border-radius: 50%; flex-shrink: 0;
+      background: var(--green-tint); color: var(--ink-stamp);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; transform: rotate(-8deg);
+      border: 1px dashed #a9cf85;
+    }
+    .tally-row .r-info { flex: 1; min-width: 0; }
+    .tally-row .r-name { font-size: 12.5px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 5px; }
+    .tally-row .r-venue { font-size: 10.5px; color: var(--ink-2); margin-top: 1px; }
+    .tally-row .r-counts {
+      font-family: var(--mono); font-size: 12px; font-weight: 600; display: flex; gap: 9px; flex-shrink: 0;
+    }
+    .tally-row .r-counts .m { color: var(--male); }
+    .tally-row .r-counts .f { color: var(--female); }
+    .tally-row .r-total { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--ink); flex-shrink: 0; min-width: 26px; text-align: right; }
+    .tally-row .reveal-edit {
+      max-width: 0; overflow: hidden; opacity: 0; flex-shrink: 0;
+      transition: max-width .22s var(--ease), opacity .18s var(--ease), margin .22s var(--ease);
+    }
+    .tally-row.open .reveal-edit { max-width: 34px; opacity: 1; margin-left: 2px; }
+    .row-edit-btn {
+      width: 28px; height: 28px; border-radius: 50%; border: none; flex-shrink: 0;
+      background: var(--green); color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 12.5px; cursor: pointer; transition: transform .12s var(--ease);
+    }
+    .row-edit-btn:active { transform: scale(0.9); }
+    .tally-foot { display: flex; align-items: center; justify-content: space-between; padding: 9px 16px; background: var(--surface-2); font-size: 10.5px; color: var(--ink-2); }
+    .tally-foot .hint { display: flex; align-items: center; gap: 4px; }
+
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes rowFlash { 0% { background: var(--green-tint); } 100% { background: transparent; } }
+
+    /* ===================== Modals ===================== */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(20, 22, 18, 0.4);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+      display: flex; align-items: flex-end; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s var(--ease);
+    }
+    .modal-overlay.show { opacity: 1; pointer-events: auto; }
+    @media (min-width: 480px) { .modal-overlay { align-items: center; } }
+    .modal-sheet {
+      background: var(--surface); width: 100%; max-width: 400px;
+      border-radius: var(--r-lg) var(--r-lg) 0 0;
+      padding: 26px 24px 22px;
+      box-shadow: var(--shadow-lg);
+      transform: translateY(100%);
+      transition: transform .3s var(--ease);
+      text-align: center;
+    }
+    .modal-overlay.show .modal-sheet { transform: translateY(0); }
+    @media (min-width: 480px) {
+      .modal-sheet { border-radius: var(--r-lg); transform: translateY(16px) scale(0.96); opacity: 0; }
+      .modal-overlay.show .modal-sheet { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .modal-sheet.edit-sheet { text-align: left; }
+    .modal-sheet .grabber { width: 34px; height: 4px; border-radius: 3px; background: var(--border); margin: -12px auto 16px; }
+    .modal-check { width: 66px; height: 66px; margin: 0 auto 14px; }
+    .check-svg { width: 100%; height: 100%; }
+    .check-circle { fill: none; stroke: var(--green); stroke-width: 4; stroke-dasharray: 176; stroke-dashoffset: 176; }
+    .check-mark { fill: none; stroke: var(--green); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; }
+    .modal-overlay.show .check-circle { animation: drawStroke .5s var(--ease) forwards; }
+    .modal-overlay.show .check-mark { animation: drawStroke .35s var(--ease) forwards .45s; }
+    @keyframes drawStroke { to { stroke-dashoffset: 0; } }
+    .modal-title { font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 18px; font-weight: 700; margin: 0 0 5px; }
+    .modal-subtitle { font-size: 13px; color: var(--ink-2); margin: 0 0 18px; line-height: 1.4; }
+    .modal-actions { display: flex; flex-direction: column; gap: 8px; }
+    .edit-sheet .modal-title { margin-bottom: 3px; }
+    .edit-sheet .edit-kit-sub { font-size: 11.5px; color: var(--ink-2); margin: 0 0 16px; }
+    .edit-sheet .modal-actions { margin-top: 16px; }
   </style>
 </head>
 <body>
 <div class="navbar">
   <div class="brand-row">
     <img src="https://upload.wikimedia.org/wikipedia/commons/9/92/IEBC_Emblem.png" alt="IEBC">
-    <span>IEBC <i class="ti ti-point-filled" style="font-size:6px;"></i> Turbo Constituency</span>
+    <span>IEBC <i class="ti ti-point-filled" style="font-size:5px;"></i> Turbo Constituency</span>
   </div>
   <div class="title">KIEMS Entry</div>
   <div class="date-selector">
@@ -236,13 +310,13 @@
   <!-- Device Info Bar -->
   <div id="device-info-bar" class="device-info-bar hidden">
     <span id="device-status-text">Device: <span id="device-status-label">Unknown</span></span>
-    <span id="device-id-display" style="font-family:monospace;font-size:10px;"></span>
+    <span id="device-id-display" style="font-family:'JetBrains Mono',monospace;font-size:9.5px;"></span>
   </div>
 
   {% if active_phase %}
   <div class="phase-pill"><i class="ti ti-circle-filled"></i>{{ active_phase.name }}</div>
   {% else %}
-  <div class="phase-pill" style="background:#ffebee;color:#c62828;"><i class="ti ti-alert-circle"></i> No active phase</div>
+  <div class="phase-pill" style="background:#FBE8E6;color:#B23A32;"><i class="ti ti-alert-circle"></i> No active phase</div>
   {% endif %}
 
   <div id="identify-card">
@@ -270,18 +344,68 @@
     <div id="summary-bar" class="summary-bar hidden">
       <div class="total-big"><i class="ti ti-users"></i> <span id="summary-total">0</span></div>
       <div class="gender-totals">
-        <span class="m">Male: <span id="summary-male">0</span></span>
-        <span class="f">Female: <span id="summary-female">0</span></span>
+        <span class="m">M <span id="summary-male">0</span></span>
+        <span class="f">F <span id="summary-female">0</span></span>
       </div>
       <div class="kit-badge" id="summary-kits">0 kits</div>
     </div>
 
     <div id="kits-container"><div class="loading-spinner"><i class="ti ti-loader"></i><p>Loading kits...</p></div></div>
-    <button id="submit-btn" class="btn-primary"><i class="ti ti-send"></i> Submit All Entries</button>
+
+    <div id="pending-actions">
+      <button id="submit-btn" class="btn-primary"><i class="ti ti-send"></i> Submit All Entries</button>
+    </div>
     <div id="submit-message" class="msg-success hidden"><i class="ti ti-circle-check"></i><span></span></div>
     <div id="form-errors" class="msg-error hidden"><i class="ti ti-alert-circle"></i><span></span></div>
   </div>
-  <p class="footer-note"><i class="ti ti-shield-check" style="font-size:11px;"></i> IEBC Turbo Constituency <i class="ti ti-point-filled" style="font-size:6px;"></i> KIEMS Field Reporting</p>
+  <p class="footer-note"><i class="ti ti-shield-check" style="font-size:10px;"></i> IEBC Turbo Constituency <i class="ti ti-point-filled" style="font-size:5px;"></i> KIEMS Field Reporting</p>
+</div>
+
+<!-- Success Modal (bulk submit) -->
+<div id="success-modal" class="modal-overlay hidden">
+  <div class="modal-sheet">
+    <div class="grabber"></div>
+    <div class="modal-check">
+      <svg viewBox="0 0 64 64" class="check-svg">
+        <circle class="check-circle" cx="32" cy="32" r="28"></circle>
+        <path class="check-mark" d="M20 33 L28 41 L44 23"></path>
+      </svg>
+    </div>
+    <h3 class="modal-title">Entries submitted</h3>
+    <p class="modal-subtitle" id="modal-subtitle">Your entries have been recorded.</p>
+    <div class="modal-actions">
+      <button id="modal-view-btn" class="btn-primary"><i class="ti ti-list-check"></i> View tally sheet</button>
+      <button id="modal-done-btn" class="btn-secondary">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit-one-kit Modal (opened only from a tapped tally row) -->
+<div id="edit-kit-modal" class="modal-overlay hidden">
+  <div class="modal-sheet edit-sheet">
+    <div class="grabber"></div>
+    <h3 class="modal-title">Edit entry</h3>
+    <p class="edit-kit-sub" id="edit-kit-sub">—</p>
+    <div class="input-row">
+      <i class="ti ti-map-pin"></i>
+      <input id="edit-venue" placeholder="Venue">
+    </div>
+    <div class="input-grid">
+      <div class="input-row">
+        <span class="gender-label m">Male</span>
+        <input id="edit-male" type="number" min="0" inputmode="numeric" style="text-align:center;">
+      </div>
+      <div class="input-row">
+        <span class="gender-label f">Female</span>
+        <input id="edit-female" type="number" min="0" inputmode="numeric" style="text-align:center;">
+      </div>
+    </div>
+    <div id="edit-kit-error" class="msg-error hidden"><i class="ti ti-alert-circle"></i><span></span></div>
+    <div class="modal-actions">
+      <button id="edit-save-btn" class="btn-primary"><i class="ti ti-device-floppy"></i> Save changes</button>
+      <button id="edit-cancel-btn" class="btn-secondary">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -300,30 +424,20 @@ class DeviceFingerprint {
 
     async initialize() {
         if (this.initialized) return this;
-
-        // Initialize FingerprintJS
         try {
             this.fpInstance = await FingerprintJS.load();
         } catch (error) {
             console.warn('FingerprintJS failed to load, falling back to basic fingerprint:', error);
-            // Fallback to basic fingerprint
             return this.fallbackInitialize();
         }
-
-        // Get fingerprint
         try {
             const result = await this.fpInstance.get();
             this.fingerprintData = result;
             this.fingerprint = result.visitorId;
-
-            // Generate additional components
             const components = result.components || [];
             this.fingerprintDetails = this.extractFingerprintDetails(components);
-
-            // Store in localStorage
             localStorage.setItem('device_fingerprint', this.fingerprint);
             localStorage.setItem('device_fingerprint_details', JSON.stringify(this.fingerprintDetails));
-
             this.burnData = this.getBurnData();
             this.initialized = true;
             return this;
@@ -334,7 +448,6 @@ class DeviceFingerprint {
     }
 
     fallbackInitialize() {
-        // Fallback to basic fingerprint generation
         this.fingerprint = this.generateBasicFingerprint();
         this.fingerprintDetails = this.getBasicFingerprintDetails();
         localStorage.setItem('device_fingerprint', this.fingerprint);
@@ -415,42 +528,29 @@ class DeviceFingerprint {
     extractFingerprintDetails(components) {
         const details = {};
         const componentMap = {
-            'userAgent': 'userAgent',
-            'screenFrame': 'screenFrame',
-            'colorDepth': 'colorDepth',
-            'deviceMemory': 'deviceMemory',
-            'hardwareConcurrency': 'hardwareConcurrency',
-            'platform': 'platform',
-            'timezone': 'timezone',
-            'language': 'language',
-            'webglVendor': 'webglVendor',
-            'webglRenderer': 'webglRenderer',
-            'canvas': 'canvas',
-            'audio': 'audio'
+            'userAgent': 'userAgent', 'screenFrame': 'screenFrame', 'colorDepth': 'colorDepth',
+            'deviceMemory': 'deviceMemory', 'hardwareConcurrency': 'hardwareConcurrency',
+            'platform': 'platform', 'timezone': 'timezone', 'language': 'language',
+            'webglVendor': 'webglVendor', 'webglRenderer': 'webglRenderer', 'canvas': 'canvas', 'audio': 'audio'
         };
-
         components.forEach(comp => {
             const key = componentMap[comp.key] || comp.key;
             if (comp.value !== undefined && comp.value !== null) {
                 details[key] = comp.value;
             }
         });
-
-        // Add screen resolution (not directly available in components)
         details.screenResolution = `${screen.width}x${screen.height}`;
-
         return details;
     }
 
     async verifyFingerprint(storedFingerprint) {
-        // Re-initialize to get current fingerprint
         try {
             const result = await this.fpInstance.get();
             const currentFingerprint = result.visitorId;
             return storedFingerprint === currentFingerprint;
         } catch (error) {
             console.warn('Fingerprint verification failed, using stored:', error);
-            return true; // Fallback to trusting stored
+            return true;
         }
     }
 
@@ -498,6 +598,9 @@ let deviceFingerprint = null;
 let currentVRA = null;
 let kitsData = [];
 let isDeviceAuthorized = false;
+let lastSubmittedKitIds = [];
+let currentEditKitId = null;
+let openTallyRowId = null;
 
 function getDeviceToken() {
   let t = localStorage.getItem('vra_device_token');
@@ -519,29 +622,18 @@ function setMsgBox(el, text) {
 function showDeviceMessage(message, type = 'error', showCode = true) {
     const container = document.getElementById('device-message-container');
     const code = deviceFingerprint ? deviceFingerprint.fingerprint.substring(0, 16) : 'Unknown';
-
     let icon = 'ti ti-alert-circle';
     let title = 'Device Not Authorized';
     let cssClass = 'error';
-
-    if (type === 'success') {
-        icon = 'ti ti-check-circle';
-        title = 'Device Authorized';
-        cssClass = 'success';
-    } else if (type === 'info') {
-        icon = 'ti ti-info-circle';
-        title = 'Device Information';
-        cssClass = 'info';
-    }
-
+    if (type === 'success') { icon = 'ti ti-check-circle'; title = 'Device Authorized'; cssClass = 'success'; }
+    else if (type === 'info') { icon = 'ti ti-info-circle'; title = 'Device Information'; cssClass = 'info'; }
     container.innerHTML = `
         <div class="device-locked ${cssClass}">
             <i class="${icon}"></i>
             <h3>${title}</h3>
             <p>${message}</p>
             ${showCode ? `<div class="lock-code">Device ID: ${code}</div>` : ''}
-        </div>
-    `;
+        </div>`;
     container.classList.remove('hidden');
 }
 
@@ -554,20 +646,17 @@ function updateDeviceInfoBar(isAuthorized, vraName = null, wardName = null) {
     const bar = document.getElementById('device-info-bar');
     const statusLabel = document.getElementById('device-status-label');
     const idDisplay = document.getElementById('device-id-display');
-
     bar.classList.remove('hidden');
-
     if (isAuthorized) {
-        statusLabel.textContent = 'Authorized ✓';
+        statusLabel.textContent = 'Authorized';
         statusLabel.style.color = 'var(--green-dark)';
         const info = vraName ? ` - ${vraName}${wardName ? ` (${wardName})` : ''}` : '';
         document.getElementById('device-status-text').textContent = `Device: Authorized${info}`;
     } else {
-        statusLabel.textContent = 'Not Authorized ✗';
+        statusLabel.textContent = 'Not Authorized';
         statusLabel.style.color = 'var(--error)';
         document.getElementById('device-status-text').textContent = 'Device: Not Authorized';
     }
-
     if (deviceFingerprint) {
         idDisplay.textContent = `ID: ${deviceFingerprint.fingerprint.substring(0, 12)}...`;
     }
@@ -579,85 +668,45 @@ function updateDeviceInfoBar(isAuthorized, vraName = null, wardName = null) {
 
 async function registerDevice() {
     try {
-        // Initialize FingerprintJS
         const fp = new DeviceFingerprint();
         await fp.initialize();
         deviceFingerprint = fp;
-
         const deviceInfo = await fp.getDeviceInfo();
         const response = await fetch('/kiems/register-device/', {
             method: 'POST',
-            headers: {
-                'X-CSRFToken': CSRF,
-                'Content-Type': 'application/json',
-            },
+            headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 fingerprint: deviceInfo.fingerprint,
                 fingerprint_details: deviceInfo.fingerprintDetails,
                 device_info: deviceInfo
             })
         });
-
         const data = await response.json();
-
-        if (!data.ok) {
-            throw new Error(data.error || 'Device registration failed');
-        }
-
-        // Check if device is authorized (burned)
+        if (!data.ok) { throw new Error(data.error || 'Device registration failed'); }
         isDeviceAuthorized = data.is_burned;
-
         if (!data.is_burned) {
-            showDeviceMessage(
-                'This device has been deauthorized. Please contact your ICT officer to reauthorize it.',
-                'error',
-                true
-            );
+            showDeviceMessage('This device has been deauthorized. Please contact your ICT officer to reauthorize it.', 'error', true);
             updateDeviceInfoBar(false);
             return false;
         }
-
         if (!data.is_active) {
-            showDeviceMessage(
-                'This device has been deactivated. Please contact your ICT officer for assistance.',
-                'error',
-                true
-            );
+            showDeviceMessage('This device has been deactivated. Please contact your ICT officer for assistance.', 'error', true);
             updateDeviceInfoBar(false);
             return false;
         }
-
-        // Device is authorized
         hideDeviceMessage();
-
-        // Store burn data locally
         if (data.vra_id) {
-            deviceFingerprint.setBurnData({
-                vra_id: data.vra_id,
-                vra_name: data.vra_name,
-                ward_id: data.ward_id,
-                ward_name: data.ward_name,
-            });
-
+            deviceFingerprint.setBurnData({ vra_id: data.vra_id, vra_name: data.vra_name, ward_id: data.ward_id, ward_name: data.ward_name });
             updateDeviceInfoBar(true, data.vra_name, data.ward_name);
-
-            // Auto-bind to VRA if device is authorized with one
             await autoBindToVRA(data.vra_id);
         } else {
-            // No VRA assigned, show ward selection
             updateDeviceInfoBar(true);
             document.getElementById('identify-card').style.display = 'block';
         }
-
         return true;
-
     } catch (error) {
         console.error('Device initialization failed:', error);
-        showDeviceMessage(
-            'Device error: ' + error.message + '. Please contact your ICT officer.',
-            'error',
-            true
-        );
+        showDeviceMessage('Device error: ' + error.message + '. Please contact your ICT officer.', 'error', true);
         return false;
     }
 }
@@ -667,26 +716,14 @@ async function autoBindToVRA(vraId) {
         const deviceInfo = await deviceFingerprint.getDeviceInfo();
         const response = await fetch('/kiems/auto-bind-vra/', {
             method: 'POST',
-            headers: {
-                'X-CSRFToken': CSRF,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                vra_id: vraId,
-                fingerprint: deviceInfo.fingerprint
-            })
+            headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vra_id: vraId, fingerprint: deviceInfo.fingerprint })
         });
         const data = await response.json();
         if (data.ok) {
             currentVRA = data;
-            // Store burn data immediately so it survives a page reload
             if (deviceFingerprint) {
-              deviceFingerprint.setBurnData({
-                vra_id: data.vra_id,
-                vra_name: data.vra_name,
-                ward_id: data.ward_id,
-                ward_name: data.ward_name,
-              });
+              deviceFingerprint.setBurnData({ vra_id: data.vra_id, vra_name: data.vra_name, ward_id: data.ward_id, ward_name: data.ward_name });
             }
             await enterForm();
         } else {
@@ -694,41 +731,30 @@ async function autoBindToVRA(vraId) {
         }
     } catch (error) {
         console.error('Auto-bind failed:', error);
-        showDeviceMessage(
-            'Failed to bind to VRA: ' + error.message + '. Please contact your ICT officer.',
-            'error',
-            true
-        );
+        showDeviceMessage('Failed to bind to VRA: ' + error.message + '. Please contact your ICT officer.', 'error', true);
     }
 }
 
 // ============================================================
-// ORIGINAL APPLICATION FUNCTIONS (Updated)
+// APPLICATION FUNCTIONS
 // ============================================================
 
 async function resolveVRA() {
     try {
-        // Use fingerprint-based auth
         if (deviceFingerprint) {
             const deviceInfo = await deviceFingerprint.getDeviceInfo();
             const response = await fetch(`/kiems/resolve-vra/?fingerprint=${deviceInfo.fingerprint}`);
             const data = await response.json();
-
             if (data.bound && data.is_authorized) {
                 currentVRA = data;
                 await enterForm();
                 return;
             }
         }
-
-        // Fallback to token-based auth
         const token = getDeviceToken();
         const res = await fetch(`/kiems/resolve-vra/?token=${token}`);
         const data = await res.json();
-        if (data.bound) {
-            currentVRA = data;
-            await enterForm();
-        }
+        if (data.bound) { currentVRA = data; await enterForm(); }
     } catch (e) { console.error(e); }
 }
 
@@ -747,7 +773,7 @@ document.getElementById('bind-btn').addEventListener('click', async () => {
   const wardId = document.getElementById('ward-select').value;
   const btn = document.getElementById('bind-btn');
   btn.disabled = true;
-  btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite;"></i> Loading...';
+  btn.innerHTML = '<i class="ti ti-loader spin"></i> Loading...';
   try {
     const deviceInfo = await deviceFingerprint.getDeviceInfo();
     const res = await fetch('/kiems/bind-ward/', {
@@ -765,14 +791,8 @@ document.getElementById('bind-btn').addEventListener('click', async () => {
     }
     errBox.classList.add('hidden');
     currentVRA = data;
-    // Store burn data immediately so it survives a page reload
     if (deviceFingerprint) {
-      deviceFingerprint.setBurnData({
-        vra_id: data.vra_id,
-        vra_name: data.vra_name,
-        ward_id: data.ward_id,
-        ward_name: data.ward_name,
-      });
+      deviceFingerprint.setBurnData({ vra_id: data.vra_id, vra_name: data.vra_name, ward_id: data.ward_id, ward_name: data.ward_name });
     }
     await enterForm();
   } catch (e) {
@@ -796,24 +816,16 @@ async function loadKits() {
   try {
     const datePicker = document.getElementById('date-picker');
     const selectedDate = datePicker.value;
-
-    // Get device info for fingerprint
     const deviceInfo = await deviceFingerprint.getDeviceInfo();
     let url = `/kiems/kits-with-entries/?date=${selectedDate}`;
-
-    // Use fingerprint if available
-    if (deviceInfo && deviceInfo.fingerprint) {
-      url += `&fingerprint=${deviceInfo.fingerprint}`;
-    } else {
-      url += `&token=${getDeviceToken()}`;
-    }
-
+    if (deviceInfo && deviceInfo.fingerprint) { url += `&fingerprint=${deviceInfo.fingerprint}`; }
+    else { url += `&token=${getDeviceToken()}`; }
     const res = await fetch(url);
     const data = await res.json();
-
     if (data.error) {
       container.innerHTML = `<div class="empty-state"><i class="ti ti-alert-circle"></i><p style="color:var(--error);">${data.error}</p></div>`;
       document.getElementById('summary-bar').classList.add('hidden');
+      document.getElementById('pending-actions').classList.add('hidden');
       return;
     }
     kitsData = data.kits || [];
@@ -821,6 +833,7 @@ async function loadKits() {
     if (kitsData.length === 0) {
       container.innerHTML = `<div class="empty-state"><i class="ti ti-device-tablet-off"></i><p>No KIEMS kits assigned to this ward</p><p style="font-size:11px;margin-top:4px;">Ward: ${data.ward_name || 'Unknown'}</p></div>`;
       document.getElementById('summary-bar').classList.add('hidden');
+      document.getElementById('pending-actions').classList.add('hidden');
       return;
     }
     renderKits();
@@ -828,31 +841,61 @@ async function loadKits() {
   } catch (e) {
     container.innerHTML = `<div class="empty-state"><i class="ti ti-alert-circle"></i><p style="color:var(--error);">Error loading kits. Please refresh.</p></div>`;
     document.getElementById('summary-bar').classList.add('hidden');
+    document.getElementById('pending-actions').classList.add('hidden');
   }
 }
 
+function isTodaySelected() {
+  const datePicker = document.getElementById('date-picker');
+  const today = new Date().toISOString().split('T')[0];
+  return datePicker.value === today;
+}
+
+// ============================================================
+// RENDERING — two distinct visual modes:
+//   1) Pending entry forms  (kit-card, inputs, Submit All Entries)
+//   2) Tally sheet          (read-only ledger, tap a row to reveal Edit)
+// ============================================================
+
 function renderKits() {
   const container = document.getElementById('kits-container');
-  const datePicker = document.getElementById('date-picker');
-  const selectedDate = datePicker.value;
-  const today = new Date().toISOString().split('T')[0];
-  const isToday = selectedDate === today;
+  const pendingActions = document.getElementById('pending-actions');
+  const today = isTodaySelected();
 
-  container.innerHTML = kitsData.map(kit => {
-    if (!isToday) return summaryCard(kit, true);
-    if (kit.has_entry && !kit._editing) return summaryCard(kit, false);
-    return formCard(kit);
-  }).join('');
-
-  if (isToday) {
-    container.querySelectorAll('.edit-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const kit = kitsData.find(k => k.kit_id == btn.dataset.kit);
-        if (kit) { kit._editing = true; renderKits(); updateSummary(); }
-      });
-    });
+  if (!today) {
+    // Past date: everything is historical record — tally sheet only, no editing, no submit button.
+    pendingActions.classList.add('hidden');
+    container.innerHTML = renderTallySheet(kitsData, { editable: false });
+    document.getElementById('summary-bar').classList.remove('hidden');
+    return;
   }
 
+  const pending = kitsData.filter(k => !k.has_entry);
+  const submitted = kitsData.filter(k => k.has_entry);
+
+  let html = '';
+
+  if (pending.length) {
+    html += `<div class="section-label pending">Pending entries <span class="count">${pending.length}</span></div>`;
+    html += pending.map(kit => formCard(kit)).join('');
+  }
+
+  if (submitted.length) {
+    html += `<div class="section-label">Submitted today <span class="count">${submitted.length}</span></div>`;
+    html += renderTallySheet(submitted, { editable: true });
+  }
+
+  container.innerHTML = html;
+  pendingActions.classList.toggle('hidden', pending.length === 0);
+
+  if (pending.length === 0 && submitted.length > 0) {
+    const note = document.createElement('div');
+    note.className = 'msg-note';
+    note.innerHTML = '<i class="ti ti-circle-check"></i><span>All kits for this ward are submitted for today.</span>';
+    container.appendChild(note);
+  }
+
+  // Wire up pending form inputs (live totals)
   container.querySelectorAll('.kit-card').forEach(card => {
     const maleInput = card.querySelector('.male-input');
     const femaleInput = card.querySelector('.female-input');
@@ -862,7 +905,6 @@ function renderKits() {
         const m = parseInt(maleInput.value) || 0;
         const f = parseInt(femaleInput.value) || 0;
         totalSpan.textContent = m + f;
-        updateSummary();
       }
       maleInput.addEventListener('input', updateTotal);
       femaleInput.addEventListener('input', updateTotal);
@@ -870,32 +912,33 @@ function renderKits() {
     }
   });
 
-  document.getElementById('summary-bar').classList.remove('hidden');
-}
+  // Wire up tally rows: tap toggles reveal of the edit icon; tap the icon opens the edit modal.
+  container.querySelectorAll('.tally-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      const kitId = row.dataset.kit;
+      if (e.target.closest('.row-edit-btn')) {
+        e.stopPropagation();
+        openEditModal(kitId);
+        return;
+      }
+      if (!row.dataset.editable || row.dataset.editable === 'false') return;
+      const isOpen = row.classList.contains('open');
+      container.querySelectorAll('.tally-row.open').forEach(r => r.classList.remove('open'));
+      if (!isOpen) { row.classList.add('open'); openTallyRowId = kitId; }
+      else { openTallyRowId = null; }
+    });
+  });
 
-function summaryCard(kit, isPast) {
-  const total = (kit.registered_male || 0) + (kit.registered_female || 0);
-  const editBtn = isPast ? '' : `<button class="edit-btn" data-kit="${kit.kit_id}"><i class="ti ti-pencil"></i> Edit</button>`;
-  return `
-  <div class="kit-card" data-kit="${kit.kit_id}">
-    <div class="kit-head">
-      <div class="kit-head-left">
-        <div class="kit-icon"><i class="ti ti-check"></i></div>
-        <div class="kit-info">
-          <div class="kit-name">${kit.kit_name} <span class="kit-serial">${kit.serial_no}</span></div>
-          <div class="kit-sub"><i class="ti ti-map-pin"></i>${kit.venue}</div>
-        </div>
-      </div>
-      ${editBtn}
-    </div>
-    <div class="stat-row">
-      <span class="stat-num">${total}</span>
-      <span class="stat-label">registered</span>
-      <span class="stat-gender male">Male: ${kit.registered_male || 0}</span>
-      <span class="stat-gender female">Female: ${kit.registered_female || 0}</span>
-    </div>
-    ${isPast ? `<div class="date-badge"><i class="ti ti-calendar"></i>Viewing ${kit.selected_date || ''}</div>` : ''}
-  </div>`;
+  // Highlight kits that were just submitted
+  if (lastSubmittedKitIds.length) {
+    lastSubmittedKitIds.forEach(id => {
+      const row = container.querySelector(`.tally-row[data-kit="${id}"]`);
+      if (row) row.classList.add('flash');
+    });
+    lastSubmittedKitIds = [];
+  }
+
+  document.getElementById('summary-bar').classList.remove('hidden');
 }
 
 function formCard(kit) {
@@ -904,10 +947,10 @@ function formCard(kit) {
   <div class="kit-card" data-kit="${kit.kit_id}">
     <div class="kit-head">
       <div class="kit-head-left">
-        <div class="kit-icon"><i class="ti ti-device-tablet"></i></div>
+        <div class="kit-icon pending"><i class="ti ti-device-tablet"></i></div>
         <div class="kit-info">
           <div class="kit-name">${kit.kit_name} <span class="kit-serial">${kit.serial_no}</span></div>
-          <div class="kit-sub"><i class="ti ti-circle-dashed"></i> ${kit.has_entry ? 'Editing current' : 'Not submitted today'}</div>
+          <div class="kit-sub"><i class="ti ti-circle-dashed"></i> Not submitted today</div>
         </div>
       </div>
     </div>
@@ -916,11 +959,11 @@ function formCard(kit) {
       <input class="venue-input" data-kit="${kit.kit_id}" value="${defaultVenue}" placeholder="Venue" style="font-size:13px;">
     </div>
     <div class="input-grid">
-      <div class="input-row" style="border-left: 2px solid var(--male);">
+      <div class="input-row">
         <span class="gender-label m">Male</span>
         <input class="male-input" type="number" min="0" inputmode="numeric" value="${kit.registered_male || 0}" placeholder="Male" style="text-align:center;font-size:13px;">
       </div>
-      <div class="input-row" style="border-left: 2px solid var(--female);">
+      <div class="input-row">
         <span class="gender-label f">Female</span>
         <input class="female-input" type="number" min="0" inputmode="numeric" value="${kit.registered_female || 0}" placeholder="Female" style="text-align:center;font-size:13px;">
       </div>
@@ -929,40 +972,70 @@ function formCard(kit) {
       <span>Total:</span>
       <span class="num">${(kit.registered_male || 0) + (kit.registered_female || 0)}</span>
     </div>
-    <div class="field-error hidden" id="err-${kit.kit_id}"></div>
+    <div class="field-error hidden" id="err-${kit.kit_id}"><i class="ti ti-alert-circle"></i><span></span></div>
+  </div>`;
+}
+
+function renderTallySheet(kits, { editable }) {
+  if (!kits.length) return '';
+  const totalMale = kits.reduce((s, k) => s + (parseInt(k.registered_male) || 0), 0);
+  const totalFemale = kits.reduce((s, k) => s + (parseInt(k.registered_female) || 0), 0);
+  const wardName = currentVRA ? currentVRA.ward_name : (kits[0].ward_name || '');
+  const dateVal = document.getElementById('date-picker').value;
+
+  const rows = kits.map((kit, idx) => {
+    const male = kit.registered_male || 0;
+    const female = kit.registered_female || 0;
+    const total = male + female;
+    return `
+    <div class="tally-row" data-kit="${kit.kit_id}" data-editable="${editable}" style="animation-delay:${idx * 40}ms">
+      <div class="stamp"><i class="ti ti-check"></i></div>
+      <div class="r-info">
+        <div class="r-name">${kit.kit_name} <span class="kit-serial">${kit.serial_no}</span></div>
+        <div class="r-venue"><i class="ti ti-map-pin" style="font-size:10px;"></i> ${kit.venue || '—'}</div>
+      </div>
+      <div class="r-counts"><span class="m">M ${male}</span><span class="f">F ${female}</span></div>
+      <div class="r-total">${total}</div>
+      ${editable ? `<div class="reveal-edit"><button class="row-edit-btn" title="Edit"><i class="ti ti-pencil"></i></button></div>` : ''}
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="tally-sheet">
+    <div class="tally-head">
+      <div>
+        <div class="eyebrow">Tally sheet</div>
+        <div class="ward-line">${wardName || 'Ward'} &middot; ${dateVal}</div>
+      </div>
+      <div class="stamp-mini"><i class="ti ti-stamp"></i> Verified</div>
+    </div>
+    <div class="tally-rows">${rows}</div>
+    <div class="tally-foot">
+      <span>M ${totalMale} &middot; F ${totalFemale}</span>
+      ${editable ? `<span class="hint"><i class="ti ti-hand-click" style="font-size:11px;"></i> Tap a row to edit</span>` : ''}
+    </div>
   </div>`;
 }
 
 function updateSummary() {
   let totalMale = 0, totalFemale = 0;
-  const cards = document.querySelectorAll('.kit-card');
-
-  cards.forEach(card => {
+  kitsData.forEach(k => {
+    totalMale += parseInt(k.registered_male) || 0;
+    totalFemale += parseInt(k.registered_female) || 0;
+  });
+  // For pending kits still being filled in, pull live values from their inputs instead of stale kit data.
+  document.querySelectorAll('#kits-container .kit-card').forEach(card => {
     const maleInput = card.querySelector('.male-input');
     const femaleInput = card.querySelector('.female-input');
-
-    if (maleInput && femaleInput) {
-      totalMale += parseInt(maleInput.value) || 0;
-      totalFemale += parseInt(femaleInput.value) || 0;
-    } else {
-      const kitId = card.dataset.kit;
-      if (kitId) {
-        const kit = kitsData.find(k => k.kit_id == kitId);
-        if (kit) {
-          totalMale += parseInt(kit.registered_male) || 0;
-          totalFemale += parseInt(kit.registered_female) || 0;
-        }
+    const kitId = card.dataset.kit;
+    if (maleInput && femaleInput && kitId) {
+      const kit = kitsData.find(k => k.kit_id == kitId);
+      if (kit && !kit.has_entry) {
+        totalMale += (parseInt(maleInput.value) || 0) - (parseInt(kit.registered_male) || 0);
+        totalFemale += (parseInt(femaleInput.value) || 0) - (parseInt(kit.registered_female) || 0);
       }
     }
   });
-
-  if (cards.length === 0) {
-    kitsData.forEach(k => {
-      totalMale += parseInt(k.registered_male) || 0;
-      totalFemale += parseInt(k.registered_female) || 0;
-    });
-  }
-
   const total = totalMale + totalFemale;
   document.getElementById('summary-total').textContent = total;
   document.getElementById('summary-male').textContent = totalMale;
@@ -970,25 +1043,138 @@ function updateSummary() {
   document.getElementById('summary-kits').textContent = `${kitsData.length} kits`;
 }
 
+document.getElementById('kits-container').addEventListener('input', (e) => {
+  if (e.target.classList.contains('male-input') || e.target.classList.contains('female-input')) {
+    updateSummary();
+  }
+});
+
+// ============================================================
+// SUCCESS MODAL (bulk submit)
+// ============================================================
+
+function showSuccessModal(count) {
+  const overlay = document.getElementById('success-modal');
+  const subtitle = document.getElementById('modal-subtitle');
+  const dateVal = document.getElementById('date-picker').value;
+  subtitle.textContent = `${count} ${count === 1 ? 'entry has' : 'entries have'} been recorded for ${dateVal}.`;
+  overlay.classList.remove('hidden');
+  void overlay.offsetWidth;
+  overlay.classList.add('show');
+}
+
+function hideSuccessModal() {
+  const overlay = document.getElementById('success-modal');
+  overlay.classList.remove('show');
+  setTimeout(() => overlay.classList.add('hidden'), 300);
+}
+
+document.getElementById('modal-done-btn').addEventListener('click', hideSuccessModal);
+document.getElementById('modal-view-btn').addEventListener('click', () => {
+  hideSuccessModal();
+  document.getElementById('entry-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+document.getElementById('success-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'success-modal') hideSuccessModal();
+});
+
+// ============================================================
+// EDIT-ONE-KIT MODAL (only reachable by tapping a tally row)
+// ============================================================
+
+function openEditModal(kitId) {
+  const kit = kitsData.find(k => k.kit_id == kitId);
+  if (!kit) return;
+  currentEditKitId = kitId;
+  document.getElementById('edit-kit-sub').textContent = `${kit.kit_name} · ${kit.serial_no}`;
+  document.getElementById('edit-venue').value = kit.venue || '';
+  document.getElementById('edit-male').value = kit.registered_male || 0;
+  document.getElementById('edit-female').value = kit.registered_female || 0;
+  document.getElementById('edit-kit-error').classList.add('hidden');
+  const overlay = document.getElementById('edit-kit-modal');
+  overlay.classList.remove('hidden');
+  void overlay.offsetWidth;
+  overlay.classList.add('show');
+}
+
+function hideEditModal() {
+  const overlay = document.getElementById('edit-kit-modal');
+  overlay.classList.remove('show');
+  setTimeout(() => overlay.classList.add('hidden'), 300);
+  currentEditKitId = null;
+}
+
+document.getElementById('edit-cancel-btn').addEventListener('click', hideEditModal);
+document.getElementById('edit-kit-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'edit-kit-modal') hideEditModal();
+});
+
+document.getElementById('edit-save-btn').addEventListener('click', async () => {
+  if (!currentEditKitId) return;
+  const venue = document.getElementById('edit-venue').value.trim();
+  const male = parseInt(document.getElementById('edit-male').value) || 0;
+  const female = parseInt(document.getElementById('edit-female').value) || 0;
+  const errBox = document.getElementById('edit-kit-error');
+
+  if (!venue) { setMsgBox(errBox, 'Venue is required.'); return; }
+  if (male === 0 && female === 0) { setMsgBox(errBox, 'Enter at least one voter.'); return; }
+  errBox.classList.add('hidden');
+
+  const btn = document.getElementById('edit-save-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader spin"></i> Saving...';
+
+  try {
+    const deviceInfo = await deviceFingerprint.getDeviceInfo();
+    const body = new URLSearchParams();
+    if (deviceInfo && deviceInfo.fingerprint) body.append('fingerprint', deviceInfo.fingerprint);
+    else body.append('token', getDeviceToken());
+    body.append('date', document.getElementById('date-picker').value);
+    body.append('kit_id[]', currentEditKitId);
+    body.append('venue[]', venue);
+    body.append('registered_male[]', male);
+    body.append('registered_female[]', female);
+
+    const res = await fetch('/kiems/submit-entries/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    });
+    const data = await res.json();
+    if (data.ok) {
+      lastSubmittedKitIds = [currentEditKitId];
+      hideEditModal();
+      await loadKits();
+    } else {
+      setMsgBox(errBox, 'Could not save this entry. Please try again.');
+    }
+  } catch (e) {
+    setMsgBox(errBox, 'Network error. Please try again.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-device-floppy"></i> Save changes';
+  }
+});
+
+// ============================================================
+// BULK SUBMIT (pending kits only)
+// ============================================================
+
 document.getElementById('submit-btn').addEventListener('click', async () => {
-  const kitCards = document.querySelectorAll('.kit-card');
+  const kitCards = document.querySelectorAll('#kits-container .kit-card');
   const body = new URLSearchParams();
 
-  // Get device info for fingerprint
   const deviceInfo = await deviceFingerprint.getDeviceInfo();
-  if (deviceInfo && deviceInfo.fingerprint) {
-    body.append('fingerprint', deviceInfo.fingerprint);
-  } else {
-    body.append('token', getDeviceToken());
-  }
+  if (deviceInfo && deviceInfo.fingerprint) body.append('fingerprint', deviceInfo.fingerprint);
+  else body.append('token', getDeviceToken());
 
-  // Add date
   const datePicker = document.getElementById('date-picker');
   body.append('date', datePicker.value);
 
   let hasEntries = false;
   let valid = true;
   let firstError = null;
+  const submittingKitIds = [];
 
   kitCards.forEach(card => {
     const venue = card.querySelector('.venue-input')?.value.trim();
@@ -999,29 +1185,28 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
     const maleNum = parseInt(male) || 0;
     const femaleNum = parseInt(female) || 0;
 
-    if (card.querySelector('.venue-input') && !card.querySelector('.venue-input')?.readOnly) {
-      hasEntries = true;
-      if (!venue) {
-        valid = false;
-        const errEl = document.getElementById(`err-${kitId}`);
-        if (errEl) { errEl.textContent = 'Venue required.'; errEl.classList.remove('hidden'); }
-        if (!firstError) firstError = 'Venue required for all kits.';
-      } else if (maleNum === 0 && femaleNum === 0) {
-        valid = false;
-        const errEl = document.getElementById(`err-${kitId}`);
-        if (errEl) { errEl.textContent = 'Enter at least one voter.'; errEl.classList.remove('hidden'); }
-        if (!firstError) firstError = 'Each kit needs at least one registered voter.';
-      } else {
-        body.append('kit_id[]', kitId);
-        body.append('venue[]', venue);
-        body.append('registered_male[]', maleNum);
-        body.append('registered_female[]', femaleNum);
-      }
+    hasEntries = true;
+    if (!venue) {
+      valid = false;
+      const errEl = document.getElementById(`err-${kitId}`);
+      if (errEl) { setMsgBox(errEl, 'Venue required.'); }
+      if (!firstError) firstError = 'Venue required for all kits.';
+    } else if (maleNum === 0 && femaleNum === 0) {
+      valid = false;
+      const errEl = document.getElementById(`err-${kitId}`);
+      if (errEl) { setMsgBox(errEl, 'Enter at least one voter.'); }
+      if (!firstError) firstError = 'Each kit needs at least one registered voter.';
+    } else {
+      body.append('kit_id[]', kitId);
+      body.append('venue[]', venue);
+      body.append('registered_male[]', maleNum);
+      body.append('registered_female[]', femaleNum);
+      submittingKitIds.push(kitId);
     }
   });
 
   if (!hasEntries) {
-    setMsgBox(document.getElementById('submit-message'), 'No editable entries to submit.');
+    setMsgBox(document.getElementById('submit-message'), 'No pending entries to submit.');
     return;
   }
   if (!valid) {
@@ -1032,7 +1217,10 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
 
   const btn = document.getElementById('submit-btn');
   btn.disabled = true;
-  btn.innerHTML = '<i class="ti ti-loader" style="animation:spin 1s linear infinite;"></i> Submitting...';
+  btn.innerHTML = '<i class="ti ti-loader spin"></i> Submitting...';
+  document.getElementById('submit-message').classList.add('hidden');
+  document.getElementById('form-errors').classList.add('hidden');
+
   try {
     const res = await fetch('/kiems/submit-entries/', {
       method: 'POST',
@@ -1040,14 +1228,13 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
       body
     });
     const data = await res.json();
-    const msg = document.getElementById('submit-message');
     const errBox = document.getElementById('form-errors');
     if (data.ok) {
-      setMsgBox(msg, `Successfully submitted ${data.saved} entries!`);
+      lastSubmittedKitIds = submittingKitIds;
       errBox.classList.add('hidden');
       await loadKits();
+      showSuccessModal(data.saved);
     } else {
-      msg.classList.add('hidden');
       setMsgBox(errBox, `${data.saved || 0} entries saved. Review highlighted issues.`);
     }
   } catch (e) {
@@ -1063,17 +1250,13 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
 // ============================================================
 
 async function initializeApp() {
-    // First, register and authenticate the device
     const deviceOk = await registerDevice();
-
     if (deviceOk) {
-        // Device is authorized, proceed with normal flow
         initDatePicker();
         resolveVRA();
     }
 }
 
-// Start the app
 initializeApp();
 </script>
 </body>
