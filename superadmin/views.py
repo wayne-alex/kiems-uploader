@@ -2877,3 +2877,61 @@ def delete_device(request):
         messages.error(request, f'Error: {str(e)}')
 
     return redirect('superadmin:device_list')
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def venue_management(request):
+    """Venue management for daily entries"""
+    # Get filter parameters
+    ward_id = request.GET.get('ward')
+    kit_id = request.GET.get('kit')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+
+    # Start with all entries
+    entries = DailyKIEMSEntry.objects.select_related(
+        'kiems_kit', 'ward', 'vra'
+    ).all()
+
+    # Apply filters
+    if ward_id:
+        entries = entries.filter(ward_id=ward_id)
+    if kit_id:
+        entries = entries.filter(kiems_kit_id=kit_id)
+    if date_from:
+        try:
+            date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
+            entries = entries.filter(entry_date__gte=date_from_parsed)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
+            entries = entries.filter(entry_date__lte=date_to_parsed)
+        except ValueError:
+            pass
+
+    # Order by entry date descending, then ward name
+    entries = entries.order_by('-entry_date', 'ward__name')
+
+    # Pagination
+    paginator = Paginator(entries, 50)  # 50 entries per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Get all wards and kits for filter dropdowns
+    wards = Ward.objects.all().order_by('name')
+    kits = KIEMSKit.objects.all().order_by('kit_name')
+
+    context = {
+        'page_obj': page_obj,
+        'wards': wards,
+        'kits': kits,
+        'ward_selected': ward_id,
+        'kit_selected': kit_id,
+        'date_from': date_from,
+        'date_to': date_to,
+    }
+
+    return render(request, 'superadmin/venue_management.html', context)

@@ -1,14 +1,19 @@
 import json
-from django.db import transaction
+from datetime import datetime
+
+import requests
+from django.conf import settings
 from django.db.models import Sum, Q
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
-from django.views.decorators.http import require_GET, require_POST
-import requests
-from django.conf import settings
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods, require_GET, require_POST
 
-from .models import Ward, VRA, Phase, KIEMSKit, DailyKIEMSEntry, Device, DeviceBurnLog
+from .models import (
+    Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry,
+    Device, WhatsAppSetting, WhatsAppGroup
+)
 
 
 # ==================== WHATSAPP HELPER FUNCTIONS ====================
@@ -17,8 +22,6 @@ def get_whatsapp_group_for_vra(vra):
     """Get WhatsApp group for VRA submissions"""
     try:
         from django.contrib.auth.models import User
-        from .models import WhatsAppSetting, WhatsAppGroup
-
         admin_user = User.objects.filter(is_superuser=True).first()
         if admin_user:
             setting = WhatsAppSetting.objects.filter(user=admin_user).first()
@@ -117,7 +120,6 @@ def check_and_send_daily_report_from_vra(vra):
 
         message = format_grand_total_message(entries, total_wards)
         send_whatsapp_message_from_vra(message, vra)
-
     except Exception as e:
         print(f"Error checking daily report: {str(e)}")
 
@@ -148,12 +150,36 @@ def get_vra_from_request(request):
     return None
 
 
+def get_clerk_from_request(request):
+    """Get Clerk from request using fingerprint or token"""
+    fingerprint = request.GET.get('fingerprint') or request.POST.get('fingerprint')
+
+    if fingerprint:
+        try:
+            device = Device.objects.select_related('clerk', 'clerk__ward').get(
+                fingerprint=fingerprint,
+                is_burned=True,
+                is_active=True
+            )
+            if device.clerk:
+                return device.clerk
+        except Device.DoesNotExist:
+            pass
+
+    # Fallback to token
+    token = request.GET.get('token') or request.POST.get('token')
+    if token:
+        return Clerk.objects.filter(device_token=token, active=True).select_related('ward').first()
+
+    return None
+
+
 def get_device_from_fingerprint(fingerprint):
     """Get device from fingerprint"""
     if not fingerprint:
         return None
     try:
-        return Device.objects.select_related('vra', 'vra__ward').get(
+        return Device.objects.select_related('vra', 'vra__ward', 'clerk', 'clerk__ward').get(
             fingerprint=fingerprint,
             is_burned=True,
             is_active=True
@@ -171,6 +197,7 @@ def kiems_entry_view(request):
     return render(request, "home.html", {"wards": wards, "active_phase": active_phase})
 
 
+@csrf_exempt
 @require_POST
 def register_device(request):
     """Register a device with its fingerprint - auto-authorize by default"""
@@ -224,6 +251,19 @@ def register_device(request):
                 vra.device_fingerprint = fingerprint
                 vra.save(update_fields=['device_fingerprint'])
 
+        # Auto-bind to Clerk if fingerprint matches a Clerk's device_token or device_fingerprint
+        clerk = Clerk.objects.filter(
+            Q(device_token=fingerprint) | Q(device_fingerprint=fingerprint),
+            active=True
+        ).first()
+
+        if clerk and not device.clerk:
+            device.clerk = clerk
+            device.save(update_fields=['clerk'])
+            if not clerk.device_fingerprint:
+                clerk.device_fingerprint = fingerprint
+                clerk.save(update_fields=['device_fingerprint'])
+
         return JsonResponse({
             'ok': True,
             'device_id': device.id,
@@ -233,6 +273,8 @@ def register_device(request):
             'vra_name': device.vra.name if device.vra else None,
             'ward_id': device.vra.ward_id if device.vra else None,
             'ward_name': device.vra.ward.name if device.vra else None,
+            'clerk_id': device.clerk_id if device.clerk else None,
+            'clerk_name': device.clerk.name if device.clerk else None,
             'created': created,
             'auto_authorized': True
         })
@@ -256,7 +298,7 @@ def check_device_status(request):
         }, status=400)
 
     try:
-        device = Device.objects.select_related('vra', 'vra__ward').get(fingerprint=fingerprint)
+        device = Device.objects.select_related('vra', 'vra__ward', 'clerk', 'clerk__ward').get(fingerprint=fingerprint)
 
         return JsonResponse({
             'ok': True,
@@ -266,6 +308,8 @@ def check_device_status(request):
             'vra_name': device.vra.name if device.vra else None,
             'ward_id': device.vra.ward_id if device.vra else None,
             'ward_name': device.vra.ward.name if device.vra else None,
+            'clerk_id': device.clerk_id if device.clerk else None,
+            'clerk_name': device.clerk.name if device.clerk else None,
             'authorized_date': device.burn_date.isoformat() if device.burn_date else None,
             'device_id': device.id,
         })
@@ -279,6 +323,8 @@ def check_device_status(request):
             'vra_name': None,
             'ward_id': None,
             'ward_name': None,
+            'clerk_id': None,
+            'clerk_name': None,
         })
 
 
@@ -323,6 +369,48 @@ def resolve_vra(request):
     return JsonResponse({"bound": False})
 
 
+@require_GET
+def resolve_clerk(request):
+    """Resolve Clerk using fingerprint (modern method)"""
+    fingerprint = request.GET.get('fingerprint')
+
+    if fingerprint:
+        try:
+            device = Device.objects.select_related('clerk', 'clerk__ward').get(
+                fingerprint=fingerprint,
+                is_burned=True,
+                is_active=True
+            )
+            if device.clerk:
+                return JsonResponse({
+                    "bound": True,
+                    "clerk_id": device.clerk.id,
+                    "clerk_name": device.clerk.name,
+                    "ward_id": device.clerk.ward_id if device.clerk.ward else None,
+                    "ward_name": device.clerk.ward.name if device.clerk.ward else None,
+                    "device_id": device.id,
+                    "is_authorized": True
+                })
+        except Device.DoesNotExist:
+            pass
+
+    # Fallback to token-based method (legacy support)
+    token = request.GET.get("token")
+    if token:
+        clerk = Clerk.objects.filter(device_token=token, active=True).select_related("ward").first()
+        if clerk:
+            return JsonResponse({
+                "bound": True,
+                "clerk_id": clerk.id,
+                "clerk_name": clerk.name,
+                "ward_id": clerk.ward_id if clerk.ward else None,
+                "ward_name": clerk.ward.name if clerk.ward else None
+            })
+
+    return JsonResponse({"bound": False})
+
+
+@csrf_exempt
 @require_POST
 def bind_ward(request):
     """Bind a VRA to a device using ward selection (legacy method)"""
@@ -390,11 +478,80 @@ def bind_ward(request):
     })
 
 
+@csrf_exempt
+@require_POST
+def bind_clerk(request):
+    """Bind a Clerk to a device using ward selection (legacy method)"""
+    token = request.POST.get("token")
+    ward_id = request.POST.get("ward_id")
+    fingerprint = request.POST.get("fingerprint")
+
+    # Try fingerprint first
+    if fingerprint:
+        try:
+            device = Device.objects.get(fingerprint=fingerprint, is_burned=True, is_active=True)
+            clerk = Clerk.objects.filter(ward_id=ward_id, active=True).first()
+            if clerk:
+                device.clerk = clerk
+                device.save(update_fields=['clerk'])
+                clerk.device_fingerprint = fingerprint
+                clerk.save(update_fields=['device_fingerprint'])
+
+                # Also set the device token for legacy support
+                if not clerk.device_token:
+                    clerk.device_token = fingerprint
+                    clerk.save(update_fields=['device_token'])
+
+                return JsonResponse({
+                    "ok": True,
+                    "clerk_id": clerk.id,
+                    "clerk_name": clerk.name,
+                    "ward_id": clerk.ward_id,
+                    "ward_name": clerk.ward.name,
+                    "device_id": device.id
+                })
+        except Device.DoesNotExist:
+            pass
+
+    # Fallback to token-based (legacy)
+    if not token:
+        return JsonResponse({
+            "ok": False,
+            "error": "No authentication provided"
+        }, status=400)
+
+    clerk = Clerk.objects.filter(ward_id=ward_id, active=True).first()
+    if not clerk:
+        return JsonResponse({
+            "ok": False,
+            "error": "No Clerk is registered for this ward. Contact your ICT officer."
+        }, status=404)
+
+    if clerk.device_token and clerk.device_token != token:
+        return JsonResponse({
+            "ok": False,
+            "error": "This ward is already registered on another device. Contact your ICT officer."
+        }, status=409)
+
+    if not clerk.device_token:
+        clerk.device_token = token
+        clerk.save(update_fields=["device_token"])
+
+    return JsonResponse({
+        "ok": True,
+        "clerk_id": clerk.id,
+        "clerk_name": clerk.name,
+        "ward_id": clerk.ward_id,
+        "ward_name": clerk.ward.name
+    })
+
+
+@csrf_exempt
 @require_POST
 def auto_bind_vra(request):
     """Auto-bind a VRA to a device using fingerprint"""
     try:
-        data = json.loads(request.body) if request.body else request.POST
+        data = json.loads(request.body) if request.body else request.POST.dict()
         vra_id = data.get('vra_id')
         fingerprint = data.get('fingerprint')
 
@@ -426,6 +583,47 @@ def auto_bind_vra(request):
         return JsonResponse({"ok": False, "error": "Device not found or not authorized"}, status=404)
     except VRA.DoesNotExist:
         return JsonResponse({"ok": False, "error": "VRA not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_POST
+def auto_bind_clerk(request):
+    """Auto-bind a Clerk to a device using fingerprint"""
+    try:
+        data = json.loads(request.body) if request.body else request.POST.dict()
+        clerk_id = data.get('clerk_id')
+        fingerprint = data.get('fingerprint')
+
+        if not fingerprint:
+            return JsonResponse({"ok": False, "error": "Fingerprint required"}, status=400)
+
+        device = get_object_or_404(Device, fingerprint=fingerprint, is_burned=True, is_active=True)
+        clerk = get_object_or_404(Clerk, id=clerk_id, active=True)
+
+        # Update device
+        device.clerk = clerk
+        device.save(update_fields=['clerk'])
+
+        # Update Clerk
+        clerk.device_fingerprint = fingerprint
+        if not clerk.device_token:
+            clerk.device_token = fingerprint
+        clerk.save(update_fields=['device_fingerprint', 'device_token'])
+
+        return JsonResponse({
+            "ok": True,
+            "clerk_id": clerk.id,
+            "clerk_name": clerk.name,
+            "ward_id": clerk.ward_id if clerk.ward else None,
+            "ward_name": clerk.ward.name if clerk.ward else None
+        })
+
+    except Device.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "Device not found or not authorized"}, status=404)
+    except Clerk.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "Clerk not found"}, status=404)
     except Exception as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=500)
 
@@ -466,7 +664,7 @@ def kits_with_entries(request):
     # Parse date or use today
     try:
         if date_str:
-            selected_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date()
+            selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         else:
             selected_date = timezone.localdate()
     except ValueError:
@@ -475,7 +673,7 @@ def kits_with_entries(request):
     # Get all kits for this ward
     kits = KIEMSKit.objects.filter(ward=vra.ward, status=True).order_by('kit_name')
 
-    # Get existing entries for the selected date
+    # Get existing entries for the selected date (including future dates)
     existing = {
         e.kiems_kit_id: e for e in DailyKIEMSEntry.objects.filter(
             kiems_kit__in=kits,
@@ -484,6 +682,19 @@ def kits_with_entries(request):
             vra=vra
         )
     }
+
+    # Also check for entries created by clerks for this ward on this date
+    clerk_entries = DailyKIEMSEntry.objects.filter(
+        kiems_kit__in=kits,
+        phase=active_phase,
+        entry_date=selected_date,
+        ward=vra.ward
+    ).exclude(vra=vra)
+
+    # Merge clerk entries into existing
+    for entry in clerk_entries:
+        if entry.kiems_kit_id not in existing:
+            existing[entry.kiems_kit_id] = entry
 
     data = []
     for kit in kits:
@@ -504,6 +715,7 @@ def kits_with_entries(request):
             "has_entry": bool(entry),
             "is_today": selected_date == timezone.localdate(),
             "selected_date": selected_date.strftime('%Y-%m-%d'),
+            "is_future": selected_date > timezone.localdate(),
         }
         data.append(kit_data)
 
@@ -514,10 +726,12 @@ def kits_with_entries(request):
         "kit_count": len(data),
         "selected_date": selected_date.strftime('%Y-%m-%d'),
         "is_today": selected_date == timezone.localdate(),
+        "is_future": selected_date > timezone.localdate(),
         "device_authorized": True
     })
 
 
+@csrf_exempt
 @require_POST
 def submit_daily_entries(request):
     """Submit entries - uses fingerprint for auth"""
@@ -553,7 +767,7 @@ def submit_daily_entries(request):
     # Parse date or use today
     try:
         if date_str:
-            entry_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date()
+            entry_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         else:
             entry_date = timezone.localdate()
     except ValueError:
@@ -634,3 +848,413 @@ def submit_daily_entries(request):
         "saved": saved,
         "message": "Entries submitted successfully!"
     })
+
+
+# ==================== CLERK MAPPING API ENDPOINTS ====================
+
+
+def clerk_venue_mapping_view(request):
+    """Clerk venue mapping tool - assign venues to entries."""
+    context = {
+        'active_phase': Phase.objects.filter(active=True).first(),
+    }
+    return render(request, 'clerk_mapping.html', context)
+
+
+@require_http_methods(["GET"])
+def ward_list(request):
+    """Get list of all active wards."""
+    try:
+        wards = Ward.objects.all().order_by('name')
+        ward_data = [{'id': w.id, 'name': w.name} for w in wards]
+        return JsonResponse({
+            'ok': True,
+            'wards': ward_data,
+            'count': len(ward_data)
+        })
+    except Exception as e:
+        return JsonResponse({
+            'ok': False,
+            'error': str(e)
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def kit_list(request):
+    """Get kits assigned to a specific ward."""
+    ward_id = request.GET.get('ward_id')
+
+    if not ward_id:
+        return JsonResponse({'error': 'Ward ID is required'}, status=400)
+
+    try:
+        ward = Ward.objects.get(id=ward_id)
+    except Ward.DoesNotExist:
+        return JsonResponse({'error': 'Ward not found'}, status=404)
+
+    # Get kits for this ward (KIEMSKit has ward ForeignKey directly)
+    kits = KIEMSKit.objects.filter(ward=ward, status=True).order_by('kit_name')
+
+    kits_data = []
+    for kit in kits:
+        kits_data.append({
+            'id': kit.id,
+            'kit_name': kit.kit_name,
+            'serial_no': kit.serial_no,
+        })
+
+    return JsonResponse({
+        'ok': True,
+        'ward_name': ward.name,
+        'kits': kits_data,
+        'count': len(kits_data)
+    })
+
+
+@require_http_methods(["GET"])
+def clerk_records(request):
+    """Get records for a specific kit (entries with dates and venues)."""
+    kit_id = request.GET.get('kit_id')
+    date_str = request.GET.get('date')
+    fingerprint = request.GET.get('fingerprint')
+
+    if not kit_id:
+        return JsonResponse({'error': 'Kit ID is required'}, status=400)
+
+    try:
+        kit = KIEMSKit.objects.get(id=kit_id, status=True)
+    except KIEMSKit.DoesNotExist:
+        return JsonResponse({'error': 'Kit not found'}, status=404)
+
+    # Parse date
+    try:
+        if date_str:
+            filter_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        else:
+            filter_date = timezone.now().date()
+    except ValueError:
+        filter_date = timezone.now().date()
+
+    # Get active phase
+    active_phase = Phase.objects.filter(active=True).first()
+    if not active_phase:
+        return JsonResponse({'error': 'No active phase found'}, status=404)
+
+    # Get entries for this kit on the specified date
+    entries = DailyKIEMSEntry.objects.filter(
+        kiems_kit=kit,
+        phase=active_phase,
+        entry_date=filter_date
+    ).order_by('-entry_date')
+
+    records = []
+    for entry in entries:
+        records.append({
+            'entry_id': entry.id,
+            'date': entry.entry_date.isoformat(),
+            'venue': entry.venue or '',
+            'editable': True,
+        })
+
+    # If no entries exist for this date, create placeholder records from past entries
+    if not records:
+        # Get past entries for this kit to show as reference
+        past_entries = DailyKIEMSEntry.objects.filter(
+            kiems_kit=kit,
+            phase=active_phase
+        ).exclude(entry_date=filter_date).order_by('-entry_date')[:10]
+
+        for entry in past_entries:
+            records.append({
+                'entry_id': entry.id,
+                'date': entry.entry_date.isoformat(),
+                'venue': entry.venue or '',
+                'editable': True,  # All entries are editable now
+            })
+
+        # If still no records, create a placeholder with a temporary ID
+        if not records:
+            # Create a temporary record for the selected date
+            records.append({
+                'entry_id': 0,  # Temporary ID for new entries
+                'date': filter_date.isoformat(),
+                'venue': '',
+                'editable': True,
+                'is_new': True,
+            })
+
+    # Get clerk info if available from device
+    clerk_data = None
+    if fingerprint:
+        try:
+            device = Device.objects.select_related('clerk', 'clerk__ward').get(
+                fingerprint=fingerprint,
+                is_burned=True,
+                is_active=True
+            )
+            if device.clerk:
+                clerk_data = {
+                    'id': device.clerk.id,
+                    'name': device.clerk.name,
+                    'ward_name': device.clerk.ward.name if device.clerk.ward else None,
+                }
+        except Device.DoesNotExist:
+            pass
+
+    return JsonResponse({
+        'ok': True,
+        'kit_name': kit.kit_name,
+        'kit_serial': kit.serial_no,
+        'records': records,
+        'count': len(records),
+        'clerk': clerk_data,
+        'date': filter_date.strftime('%Y-%m-%d'),
+    })
+
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def save_clerk_venues(request):
+    """Save venue updates for multiple entries - updates existing entries by ID."""
+    try:
+        # Parse request body
+        data = json.loads(request.body)
+        kit_id = data.get('kit_id')
+        updates = data.get('updates', [])
+        date_str = data.get('date')
+        ward_id = data.get('ward_id')
+        fingerprint = data.get('fingerprint')
+
+        # Validate required fields
+        if not updates:
+            return JsonResponse({'error': 'No updates provided'}, status=400)
+
+        # Get active phase
+        active_phase = Phase.objects.filter(active=True).first()
+        if not active_phase:
+            return JsonResponse({'error': 'No active phase found'}, status=404)
+
+        # Parse date
+        try:
+            if date_str:
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+            else:
+                date_obj = timezone.now().date()
+        except ValueError:
+            date_obj = timezone.now().date()
+
+        print(f"[clerk-mapping] Saving for date: {date_obj}")
+
+        # Get clerk and VRA from device fingerprint
+        clerk = None
+        vra = None
+
+        if fingerprint:
+            try:
+                device = Device.objects.select_related('clerk', 'clerk__ward', 'vra', 'vra__ward').get(
+                    fingerprint=fingerprint,
+                    is_burned=True,
+                    is_active=True
+                )
+                clerk = device.clerk
+                vra = device.vra
+                print(
+                    f"[clerk-mapping] Found device: clerk={clerk.id if clerk else None}, vra={vra.id if vra else None}")
+            except Device.DoesNotExist:
+                print(f"[clerk-mapping] Device not found for fingerprint: {fingerprint}")
+                pass
+
+        # Fallback to token
+        if not clerk and not vra:
+            token = request.GET.get('token') or request.POST.get('token')
+            if token:
+                clerk = Clerk.objects.filter(device_token=token, active=True).first()
+                if not clerk:
+                    vra = VRA.objects.filter(device_token=token, active=True).first()
+                print(
+                    f"[clerk-mapping] Token fallback: clerk={clerk.id if clerk else None}, vra={vra.id if vra else None}")
+
+        saved_count = 0
+        errors = []
+        updated_entries = []
+        created_entries = []
+        created_ids = []
+
+        for update in updates:
+            entry_id = update.get('entry_id')
+            venue = update.get('venue', '').strip()
+            kit_id_from_update = update.get('kit_id')
+
+            if not entry_id:
+                errors.append('Missing entry_id')
+                continue
+
+            # Convert entry_id to int if it's a string
+            try:
+                entry_id = int(entry_id)
+            except (ValueError, TypeError):
+                errors.append(f'Invalid entry_id: {entry_id}')
+                continue
+
+            # Determine which kit ID to use
+            actual_kit_id = kit_id_from_update or kit_id
+
+            print(f"[clerk-mapping] Processing: entry_id={entry_id}, kit_id={actual_kit_id}, venue={venue}")
+
+            # For mapping tab, entry_id is actually the kit_id
+            # Check if this is coming from the mapping tab (entry_id is a kit_id)
+            is_from_mapping = kit_id_from_update is not None or (
+                        entry_id > 0 and not DailyKIEMSEntry.objects.filter(id=entry_id).exists())
+
+            if is_from_mapping:
+                # This is from the mapping tab - use kit_id
+                if not actual_kit_id:
+                    actual_kit_id = entry_id
+
+                try:
+                    kit = KIEMSKit.objects.get(id=actual_kit_id, status=True)
+                except KIEMSKit.DoesNotExist:
+                    errors.append(f'Kit {actual_kit_id} not found')
+                    continue
+
+                # Check if an entry exists for this kit on this date
+                existing_entry = DailyKIEMSEntry.objects.filter(
+                    kiems_kit=kit,
+                    phase=active_phase,
+                    entry_date=date_obj
+                ).first()
+
+                if existing_entry:
+                    # Update existing entry
+                    old_venue = existing_entry.venue
+                    existing_entry.venue = venue
+                    existing_entry.save(update_fields=['venue', 'updated_at'])
+                    updated_entries.append(existing_entry)
+                    saved_count += 1
+                    print(
+                        f"[clerk-mapping] Updated existing entry {existing_entry.id} for kit {kit.id} on {date_obj}: '{old_venue}' -> '{venue}'")
+                else:
+                    # Create new entry
+                    entry_data = {
+                        'kiems_kit': kit,
+                        'phase': active_phase,
+                        'ward': kit.ward,
+                        'entry_date': date_obj,
+                        'venue': venue,
+                        'registered_male': 0,
+                        'registered_female': 0,
+                    }
+
+                    # Add clerk or VRA if available
+                    if vra:
+                        entry_data['vra'] = vra
+                        entry_data['clerk'] = clerk if clerk else None
+                    elif clerk:
+                        ward_vra = VRA.objects.filter(ward=kit.ward, active=True).first()
+                        if ward_vra:
+                            entry_data['vra'] = ward_vra
+                            entry_data['clerk'] = clerk
+                        else:
+                            any_vra = VRA.objects.filter(active=True).first()
+                            if any_vra:
+                                entry_data['vra'] = any_vra
+                                entry_data['clerk'] = clerk
+                            else:
+                                errors.append(f'No VRA available for ward {kit.ward.name}')
+                                continue
+                    else:
+                        if ward_id:
+                            ward = Ward.objects.filter(id=ward_id, is_active=True).first()
+                            if ward:
+                                ward_vra = VRA.objects.filter(ward=ward, active=True).first()
+                                if ward_vra:
+                                    entry_data['vra'] = ward_vra
+                                else:
+                                    any_vra = VRA.objects.filter(active=True).first()
+                                    if any_vra:
+                                        entry_data['vra'] = any_vra
+                                    else:
+                                        errors.append('No VRA available')
+                                        continue
+                            else:
+                                errors.append(f'Ward {ward_id} not found')
+                                continue
+                        else:
+                            any_vra = VRA.objects.filter(active=True).first()
+                            if any_vra:
+                                entry_data['vra'] = any_vra
+                            else:
+                                errors.append('No VRA available')
+                                continue
+
+                    entry = DailyKIEMSEntry.objects.create(**entry_data)
+                    created_entries.append(entry)
+                    created_ids.append(entry.id)
+                    saved_count += 1
+                    print(f"[clerk-mapping] Created new entry {entry.id} for kit {kit.id} on {date_obj}")
+
+            elif entry_id > 0:
+                # This is a regular entry ID - update existing entry
+                try:
+                    entry = DailyKIEMSEntry.objects.get(id=entry_id)
+                    old_venue = entry.venue
+                    old_date = entry.entry_date
+
+                    entry.venue = venue
+                    entry.save(update_fields=['venue', 'updated_at'])
+
+                    updated_entries.append(entry)
+                    saved_count += 1
+                    print(
+                        f"[clerk-mapping] Updated entry {entry_id}: date={old_date}, venue: '{old_venue}' -> '{venue}'")
+
+                except DailyKIEMSEntry.DoesNotExist:
+                    errors.append(f'Entry {entry_id} not found')
+                    print(f"[clerk-mapping] Entry {entry_id} not found")
+                except Exception as e:
+                    errors.append(f'Entry {entry_id}: {str(e)}')
+                    print(f"[clerk-mapping] Error processing entry {entry_id}: {str(e)}")
+            else:
+                errors.append(f'Invalid entry_id: {entry_id}')
+
+        # Skip WhatsApp notifications for venue-only updates
+        # Only send if there are actual voter counts
+        try:
+            has_vra_data = False
+            for entry in updated_entries + created_entries:
+                if entry.registered_male > 0 or entry.registered_female > 0:
+                    has_vra_data = True
+                    break
+
+            if has_vra_data and vra:
+                for entry in updated_entries + created_entries:
+                    if entry.vra and (entry.registered_male > 0 or entry.registered_female > 0):
+                        is_update = entry in updated_entries
+                        message = format_vra_submission_message(entry, is_update)
+                        send_whatsapp_message_from_vra(message, entry.vra)
+
+                if updated_entries or created_entries:
+                    check_and_send_daily_report_from_vra(vra)
+        except Exception as e:
+            print(f"[clerk-mapping] WhatsApp error: {str(e)}")
+
+        return JsonResponse({
+            'ok': True,
+            'saved': saved_count,
+            'created': len(created_entries),
+            'updated': len(updated_entries),
+            'entry_ids': created_ids,
+            'errors': errors if errors else None,
+            'message': f'Saved {saved_count} entries for {date_obj.strftime("%Y-%m-%d")}',
+            'date': date_obj.strftime('%Y-%m-%d'),
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        print(f"[clerk-mapping] Save error: {str(e)}")
+        return JsonResponse({
+            'ok': False,
+            'error': str(e)
+        }, status=500)

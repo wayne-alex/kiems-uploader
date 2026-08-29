@@ -1,0 +1,1653 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Clerk KIEMS Venue Mapping</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/iconfont/tabler-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <!-- FingerprintJS (open-source build) -->
+  <script src="https://openfpcdn.io/fingerprintjs/v4/iife.min.js"></script>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, sans-serif;
+      background: #F0F1EC;
+      color: #1C1C1E;
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.3;
+    }
+    :root {
+      --green: #6B9C3F;
+      --green-dark: #4C7128;
+      --green-tint: #EAF3DD;
+      --green-glow: rgba(107,156,63,0.15);
+      --ink-stamp: #2F5A18;
+      --bg: #F0F1EC;
+      --surface: #FFFFFF;
+      --surface-2: #F6F6F2;
+      --paper: #FCFBF7;
+      --ink: #1C1C1E;
+      --ink-2: #6E6E73;
+      --ink-3: #ACACA8;
+      --border: #E7E7E2;
+      --border-dash: #D8D8D2;
+      --error: #D3372A;
+      --error-tint: #FBE8E6;
+      --male: #1E5FA8;
+      --male-tint: #E9F1FB;
+      --female: #B23A32;
+      --female-tint: #FBEAE8;
+      --r: 13px;
+      --r-lg: 20px;
+      --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+      --shadow-sm: 0 1px 2px rgba(28,28,30,0.05);
+      --shadow-md: 0 8px 22px rgba(28,28,30,0.08), 0 1px 3px rgba(28,28,30,0.05);
+      --shadow-lg: 0 24px 60px rgba(20,22,18,0.22), 0 6px 16px rgba(20,22,18,0.10);
+      --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .navbar {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(240,241,236,0.86);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+    }
+    .brand-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+    .brand-row img { height: 18px; width: 18px; border-radius: 50%; object-fit: contain; background: white; }
+    .brand-row span { font-size: 11.5px; font-weight: 700; color: var(--green-dark); display: flex; align-items: center; gap: 4px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .title { font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 21px; font-weight: 700; letter-spacing: -0.4px; margin: 0; line-height: 1.15; }
+    .content { max-width: 560px; margin: 0 auto; padding: 12px 14px 36px; }
+    .group { background: var(--surface); border-radius: var(--r); overflow: hidden; margin-bottom: 4px; box-shadow: var(--shadow-sm); }
+    .row { padding: 9px 14px; border-bottom: 0.5px solid var(--border); position: relative; }
+    .row:last-child { border-bottom: none; }
+    .row label { font-size: 10px; color: var(--ink-2); display: block; margin-bottom: 1px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+    .row select { border: none; outline: none; font-size: 14.5px; color: var(--ink); background: transparent; width: 100%; -webkit-appearance: none; appearance: none; font-family: inherit; cursor: pointer; padding: 1px 0; font-weight: 500; }
+    .row.select-row::after { content: ""; position: absolute; right: 14px; top: 50%; width: 7px; height: 7px; border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3); transform: translateY(-60%) rotate(45deg); pointer-events: none; }
+    .btn-primary {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 9px;
+      background: linear-gradient(180deg, #78ab4c, var(--green));
+      color: #fff;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      transition: transform .15s var(--ease), opacity .15s var(--ease), box-shadow .15s var(--ease);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      box-shadow: 0 2px 8px rgba(107,156,63,0.25);
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .btn-primary:hover:not(:disabled) { opacity: 0.9; }
+    .btn-primary:active:not(:disabled) { transform: scale(0.97); }
+    .btn-primary:disabled { background: #D1D1D6; box-shadow: none; cursor: not-allowed; opacity: 0.7; }
+    .btn-primary.small { padding: 5px 12px; font-size: 11px; }
+    .btn-primary.success { background: var(--green-dark); }
+
+    .btn-secondary {
+      width: 100%; padding: 12px; border: none; border-radius: 11px;
+      background: var(--surface-2); color: var(--ink); font-weight: 600; font-size: 14px;
+      cursor: pointer; transition: background .15s var(--ease), transform .15s var(--ease);
+      display: flex; align-items: center; justify-content: center; gap: 6px; font-family: inherit;
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:active { transform: scale(0.98); background: #EFEFEA; }
+    .spin { animation: spin 0.85s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    .msg-success { display: flex; align-items: center; gap: 6px; color: var(--green-dark); font-size: 12px; font-weight: 600; margin-top: 6px; padding: 8px 12px; background: var(--green-tint); border-radius: var(--r); }
+    .msg-error { display: flex; align-items: center; gap: 6px; color: var(--error); font-size: 11.5px; margin-top: 6px; padding: 8px 12px; background: var(--error-tint); border-radius: var(--r); }
+    .hidden { display: none !important; }
+    .empty-state { text-align: center; padding: 28px 16px; color: var(--ink-3); background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow-sm); }
+    .empty-state i { font-size: 30px; display: block; margin-bottom: 8px; }
+    .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+    .footer-note { display: flex; align-items: center; justify-content: center; gap: 5px; text-align: center; font-size: 9.5px; color: var(--ink-3); margin-top: 14px; }
+    .loading-spinner { text-align: center; padding: 24px; color: var(--ink-3); }
+    .loading-spinner i { font-size: 22px; animation: spin 1s linear infinite; display: inline-block; }
+    @media (max-width: 400px) { .content { padding: 9px 10px 24px; } }
+    input[readonly] { background: var(--surface-2); cursor: not-allowed; opacity: 0.8; }
+
+    /* ==================== Date Pills ==================== */
+    .date-pills {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+        padding: 4px 0;
+        align-items: center;
+    }
+
+    .date-pills .pills-label {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--ink-2);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        margin-right: 4px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .date-pill {
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-size: 11px;
+        font-weight: 500;
+        border: 1px solid var(--border);
+        background: var(--surface-2);
+        color: var(--ink-2);
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-family: inherit;
+    }
+
+    .date-pill:hover {
+        background: var(--surface);
+        border-color: var(--green);
+        color: var(--ink);
+    }
+
+    .date-pill.active {
+        background: var(--green-tint);
+        border-color: var(--green);
+        color: var(--green-dark);
+        font-weight: 600;
+    }
+
+    .date-pill .pill-count {
+        font-size: 9px;
+        background: rgba(0,0,0,0.06);
+        padding: 0 6px;
+        border-radius: 10px;
+        font-weight: 600;
+        min-width: 16px;
+        text-align: center;
+    }
+
+    .date-pill.active .pill-count {
+        background: rgba(107,156,63,0.15);
+    }
+
+    /* ==================== Entry Card Styles ==================== */
+    .entry-card {
+      background: var(--surface);
+      border-radius: var(--r);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+    }
+    .entry-card:hover { border-color: var(--green); box-shadow: var(--shadow-md); }
+
+    .entry-card .entry-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .entry-card .entry-date {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .entry-card .entry-date .date-icon {
+      color: var(--green-dark);
+      font-size: 14px;
+    }
+    .entry-card .entry-status {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+    .entry-card .entry-status.saved { background: var(--green-tint); color: var(--green-dark); }
+    .entry-card .entry-status.pending { background: #FFF4DE; color: #A5690C; }
+    .entry-card .entry-status.edited { background: #E3F0FF; color: #1E5FA8; }
+
+    .entry-card .entry-venue-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface-2);
+      border-radius: 8px;
+      padding: 4px 8px;
+      border: 1px solid transparent;
+      transition: border-color .15s var(--ease), background .15s var(--ease), box-shadow .15s var(--ease);
+    }
+    .entry-card .entry-venue-row:focus-within {
+      border-color: var(--green);
+      background: var(--surface);
+      box-shadow: 0 0 0 3px var(--green-tint);
+    }
+    .entry-card .entry-venue-row i {
+      font-size: 13px;
+      color: var(--ink-3);
+      flex-shrink: 0;
+    }
+    .entry-card .entry-venue-row input {
+      border: none;
+      outline: none;
+      background: none;
+      font-size: 12px;
+      color: var(--ink);
+      width: 100%;
+      font-family: inherit;
+      padding: 4px 0;
+      font-weight: 500;
+    }
+    .entry-card .entry-venue-row input::placeholder {
+      color: var(--ink-3);
+      font-weight: 400;
+    }
+    .entry-card .entry-venue-row input.changed {
+        border-color: var(--green);
+        background: var(--green-tint);
+    }
+
+    .entry-card .entry-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px dashed var(--border-dash);
+    }
+    .entry-card .entry-actions .save-feedback {
+      font-size: 10px;
+      font-weight: 500;
+      margin-right: auto;
+    }
+    .entry-card .entry-actions .save-feedback.success { color: var(--green-dark); }
+    .entry-card .entry-actions .save-feedback.error { color: var(--error); }
+    .entry-card .entry-actions .save-feedback i { font-size: 12px; }
+
+    /* ==================== Quick Actions ==================== */
+    .quick-actions {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+        padding: 6px 2px;
+        align-items: center;
+        border-top: 1px solid var(--border-dash);
+    }
+
+    .quick-actions .btn-sm {
+        padding: 3px 8px;
+        font-size: 10px;
+        border-radius: 4px;
+        background: var(--surface-2);
+        border: 0.5px solid var(--border);
+        color: var(--ink-2);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-family: inherit;
+        font-weight: 500;
+    }
+
+    .quick-actions .btn-sm:hover {
+        background: var(--surface);
+        border-color: var(--green);
+        color: var(--ink);
+    }
+
+    .quick-actions .btn-sm.danger:hover {
+        border-color: var(--error);
+        color: var(--error);
+    }
+
+    /* ==================== Clerk Profile ==================== */
+    .clerk-profile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(135deg, var(--green-tint), #d4e8bf);
+      border-radius: var(--r-lg);
+      padding: 10px 16px;
+      margin-bottom: 12px;
+      border: 1px solid rgba(107,156,63,0.2);
+      box-shadow: 0 2px 8px rgba(107,156,63,0.08);
+    }
+    .clerk-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--green), var(--green-dark));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 16px;
+      flex-shrink: 0;
+      font-family: var(--mono);
+      box-shadow: 0 2px 8px rgba(76,113,40,0.25);
+    }
+    .clerk-details {
+      flex: 1;
+      min-width: 0;
+    }
+    .clerk-details .clerk-name {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .clerk-details .clerk-name .badge-verified {
+      font-size: 9px;
+      background: var(--green);
+      color: #fff;
+      padding: 1px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+    .clerk-details .clerk-ward {
+      font-size: 11px;
+      color: var(--ink-2);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .clerk-details .clerk-ward i { font-size: 12px; }
+    .clerk-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      display: inline-block;
+      flex-shrink: 0;
+      animation: pulse-dot 2s infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.85); }
+    }
+
+    /* ==================== Device message ==================== */
+    .device-locked { text-align: center; padding: 20px 16px; border-radius: var(--r); margin-bottom: 10px; }
+    .device-locked.error { background: var(--error-tint); color: var(--error); }
+    .device-locked.success { background: var(--green-tint); color: var(--green-dark); }
+    .device-locked.info { background: var(--surface-2); color: var(--ink-2); }
+    .device-locked i { font-size: 26px; display: block; margin-bottom: 6px; }
+    .device-locked h3 { margin: 0 0 4px; font-size: 14px; }
+    .device-locked p { margin: 0 0 8px; font-size: 12.5px; }
+    .device-locked .lock-code { font-family: var(--mono); font-size: 10.5px; opacity: 0.75; }
+    .device-info-bar { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--ink-2); padding: 6px 2px; margin-bottom: 6px; }
+
+    /* Summary badge in records card */
+    .summary-badge {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 6px 0 10px 0;
+        font-size: 11px;
+        color: var(--ink-2);
+        border-bottom: 1px solid var(--border-dash);
+        margin-bottom: 10px;
+    }
+
+    .summary-badge span {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .summary-badge .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .summary-badge .dot.green { background: var(--green-dark); }
+    .summary-badge .dot.orange { background: #A5690C; }
+
+    /* ==================== Responsive ==================== */
+    @media (max-width: 400px) {
+      .clerk-profile { flex-wrap: wrap; gap: 8px; }
+      .clerk-avatar { width: 32px; height: 32px; font-size: 13px; }
+      .clerk-details .clerk-name { font-size: 13px; }
+      .entry-card .entry-header { flex-direction: column; align-items: flex-start; }
+      .entry-card .entry-actions { flex-wrap: wrap; justify-content: flex-start; }
+      .date-pills { gap: 4px; }
+      .date-pill { font-size: 10px; padding: 3px 8px; }
+    }
+  </style>
+</head>
+<body>
+<div class="navbar">
+  <div class="brand-row">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/9/92/IEBC_Emblem.png" alt="IEBC">
+    <span>IEBC <i class="ti ti-point-filled" style="font-size:5px;"></i> Turbo Constituency</span>
+  </div>
+  <div class="title">Clerk Venue Mapping</div>
+</div>
+<div class="content">
+  <!-- Device Lock/Error Messages -->
+  <div id="device-message-container"></div>
+
+  <!-- Device Info Bar -->
+  <div id="device-info-bar" class="device-info-bar hidden">
+    <span id="device-status-text">Device: <span id="device-status-label">Unknown</span></span>
+    <span id="device-id-display" style="font-family:'JetBrains Mono',monospace;font-size:9.5px;"></span>
+    <span style="font-size:9px; color:var(--ink-3); margin-left:auto;" id="lastUpdated">Last updated: --</span>
+  </div>
+
+  <!-- Clerk Profile -->
+  <div id="clerk-profile-container" class="hidden">
+    <div class="clerk-profile">
+      <div class="clerk-avatar" id="clerk-avatar">?</div>
+      <div class="clerk-details">
+        <div class="clerk-name">
+          <span id="clerk-name-display">Clerk</span>
+          <span class="badge-verified"><i class="ti ti-check" style="font-size:8px;"></i> Verified</span>
+        </div>
+        <div class="clerk-ward">
+          <i class="ti ti-map-pin"></i>
+          <span id="clerk-ward-display">Ward</span>
+          <span class="clerk-status-dot"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="identify-card">
+    <div class="group">
+      <div class="row select-row">
+        <label>Ward</label>
+        <select id="ward-select">
+          <option value="">Select ward</option>
+        </select>
+      </div>
+      <div id="ward-error" class="msg-error hidden"><i class="ti ti-alert-circle"></i><span></span></div>
+    </div>
+    <div class="group" style="margin-top:8px;">
+      <button id="load-kits-btn" class="btn-primary" style="width:100%;" disabled>Load Kits</button>
+      <button id="retry-wards-btn" class="btn-secondary" style="display:none;">Retry Wards</button>
+    </div>
+    <div id="bind-error" class="msg-error hidden"><i class="ti ti-alert-circle"></i><span></span></div>
+  </div>
+
+  <div id="kit-selection-card" class="hidden">
+    <div class="group">
+      <div class="row select-row">
+        <label>KIEMS Kit</label>
+        <select id="kit-select">
+          <option value="">Select kit</option>
+        </select>
+      </div>
+    </div>
+    <button id="load-records-btn" class="btn-primary" style="width:100%;" disabled>Load Records</button>
+    <div id="kit-error" class="msg-error hidden"><i class="ti ti-alert-circle"></i><span></span></div>
+  </div>
+
+  <div id="records-card" class="hidden">
+    <!-- Date Pills -->
+    <div class="date-pills" id="datePills">
+      <span class="pills-label">
+        <i class="ti ti-calendar"></i> Filter by Date
+      </span>
+      <button class="date-pill active" data-filter="all" onclick="filterByDate('all')">
+        All <span class="pill-count" id="countAll">0</span>
+      </button>
+    </div>
+
+    <!-- Summary Badge -->
+    <div class="summary-badge" id="summaryBadge">
+      <span><span class="dot green"></span> <span id="savedCount">0</span> saved</span>
+      <span><span class="dot orange"></span> <span id="pendingCount">0</span> pending</span>
+      <span id="filterLabel" style="margin-left:auto; font-size:9px; color:var(--ink-3);">All records</span>
+    </div>
+
+    <div id="records-container">
+      <div class="loading-spinner"><i class="ti ti-loader"></i><p>Loading records...</p></div>
+    </div>
+
+  </div>
+
+  <!-- Hidden error message for JS -->
+  <div id="save-errors" class="msg-error hidden"><i class="ti ti-alert-circle"></i><span></span></div>
+
+  <p class="footer-note"><i class="ti ti-shield-check" style="font-size:10px;"></i> IEBC Turbo Constituency <i class="ti ti-point-filled" style="font-size:5px;"></i> Clerk Venue Tool</p>
+</div>
+
+<script>
+// ============================================================
+// DEVICE FINGERPRINTING SYSTEM (Using FingerprintJS)
+// ============================================================
+
+class DeviceFingerprint {
+  constructor() {
+    this.fingerprint = null;
+    this.burnData = null;
+    this.initialized = false;
+    this.fpInstance = null;
+    this.fingerprintData = null;
+  }
+
+  async initialize() {
+    if (this.initialized) return this;
+    try {
+      this.fpInstance = await FingerprintJS.load();
+    } catch (error) {
+      console.warn('FingerprintJS failed to load, falling back to basic fingerprint:', error);
+      return this.fallbackInitialize();
+    }
+    try {
+      const result = await this.fpInstance.get();
+      this.fingerprintData = result;
+      this.fingerprint = result.visitorId;
+      const components = result.components || [];
+      this.fingerprintDetails = this.extractFingerprintDetails(components);
+      localStorage.setItem('device_fingerprint', this.fingerprint);
+      localStorage.setItem('device_fingerprint_details', JSON.stringify(this.fingerprintDetails));
+      this.burnData = this.getBurnData();
+      this.initialized = true;
+      return this;
+    } catch (error) {
+      console.error('FingerprintJS get failed:', error);
+      return this.fallbackInitialize();
+    }
+  }
+
+  fallbackInitialize() {
+    this.fingerprint = this.generateBasicFingerprint();
+    this.fingerprintDetails = this.getBasicFingerprintDetails();
+    localStorage.setItem('device_fingerprint', this.fingerprint);
+    localStorage.setItem('device_fingerprint_details', JSON.stringify(this.fingerprintDetails));
+    this.burnData = this.getBurnData();
+    this.initialized = true;
+    return this;
+  }
+
+  generateBasicFingerprint() {
+    const data = {
+      userAgent: navigator.userAgent,
+      screenWidth: screen.width,
+      screenHeight: screen.height,
+      colorDepth: screen.colorDepth,
+      language: navigator.language,
+      platform: navigator.platform,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      canvasFingerprint: this.getCanvasFingerprint(),
+      webglFingerprint: this.getWebGLFingerprint()
+    };
+    const str = JSON.stringify(data);
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash.toString(36);
+  }
+
+  getCanvasFingerprint() {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 200;
+      canvas.height = 50;
+      const ctx = canvas.getContext('2d');
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(125, 1, 62, 20);
+      ctx.fillStyle = '#069';
+      ctx.fillText('KIEMS Fingerprint', 2, 15);
+      ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+      ctx.fillText('IEBC', 4, 17);
+      return canvas.toDataURL();
+    } catch(e) {
+      return 'canvas_error';
+    }
+  }
+
+  getWebGLFingerprint() {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!gl) return 'webgl_not_supported';
+      const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+      if (!debugInfo) return 'webgl_debug_not_available';
+      const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+      const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+      return `${vendor}_${renderer}`;
+    } catch(e) {
+      return 'webgl_error';
+    }
+  }
+
+  getBasicFingerprintDetails() {
+    return {
+      userAgent: navigator.userAgent,
+      screenResolution: `${screen.width}x${screen.height}`,
+      colorDepth: screen.colorDepth,
+      language: navigator.language,
+      platform: navigator.platform,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    };
+  }
+
+  extractFingerprintDetails(components) {
+    const details = {};
+    const componentMap = {
+      'userAgent': 'userAgent', 'screenFrame': 'screenFrame', 'colorDepth': 'colorDepth',
+      'deviceMemory': 'deviceMemory', 'hardwareConcurrency': 'hardwareConcurrency',
+      'platform': 'platform', 'timezone': 'timezone', 'language': 'language',
+      'webglVendor': 'webglVendor', 'webglRenderer': 'webglRenderer', 'canvas': 'canvas', 'audio': 'audio'
+    };
+    const entries = Array.isArray(components)
+      ? components.map(comp => [comp && comp.key, comp && comp.value])
+      : Object.entries(components || {}).map(([key, comp]) => [key, comp && comp.value]);
+
+    entries.forEach(([rawKey, value]) => {
+      const key = componentMap[rawKey] || rawKey;
+      if (value !== undefined && value !== null) {
+        details[key] = value;
+      }
+    });
+    details.screenResolution = `${screen.width}x${screen.height}`;
+    return details;
+  }
+
+  async verifyFingerprint(storedFingerprint) {
+    try {
+      const result = await this.fpInstance.get();
+      const currentFingerprint = result.visitorId;
+      return storedFingerprint === currentFingerprint;
+    } catch (error) {
+      console.warn('Fingerprint verification failed, using stored:', error);
+      return true;
+    }
+  }
+
+  getBurnData() {
+    try {
+      const data = localStorage.getItem('device_burn_data');
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  setBurnData(data) {
+    localStorage.setItem('device_burn_data', JSON.stringify(data));
+    this.burnData = data;
+  }
+
+  clearBurnData() {
+    localStorage.removeItem('device_burn_data');
+    this.burnData = null;
+  }
+
+  async getDeviceInfo() {
+    await this.initialize();
+    return {
+      fingerprint: this.fingerprint,
+      fingerprintDetails: this.fingerprintDetails,
+      userAgent: navigator.userAgent,
+      screenResolution: `${screen.width}x${screen.height}`,
+      colorDepth: screen.colorDepth,
+      language: navigator.language,
+      platform: navigator.platform,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      burnData: this.burnData
+    };
+  }
+}
+
+// ============================================================
+// MAIN APPLICATION
+// ============================================================
+
+const CSRF = "{{ csrf_token }}";
+let deviceFingerprint = null;
+let currentClerk = null;
+let wards = [];
+let kits = [];
+let records = [];
+let isDeviceAuthorized = false;
+let currentKitId = null;
+let currentFilter = 'all';
+let uniqueDates = [];
+
+// ============================================================
+// UTILITY FUNCTIONS
+// ============================================================
+
+function getInitials(name) {
+  if (!name) return '?';
+  return name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+}
+
+function setMsgBox(el, text) {
+  if (!el) return;
+  const span = el.querySelector('span');
+  if (span) span.textContent = text;
+  else el.textContent = text;
+  el.classList.remove('hidden');
+}
+
+function updateLastUpdated() {
+  const now = new Date();
+  const time = now.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const display = document.getElementById('lastUpdated');
+  if (display) display.textContent = `Last updated: ${time}`;
+}
+
+function showDeviceMessage(message, type = 'error', showCode = true) {
+  const container = document.getElementById('device-message-container');
+  const code = deviceFingerprint ? deviceFingerprint.fingerprint.substring(0, 16) : 'Unknown';
+  let icon = 'ti ti-alert-circle';
+  let title = 'Device Not Authorized';
+  let cssClass = 'error';
+  if (type === 'success') { icon = 'ti ti-check-circle'; title = 'Device Authorized'; cssClass = 'success'; }
+  else if (type === 'info') { icon = 'ti ti-info-circle'; title = 'Device Information'; cssClass = 'info'; }
+  container.innerHTML = `
+      <div class="device-locked ${cssClass}">
+          <i class="${icon}"></i>
+          <h3>${title}</h3>
+          <p>${message}</p>
+          ${showCode ? `<div class="lock-code">Device ID: ${code}</div>` : ''}
+      </div>`;
+  container.classList.remove('hidden');
+}
+
+function hideDeviceMessage() {
+  document.getElementById('device-message-container').classList.add('hidden');
+  document.getElementById('device-message-container').innerHTML = '';
+}
+
+function updateDeviceInfoBar(isAuthorized, clerkName = null) {
+  const bar = document.getElementById('device-info-bar');
+  const statusLabel = document.getElementById('device-status-label');
+  const idDisplay = document.getElementById('device-id-display');
+  bar.classList.remove('hidden');
+  if (isAuthorized) {
+    statusLabel.textContent = 'Authorized';
+    statusLabel.style.color = 'var(--green-dark)';
+    const info = clerkName ? ` - ${clerkName}` : '';
+    document.getElementById('device-status-text').textContent = `Device: Authorized${info}`;
+  } else {
+    statusLabel.textContent = 'Not Authorized';
+    statusLabel.style.color = 'var(--error)';
+    document.getElementById('device-status-text').textContent = 'Device: Not Authorized';
+  }
+  if (deviceFingerprint) {
+    idDisplay.textContent = `ID: ${deviceFingerprint.fingerprint.substring(0, 12)}...`;
+  }
+  updateLastUpdated();
+}
+
+function populateSelect(selectEl, items, labelProp, valueProp) {
+  selectEl.innerHTML = '<option value="">Select</option>';
+  items.forEach(item => {
+    const option = document.createElement('option');
+    option.value = item[valueProp];
+    option.textContent = item[labelProp];
+    selectEl.appendChild(option);
+  });
+}
+
+function populateSelectWithSerial(selectEl, items) {
+  selectEl.innerHTML = '<option value="">Select kit</option>';
+  items.forEach(item => {
+    const option = document.createElement('option');
+    option.value = item.id;
+    const displayText = item.serial_no
+      ? `${item.kit_name} (${item.serial_no})`
+      : item.kit_name;
+    option.textContent = displayText;
+    selectEl.appendChild(option);
+  });
+}
+
+function updateClerkProfile(clerk) {
+  const container = document.getElementById('clerk-profile-container');
+  if (!clerk) {
+    container.classList.add('hidden');
+    return;
+  }
+  container.classList.remove('hidden');
+  document.getElementById('clerk-avatar').textContent = getInitials(clerk.name);
+  document.getElementById('clerk-name-display').textContent = clerk.name;
+  document.getElementById('clerk-ward-display').textContent = clerk.ward_name || 'Ward not assigned';
+}
+
+// ============================================================
+// DEVICE REGISTRATION & AUTHENTICATION
+// ============================================================
+
+async function registerDevice() {
+  try {
+    const fp = new DeviceFingerprint();
+    await fp.initialize();
+    deviceFingerprint = fp;
+    const deviceInfo = await fp.getDeviceInfo();
+
+    console.log('[clerk-mapping] Registering device...', deviceInfo.fingerprint);
+
+    const response = await fetch('/register-device/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fingerprint: deviceInfo.fingerprint,
+        fingerprint_details: deviceInfo.fingerprintDetails,
+        device_info: deviceInfo
+      })
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('[clerk-mapping] register-device HTTP error:', response.status, text);
+      throw new Error(`Registration failed (HTTP ${response.status})`);
+    }
+
+    const data = await response.json();
+    console.log('[clerk-mapping] register-device response:', data);
+
+    if (!data.ok && data.error) {
+      throw new Error(data.error);
+    }
+
+    isDeviceAuthorized = data.is_burned;
+
+    if (!data.is_burned) {
+      showDeviceMessage('This device has been deauthorized. Please contact your ICT officer to reauthorize it.', 'error', true);
+      updateDeviceInfoBar(false);
+      return false;
+    }
+    if (!data.is_active) {
+      showDeviceMessage('This device has been deactivated. Please contact your ICT officer for assistance.', 'error', true);
+      updateDeviceInfoBar(false);
+      return false;
+    }
+
+    hideDeviceMessage();
+
+    if (data.clerk_id) {
+      deviceFingerprint.setBurnData({ clerk_id: data.clerk_id, clerk_name: data.clerk_name });
+      updateDeviceInfoBar(true, data.clerk_name);
+      currentClerk = {
+        id: data.clerk_id,
+        name: data.clerk_name,
+        ward_name: data.ward_name || null
+      };
+      updateClerkProfile(currentClerk);
+      await loadInitialData();
+    } else {
+      updateDeviceInfoBar(true);
+      document.getElementById('identify-card').style.display = 'block';
+      await loadInitialData();
+    }
+    return true;
+
+  } catch (error) {
+    console.error('Device initialization failed:', error);
+    showDeviceMessage('Device error: ' + error.message + '. Please contact your ICT officer.', 'error', true);
+    return false;
+  }
+}
+
+async function autoBindToClerk(clerkId) {
+  try {
+    const deviceInfo = await deviceFingerprint.getDeviceInfo();
+    const response = await fetch('/auto-bind-clerk/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clerk_id: clerkId,
+        fingerprint: deviceInfo.fingerprint
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (data.ok) {
+      currentClerk = {
+        id: data.clerk_id,
+        name: data.clerk_name,
+        ward_name: data.ward_name || null
+      };
+      if (deviceFingerprint) {
+        deviceFingerprint.setBurnData({
+          clerk_id: data.clerk_id,
+          clerk_name: data.clerk_name
+        });
+      }
+      updateDeviceInfoBar(true, data.clerk_name);
+      updateClerkProfile(currentClerk);
+      await loadInitialData();
+    } else {
+      throw new Error(data.error || 'Auto-bind failed');
+    }
+  } catch (error) {
+    console.error('Auto-bind failed:', error);
+    showDeviceMessage('Failed to bind to Clerk: ' + error.message + '. Please contact your ICT officer.', 'error', true);
+  }
+}
+
+// ============================================================
+// DATA LOADING
+// ============================================================
+
+async function loadInitialData() {
+  const wardSelect = document.getElementById('ward-select');
+  const wardError = document.getElementById('ward-error');
+  const loadKitsBtn = document.getElementById('load-kits-btn');
+  const retryWardsBtn = document.getElementById('retry-wards-btn');
+
+  wardError.classList.add('hidden');
+  wardSelect.disabled = false;
+  loadKitsBtn.disabled = true;
+  retryWardsBtn.style.display = 'none';
+
+  try {
+    console.log('[clerk-mapping] Fetching ward list...');
+    const wardsResp = await fetch('/ward-list/');
+
+    if (!wardsResp.ok) {
+      const errorText = await wardsResp.text();
+      console.error('Ward list HTTP error:', wardsResp.status, errorText);
+      throw new Error(`HTTP ${wardsResp.status}: ${errorText}`);
+    }
+
+    const wardsData = await wardsResp.json();
+    console.log('[clerk-mapping] ward-list response:', wardsData);
+
+    if (!wardsData.ok) {
+      throw new Error(wardsData.error || 'Unknown error loading wards');
+    }
+
+    wards = wardsData.wards || [];
+    if (wards.length === 0) {
+      throw new Error('No wards found in the system');
+    }
+
+    populateSelect(wardSelect, wards, 'name', 'id');
+    loadKitsBtn.disabled = false;
+
+  } catch (e) {
+    console.error('Failed to load wards:', e);
+    const errorMsg = wardError.querySelector('span');
+    errorMsg.textContent = e.message || 'Could not load wards. Please check connection and try again.';
+    wardError.classList.remove('hidden');
+    wardSelect.disabled = true;
+    retryWardsBtn.style.display = 'inline-block';
+  }
+}
+
+async function loadKits() {
+  const wardId = document.getElementById('ward-select').value;
+  if (!wardId) {
+    const kitError = document.getElementById('kit-error');
+    if (kitError) setMsgBox(kitError, 'Please select a ward first.');
+    return;
+  }
+
+  const kitSelect = document.getElementById('kit-select');
+  kitSelect.innerHTML = '<option value="">Select kit</option>';
+  document.getElementById('load-records-btn').disabled = true;
+  document.getElementById('kit-selection-card').classList.remove('hidden');
+  document.getElementById('records-card').classList.add('hidden');
+  const kitError = document.getElementById('kit-error');
+  if (kitError) kitError.classList.add('hidden');
+
+  try {
+    console.log('[clerk-mapping] Fetching kits for ward:', wardId);
+    const resp = await fetch(`/kit-list/?ward_id=${wardId}`);
+
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    console.log('[clerk-mapping] kit-list response:', data);
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    kits = data.kits || [];
+    if (kits.length === 0) {
+      kitSelect.innerHTML = '<option value="">No kits assigned to this ward</option>';
+      document.getElementById('load-records-btn').disabled = true;
+      return;
+    }
+
+    populateSelectWithSerial(kitSelect, kits);
+    document.getElementById('load-records-btn').disabled = false;
+
+  } catch (e) {
+    console.error('Failed to load kits:', e);
+    const kitErrorEl = document.getElementById('kit-error');
+    if (kitErrorEl) setMsgBox(kitErrorEl, 'Could not load kits. Please try again.');
+  }
+}
+
+async function loadRecords() {
+  const kitId = document.getElementById('kit-select').value;
+
+  if (!kitId) {
+    const saveErrors = document.getElementById('save-errors');
+    if (saveErrors) setMsgBox(saveErrors, 'Please select a kit first.');
+    return;
+  }
+
+  currentKitId = kitId;
+
+  const container = document.getElementById('records-container');
+  container.innerHTML = '<div class="loading-spinner"><i class="ti ti-loader"></i><p>Loading records...</p></div>';
+
+  try {
+    let url = `/clerk-records/?kit_id=${kitId}`;
+
+    console.log('[clerk-mapping] Fetching records for kit:', kitId);
+    const resp = await fetch(url);
+
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    console.log('[clerk-mapping] clerk-records response:', data);
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    records = data.records || [];
+
+    if (data.clerk) {
+      currentClerk = {
+        id: data.clerk.id,
+        name: data.clerk.name,
+        ward_name: data.clerk.ward_name || null
+      };
+      updateClerkProfile(currentClerk);
+    }
+
+    // Extract unique dates from records
+    uniqueDates = [...new Set(records.map(r => r.date.split('T')[0]))].sort().reverse();
+
+    renderRecords();
+    document.getElementById('records-card').classList.remove('hidden');
+
+  } catch (e) {
+    console.error('Failed to load records:', e);
+    container.innerHTML = `
+      <div class="empty-state">
+        <i class="ti ti-alert-circle"></i>
+        <p>Could not load records. Please try again.</p>
+      </div>
+    `;
+  }
+}
+
+// ============================================================
+// RENDER RECORDS
+// ============================================================
+
+function renderRecords() {
+  const container = document.getElementById('records-container');
+
+  if (!records.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <i class="ti ti-calendar-plus"></i>
+        <p>No records found.</p>
+        <p style="font-size:11px;margin-top:4px;color:var(--ink-3);">
+          Select a different kit to view records.
+        </p>
+      </div>
+    `;
+    updateCounts();
+    return;
+  }
+
+  // Sort by date descending
+  const sorted = [...records].sort((a, b) => new Date(b.date) - new Date(a.date));
+  let html = '';
+
+  sorted.forEach((record, index) => {
+    const dateObj = new Date(record.date);
+    const dateStr = dateObj.toLocaleDateString('en-KE', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+
+    const hasVenue = record.venue && record.venue.trim() !== '';
+    const statusClass = hasVenue ? 'saved' : 'pending';
+    const statusLabel = hasVenue ? '✓ Saved' : 'Pending';
+
+    html += `
+      <div class="entry-card" data-entry-id="${record.entry_id}" data-date="${record.date.split('T')[0]}" style="animation-delay:${index * 20}ms">
+        <div class="entry-header">
+          <div class="entry-date">
+            <i class="ti ti-calendar date-icon"></i>
+            ${dateStr}
+          </div>
+          <span class="entry-status ${statusClass}">${statusLabel}</span>
+        </div>
+
+        <div class="entry-venue-row">
+          <i class="ti ti-map-pin"></i>
+          <input class="venue-input" data-entry-id="${record.entry_id}"
+                 value="${record.venue || ''}"
+                 placeholder="Enter venue name"
+                 data-original="${record.venue || ''}">
+        </div>
+
+        <div class="entry-actions">
+          <span class="save-feedback" id="feedback-${record.entry_id}"></span>
+          <button class="btn-primary small save-entry-btn" data-entry-id="${record.entry_id}">
+            <i class="ti ti-device-floppy"></i> Save Entry
+          </button>
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+
+  // Add event listeners for individual save buttons
+  container.querySelectorAll('.save-entry-btn').forEach(btn => {
+    btn.addEventListener('click', async function(e) {
+      e.preventDefault();
+      const entryId = parseInt(this.dataset.entryId);
+      await saveSingleEntry(entryId);
+    });
+  });
+
+  // Add input listeners for change tracking
+  container.querySelectorAll('.venue-input').forEach(input => {
+    const entryId = parseInt(input.dataset.entryId);
+    const originalValue = input.dataset.original || '';
+
+    input.addEventListener('input', function() {
+      const currentValue = this.value.trim();
+      const feedback = document.getElementById(`feedback-${entryId}`);
+
+      if (currentValue !== originalValue) {
+        this.classList.add('changed');
+        this.style.borderColor = 'var(--green)';
+        this.style.backgroundColor = 'var(--green-tint)';
+        // Update status badge
+        const card = this.closest('.entry-card');
+        const badge = card.querySelector('.entry-status');
+        if (badge) {
+          badge.textContent = 'Edited';
+          badge.className = 'entry-status edited';
+        }
+        if (feedback) {
+          feedback.innerHTML = '<i class="ti ti-pencil" style="color:var(--green-dark);"></i> Unsaved';
+          feedback.className = 'save-feedback';
+        }
+      } else {
+        this.classList.remove('changed');
+        this.style.borderColor = '';
+        this.style.backgroundColor = '';
+        // Revert status badge
+        const card = this.closest('.entry-card');
+        const badge = card.querySelector('.entry-status');
+        if (badge) {
+          if (currentValue) {
+            badge.textContent = '✓ Saved';
+            badge.className = 'entry-status saved';
+          } else {
+            badge.textContent = 'Pending';
+            badge.className = 'entry-status pending';
+          }
+        }
+        if (feedback) {
+          feedback.innerHTML = '';
+          feedback.className = 'save-feedback';
+        }
+      }
+      updateCounts();
+    });
+  });
+
+  // Generate date pills from unique dates
+  generateDatePills();
+  updateCounts();
+
+  // Apply current filter
+  if (currentFilter !== 'all') {
+    filterByDate(currentFilter);
+  }
+  updateLastUpdated();
+}
+
+// ============================================================
+// GENERATE DATE PILLS
+// ============================================================
+
+function generateDatePills() {
+  const pillsContainer = document.getElementById('datePills');
+  if (!pillsContainer) return;
+
+  // Keep the "All" button
+  let html = `
+    <span class="pills-label">
+      <i class="ti ti-calendar"></i> Filter by Date
+    </span>
+    <button class="date-pill ${currentFilter === 'all' ? 'active' : ''}" data-filter="all" onclick="filterByDate('all')">
+      All <span class="pill-count" id="countAll">0</span>
+    </button>
+  `;
+
+  // Add a pill for each unique date
+  uniqueDates.forEach(date => {
+    const isActive = currentFilter === date;
+    const displayDate = new Date(date + 'T00:00:00').toLocaleDateString('en-KE', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+    html += `
+      <button class="date-pill ${isActive ? 'active' : ''}" data-filter="${date}" onclick="filterByDate('${date}')">
+        ${displayDate} <span class="pill-count" id="count-${date}">0</span>
+      </button>
+    `;
+  });
+
+  pillsContainer.innerHTML = html;
+}
+
+// ============================================================
+// COUNTS AND FILTERS
+// ============================================================
+
+function updateCounts() {
+  const rows = document.querySelectorAll('.entry-card');
+  let saved = 0;
+  let pending = 0;
+  const dateCounts = {};
+
+  rows.forEach(row => {
+    const input = row.querySelector('.venue-input');
+    const date = row.dataset.date;
+    if (date) {
+      if (!dateCounts[date]) dateCounts[date] = 0;
+      dateCounts[date]++;
+    }
+    if (input && input.value && input.value.trim()) {
+      saved++;
+    } else {
+      pending++;
+    }
+  });
+
+  const savedEl = document.getElementById('savedCount');
+  const pendingEl = document.getElementById('pendingCount');
+  if (savedEl) savedEl.textContent = saved;
+  if (pendingEl) pendingEl.textContent = pending;
+
+  // Update pill counts
+  const allCount = rows.length;
+  const countAll = document.getElementById('countAll');
+  if (countAll) countAll.textContent = allCount;
+
+  uniqueDates.forEach(date => {
+    const countEl = document.getElementById(`count-${date}`);
+    if (countEl) {
+      countEl.textContent = dateCounts[date] || 0;
+    }
+  });
+}
+
+// ============================================================
+// DATE FILTER (global function for onclick)
+// ============================================================
+
+window.filterByDate = function(filter) {
+  currentFilter = filter;
+
+  // Update pills
+  const pills = document.querySelectorAll('.date-pill');
+  pills.forEach(p => p.classList.remove('active'));
+  const activePill = document.querySelector(`.date-pill[data-filter="${filter}"]`);
+  if (activePill) activePill.classList.add('active');
+
+  const rows = document.querySelectorAll('.entry-card');
+  let visibleCount = 0;
+
+  rows.forEach(row => {
+    const date = row.dataset.date;
+    if (!date) {
+      row.style.display = '';
+      visibleCount++;
+      return;
+    }
+
+    let show = false;
+    if (filter === 'all') {
+      show = true;
+    } else {
+      show = date === filter;
+    }
+
+    row.style.display = show ? '' : 'none';
+    if (show) visibleCount++;
+  });
+
+  const filterLabel = document.getElementById('filterLabel');
+  if (filterLabel) {
+    if (filter === 'all') {
+      filterLabel.textContent = 'All records';
+    } else {
+      const displayDate = new Date(filter + 'T00:00:00').toLocaleDateString('en-KE', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+      filterLabel.textContent = `${visibleCount} records for ${displayDate}`;
+    }
+  }
+
+  updateCounts();
+};
+
+// ============================================================
+// QUICK ACTIONS (global functions)
+// ============================================================
+
+window.applyVenueToAll = function() {
+  const inputs = document.querySelectorAll('.venue-input:not([disabled])');
+  if (!inputs.length) {
+    alert('No editable venues to apply to.');
+    return;
+  }
+  const firstVenue = prompt('Enter the venue name to apply to all entries:');
+  if (firstVenue && firstVenue.trim()) {
+    inputs.forEach(input => {
+      input.value = firstVenue.trim();
+      input.dispatchEvent(new Event('input'));
+      input.classList.add('changed');
+    });
+  }
+};
+
+window.clearAllVenues = function() {
+  const inputs = document.querySelectorAll('.venue-input:not([disabled])');
+  if (!inputs.length) {
+    alert('No editable venues to clear.');
+    return;
+  }
+  if (confirm('Are you sure you want to clear all venues?')) {
+    inputs.forEach(input => {
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+      input.classList.add('changed');
+    });
+  }
+};
+
+window.scrollToTop = function() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// ============================================================
+// SAVE SINGLE ENTRY
+// ============================================================
+
+async function saveSingleEntry(entryId) {
+  const kitId = currentKitId;
+  const input = document.querySelector(`.venue-input[data-entry-id="${entryId}"]`);
+  const feedback = document.getElementById(`feedback-${entryId}`);
+  const btn = document.querySelector(`.save-entry-btn[data-entry-id="${entryId}"]`);
+
+  if (!input) return;
+
+  const venue = input.value.trim();
+
+  if (!venue) {
+    if (feedback) {
+      feedback.innerHTML = '<i class="ti ti-alert-circle" style="color:var(--error);"></i> Venue is required';
+      feedback.className = 'save-feedback error';
+    }
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader spin"></i> Saving...';
+
+  if (feedback) {
+    feedback.innerHTML = '<i class="ti ti-loader spin"></i> Saving...';
+    feedback.className = 'save-feedback';
+  }
+
+  try {
+    const updates = [{
+      entry_id: entryId,
+      venue: venue
+    }];
+
+    const requestBody = {
+      kit_id: parseInt(kitId),
+      updates: updates
+    };
+
+    const resp = await fetch('/save-clerk-venues/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': CSRF,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${errorText}`);
+    }
+
+    const data = await resp.json();
+    console.log('[clerk-mapping] save response:', data);
+
+    if (data.ok) {
+      // Update the record in local state
+      const record = records.find(r => r.entry_id === entryId);
+      if (record) {
+        record.venue = venue;
+      }
+
+      // Update UI
+      input.dataset.original = venue;
+      input.classList.remove('changed');
+      input.style.borderColor = 'var(--green-dark)';
+      input.style.backgroundColor = 'var(--green-tint)';
+
+      const card = input.closest('.entry-card');
+      const statusBadge = card.querySelector('.entry-status');
+      if (statusBadge) {
+        statusBadge.textContent = '✓ Saved';
+        statusBadge.className = 'entry-status saved';
+      }
+
+      if (feedback) {
+        feedback.innerHTML = '<i class="ti ti-check" style="color:var(--green-dark);"></i> Saved!';
+        feedback.className = 'save-feedback success';
+      }
+
+      setTimeout(() => {
+        input.style.borderColor = '';
+        input.style.backgroundColor = '';
+        if (feedback) {
+          feedback.innerHTML = '';
+          feedback.className = 'save-feedback';
+        }
+      }, 3000);
+
+      updateCounts();
+      updateLastUpdated();
+
+    } else {
+      throw new Error(data.error || 'Could not save venue.');
+    }
+  } catch (e) {
+    console.error('Save error:', e);
+    if (feedback) {
+      feedback.innerHTML = `<i class="ti ti-alert-circle" style="color:var(--error);"></i> ${e.message || 'Save failed'}`;
+      feedback.className = 'save-feedback error';
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-device-floppy"></i> Save Entry';
+  }
+}
+
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+
+document.getElementById('ward-select').addEventListener('change', () => {
+  const selected = document.getElementById('ward-select').value;
+  document.getElementById('load-kits-btn').disabled = !selected;
+  if (!selected) {
+    document.getElementById('kit-selection-card').classList.add('hidden');
+    document.getElementById('records-card').classList.add('hidden');
+    document.getElementById('kit-select').innerHTML = '<option value="">Select kit</option>';
+    document.getElementById('records-container').innerHTML = '';
+  }
+});
+
+document.getElementById('load-kits-btn').addEventListener('click', loadKits);
+
+document.getElementById('kit-select').addEventListener('change', () => {
+  const selected = document.getElementById('kit-select').value;
+  document.getElementById('load-records-btn').disabled = !selected;
+  if (!selected) {
+    document.getElementById('records-card').classList.add('hidden');
+    document.getElementById('records-container').innerHTML = '';
+  }
+});
+
+document.getElementById('load-records-btn').addEventListener('click', loadRecords);
+
+document.getElementById('retry-wards-btn').addEventListener('click', async () => {
+  const retryBtn = document.getElementById('retry-wards-btn');
+  retryBtn.disabled = true;
+  retryBtn.innerHTML = '<i class="ti ti-loader spin"></i> Retrying...';
+  try {
+    await loadInitialData();
+  } finally {
+    retryBtn.disabled = false;
+    retryBtn.innerHTML = 'Retry Wards';
+  }
+});
+
+// ============================================================
+// AUTO-SAVE COUNTDOWN
+// ============================================================
+
+let refreshCountdown = 30;
+const countdownDisplay = document.getElementById('autoSaveCountdown');
+
+function updateCountdown() {
+  if (countdownDisplay) {
+    countdownDisplay.textContent = `Auto-save: ${refreshCountdown}s`;
+    if (refreshCountdown <= 5) {
+      countdownDisplay.style.color = 'var(--error)';
+    } else {
+      countdownDisplay.style.color = '';
+    }
+  }
+}
+
+setInterval(() => {
+  refreshCountdown--;
+  if (refreshCountdown <= 0) {
+    refreshCountdown = 30;
+    const hasChanges = document.querySelectorAll('.venue-input.changed').length > 0;
+    if (hasChanges) {
+      // Save all changed entries
+      const saveBtns = document.querySelectorAll('.save-entry-btn');
+      if (saveBtns.length) {
+        // Just click the first save button to trigger save
+        // This will save all changed entries
+        const firstChanged = document.querySelector('.venue-input.changed');
+        if (firstChanged) {
+          const entryId = parseInt(firstChanged.dataset.entryId);
+          saveSingleEntry(entryId);
+        }
+      }
+    }
+  }
+  updateCountdown();
+}, 1000);
+
+// ============================================================
+// KEYBOARD SHORTCUT
+// ============================================================
+
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    const firstChanged = document.querySelector('.venue-input.changed');
+    if (firstChanged) {
+      const entryId = parseInt(firstChanged.dataset.entryId);
+      saveSingleEntry(entryId);
+    }
+  }
+});
+
+// ============================================================
+// INITIALIZATION
+// ============================================================
+
+async function initializeApp() {
+  console.log('[clerk-mapping] Initializing app...');
+
+  const deviceOk = await registerDevice();
+  if (deviceOk) {
+    console.log('[clerk-mapping] Device registered successfully');
+    if (!currentClerk) {
+      console.log('[clerk-mapping] No clerk bound. Waiting for manual selection.');
+    }
+  } else {
+    console.error('[clerk-mapping] Device registration failed');
+  }
+}
+
+// Start the app
+initializeApp();
+</script>
+</body>
+</html>

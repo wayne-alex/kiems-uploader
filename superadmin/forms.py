@@ -134,6 +134,7 @@ class ImportForm(forms.Form):
         ('kiemskit', 'KIEMS Kits'),
         ('phase', 'Phases'),
         ('entry', 'Daily Entries'),
+        ('venue_mapping', 'Venue Mapping'),
     ]
 
     model_type = forms.ChoiceField(choices=MODEL_CHOICES, widget=forms.Select(attrs={'class': 'form-input'}))

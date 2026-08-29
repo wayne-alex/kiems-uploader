@@ -75,4 +75,5 @@ urlpatterns = [
     # API endpoints
     path('api/device-status/', views.api_device_status, name='api_device_status'),
     path('api/vras-by-ward/', views.api_get_vras_by_ward, name='api_get_vras_by_ward'),
+    path('venue-management/', views.venue_management, name='venue_management'),
 ]

@@ -43,6 +43,10 @@ class Clerk(models.Model):
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Device association for clerk (optional)
+    device_token = models.CharField(max_length=64, unique=True, db_index=True, blank=True, null=True)
+    device_fingerprint = models.CharField(max_length=64, blank=True)
+
     class Meta:
         ordering = ["ward__name", "name"]
 
@@ -86,6 +90,7 @@ class DailyKIEMSEntry(models.Model):
     phase = models.ForeignKey(Phase, on_delete=models.PROTECT, related_name="daily_entries")
     ward = models.ForeignKey(Ward, on_delete=models.PROTECT, related_name="daily_entries")
     vra = models.ForeignKey(VRA, on_delete=models.PROTECT, related_name="daily_entries")
+    clerk = models.ForeignKey(Clerk, on_delete=models.PROTECT, related_name="daily_entries", null=True, blank=True)
 
     entry_date = models.DateField()
     venue = models.CharField(max_length=150)
@@ -127,6 +132,7 @@ class DailyKIEMSEntry(models.Model):
 
     def __str__(self):
         return f"{self.kiems_kit.kit_name} – {self.entry_date}"
+
 
 # ==================== WHATSAPP MODELS ====================
 
@@ -189,6 +195,14 @@ class Device(models.Model):
     # Associated VRA
     vra = models.ForeignKey(
         'VRA',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='devices'
+    )
+    # Associated Clerk
+    clerk = models.ForeignKey(
+        'Clerk',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
