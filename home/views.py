@@ -63,7 +63,10 @@ def format_vra_submission_message(entry, is_update=False):
     else:
         message = f"{entry.ward.name.upper()} CONFIRMED\n"
 
-    message += f"{entry.kiems_kit.kit_name}: MALE:{entry.registered_male} FEMALE:{entry.registered_female} = {entry.total_registered}\n"
+    # Ensure total is calculated correctly
+    total = entry.registered_male + entry.registered_female
+
+    message += f"{entry.kiems_kit.kit_name}: MALE:{entry.registered_male} FEMALE:{entry.registered_female} = {total}\n"
 
     if entry.total_transferred and entry.total_transferred > 0:
         message += f"Transferred: {entry.total_transferred}"
@@ -802,6 +805,10 @@ def submit_daily_entries(request):
 
         kit = get_object_or_404(KIEMSKit, id=kit_id, ward=vra.ward)
 
+        # Calculate total
+        total_count = male_count + female_count
+
+        # Try to get existing entry
         entry, created = DailyKIEMSEntry.objects.get_or_create(
             kiems_kit=kit,
             phase=active_phase,
@@ -812,18 +819,20 @@ def submit_daily_entries(request):
                 "venue": venue,
                 "registered_male": male_count,
                 "registered_female": female_count,
+                "total_registered": total_count,  # Set total on create
             },
         )
 
         is_update = False
         if not created:
             is_update = True
+            # Update the entry - the model's save() will recalculate total
             entry.venue = venue
             entry.registered_male = male_count
             entry.registered_female = female_count
             entry.edit_count += 1
-            entry.save(update_fields=["venue", "registered_male", "registered_female",
-                                      "edit_count", "updated_at"])
+            # Note: total_registered will be recalculated in the model's save()
+            entry.save()  # Don't use update_fields to ensure total is recalculated
 
         entries_created.append(entry)
         saved += 1
@@ -913,9 +922,8 @@ def kit_list(request):
 
 @require_http_methods(["GET"])
 def clerk_records(request):
-    """Get records for a specific kit (entries with dates and venues)."""
+    """Get ALL records for a specific kit, across every date on file."""
     kit_id = request.GET.get('kit_id')
-    date_str = request.GET.get('date')
     fingerprint = request.GET.get('fingerprint')
 
     if not kit_id:
@@ -926,25 +934,14 @@ def clerk_records(request):
     except KIEMSKit.DoesNotExist:
         return JsonResponse({'error': 'Kit not found'}, status=404)
 
-    # Parse date
-    try:
-        if date_str:
-            filter_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        else:
-            filter_date = timezone.now().date()
-    except ValueError:
-        filter_date = timezone.now().date()
-
-    # Get active phase
     active_phase = Phase.objects.filter(active=True).first()
     if not active_phase:
         return JsonResponse({'error': 'No active phase found'}, status=404)
 
-    # Get entries for this kit on the specified date
+    # Every entry for this kit, across all dates
     entries = DailyKIEMSEntry.objects.filter(
         kiems_kit=kit,
         phase=active_phase,
-        entry_date=filter_date
     ).order_by('-entry_date')
 
     records = []
@@ -956,34 +953,17 @@ def clerk_records(request):
             'editable': True,
         })
 
-    # If no entries exist for this date, create placeholder records from past entries
-    if not records:
-        # Get past entries for this kit to show as reference
-        past_entries = DailyKIEMSEntry.objects.filter(
-            kiems_kit=kit,
-            phase=active_phase
-        ).exclude(entry_date=filter_date).order_by('-entry_date')[:10]
+    # Ensure there's always a row for today, even if nothing's been saved yet
+    today_str = timezone.now().date().isoformat()
+    if not any(r['date'] == today_str for r in records):
+        records.insert(0, {
+            'entry_id': 0,
+            'date': today_str,
+            'venue': '',
+            'editable': True,
+            'is_new': True,
+        })
 
-        for entry in past_entries:
-            records.append({
-                'entry_id': entry.id,
-                'date': entry.entry_date.isoformat(),
-                'venue': entry.venue or '',
-                'editable': True,  # All entries are editable now
-            })
-
-        # If still no records, create a placeholder with a temporary ID
-        if not records:
-            # Create a temporary record for the selected date
-            records.append({
-                'entry_id': 0,  # Temporary ID for new entries
-                'date': filter_date.isoformat(),
-                'venue': '',
-                'editable': True,
-                'is_new': True,
-            })
-
-    # Get clerk info if available from device
     clerk_data = None
     if fingerprint:
         try:
@@ -1008,72 +988,70 @@ def clerk_records(request):
         'records': records,
         'count': len(records),
         'clerk': clerk_data,
-        'date': filter_date.strftime('%Y-%m-%d'),
     })
-
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
 def save_clerk_venues(request):
-    """Save venue updates for multiple entries - updates existing entries by ID."""
+    """
+    Save venue updates for one or more entries.
+
+    Each item in `updates` may now carry its own `date` (YYYY-MM-DD).
+    This lets the clerk table save:
+      - an edit to an existing entry (entry_id > 0)
+      - a brand-new row added via "Add Entry" (entry_id <= 0, e.g. a
+        negative temp id generated client-side)
+    A top-level `date` is still accepted as a fallback for any update
+    that doesn't specify its own date.
+    """
     try:
-        # Parse request body
         data = json.loads(request.body)
         kit_id = data.get('kit_id')
         updates = data.get('updates', [])
-        date_str = data.get('date')
+        fallback_date_str = data.get('date')
         ward_id = data.get('ward_id')
         fingerprint = data.get('fingerprint')
 
-        # Validate required fields
         if not updates:
             return JsonResponse({'error': 'No updates provided'}, status=400)
 
-        # Get active phase
         active_phase = Phase.objects.filter(active=True).first()
         if not active_phase:
             return JsonResponse({'error': 'No active phase found'}, status=404)
 
-        # Parse date
+        # Fallback date used only when an individual update has none
         try:
-            if date_str:
-                date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
-            else:
-                date_obj = timezone.now().date()
+            fallback_date_obj = (
+                datetime.strptime(fallback_date_str, '%Y-%m-%d').date()
+                if fallback_date_str else timezone.now().date()
+            )
         except ValueError:
-            date_obj = timezone.now().date()
+            fallback_date_obj = timezone.now().date()
 
-        print(f"[clerk-mapping] Saving for date: {date_obj}")
-
-        # Get clerk and VRA from device fingerprint
+        # Resolve clerk / VRA from device fingerprint (or token fallback)
         clerk = None
         vra = None
 
         if fingerprint:
             try:
-                device = Device.objects.select_related('clerk', 'clerk__ward', 'vra', 'vra__ward').get(
-                    fingerprint=fingerprint,
-                    is_burned=True,
-                    is_active=True
-                )
+                device = Device.objects.select_related(
+                    'clerk', 'clerk__ward', 'vra', 'vra__ward'
+                ).get(fingerprint=fingerprint, is_burned=True, is_active=True)
                 clerk = device.clerk
                 vra = device.vra
-                print(
-                    f"[clerk-mapping] Found device: clerk={clerk.id if clerk else None}, vra={vra.id if vra else None}")
+                print(f"[clerk-mapping] Found device: clerk={clerk.id if clerk else None}, "
+                      f"vra={vra.id if vra else None}")
             except Device.DoesNotExist:
                 print(f"[clerk-mapping] Device not found for fingerprint: {fingerprint}")
-                pass
 
-        # Fallback to token
         if not clerk and not vra:
             token = request.GET.get('token') or request.POST.get('token')
             if token:
                 clerk = Clerk.objects.filter(device_token=token, active=True).first()
                 if not clerk:
                     vra = VRA.objects.filter(device_token=token, active=True).first()
-                print(
-                    f"[clerk-mapping] Token fallback: clerk={clerk.id if clerk else None}, vra={vra.id if vra else None}")
+                print(f"[clerk-mapping] Token fallback: clerk={clerk.id if clerk else None}, "
+                      f"vra={vra.id if vra else None}")
 
         saved_count = 0
         errors = []
@@ -1083,34 +1061,53 @@ def save_clerk_venues(request):
 
         for update in updates:
             entry_id = update.get('entry_id')
-            venue = update.get('venue', '').strip()
+            venue = (update.get('venue') or '').strip()
             kit_id_from_update = update.get('kit_id')
+            row_date_str = update.get('date')
 
-            if not entry_id:
+            # Per-row date, falling back to the request-level date
+            try:
+                row_date_obj = (
+                    datetime.strptime(row_date_str, '%Y-%m-%d').date()
+                    if row_date_str else fallback_date_obj
+                )
+            except ValueError:
+                row_date_obj = fallback_date_obj
+
+            if entry_id is None:
                 errors.append('Missing entry_id')
                 continue
 
-            # Convert entry_id to int if it's a string
             try:
                 entry_id = int(entry_id)
             except (ValueError, TypeError):
                 errors.append(f'Invalid entry_id: {entry_id}')
                 continue
 
-            # Determine which kit ID to use
+            if not venue:
+                errors.append(f'Entry {entry_id}: venue is required')
+                continue
+
             actual_kit_id = kit_id_from_update or kit_id
 
-            print(f"[clerk-mapping] Processing: entry_id={entry_id}, kit_id={actual_kit_id}, venue={venue}")
+            print(f"[clerk-mapping] Processing: entry_id={entry_id}, kit_id={actual_kit_id}, "
+                  f"date={row_date_obj}, venue={venue}")
 
-            # For mapping tab, entry_id is actually the kit_id
-            # Check if this is coming from the mapping tab (entry_id is a kit_id)
-            is_from_mapping = kit_id_from_update is not None or (
-                        entry_id > 0 and not DailyKIEMSEntry.objects.filter(id=entry_id).exists())
+            # entry_id <= 0 always means "new row from the table" (temp/placeholder id).
+            # A positive id that doesn't correspond to a real row is also treated as new.
+            is_from_mapping = (
+                entry_id <= 0
+                or kit_id_from_update is not None
+                or not DailyKIEMSEntry.objects.filter(id=entry_id).exists()
+            )
 
             if is_from_mapping:
-                # This is from the mapping tab - use kit_id
                 if not actual_kit_id:
-                    actual_kit_id = entry_id
+                    actual_kit_id = entry_id if entry_id > 0 else None
+
+                if not actual_kit_id:
+                    errors.append('Missing kit_id for new entry')
+                    continue
 
                 try:
                     kit = KIEMSKit.objects.get(id=actual_kit_id, status=True)
@@ -1118,35 +1115,32 @@ def save_clerk_venues(request):
                     errors.append(f'Kit {actual_kit_id} not found')
                     continue
 
-                # Check if an entry exists for this kit on this date
+                # Does an entry already exist for this kit on this exact date?
                 existing_entry = DailyKIEMSEntry.objects.filter(
                     kiems_kit=kit,
                     phase=active_phase,
-                    entry_date=date_obj
+                    entry_date=row_date_obj,
                 ).first()
 
                 if existing_entry:
-                    # Update existing entry
                     old_venue = existing_entry.venue
                     existing_entry.venue = venue
                     existing_entry.save(update_fields=['venue', 'updated_at'])
                     updated_entries.append(existing_entry)
                     saved_count += 1
-                    print(
-                        f"[clerk-mapping] Updated existing entry {existing_entry.id} for kit {kit.id} on {date_obj}: '{old_venue}' -> '{venue}'")
+                    print(f"[clerk-mapping] Updated existing entry {existing_entry.id} for kit "
+                          f"{kit.id} on {row_date_obj}: '{old_venue}' -> '{venue}'")
                 else:
-                    # Create new entry
                     entry_data = {
                         'kiems_kit': kit,
                         'phase': active_phase,
                         'ward': kit.ward,
-                        'entry_date': date_obj,
+                        'entry_date': row_date_obj,
                         'venue': venue,
                         'registered_male': 0,
                         'registered_female': 0,
                     }
 
-                    # Add clerk or VRA if available
                     if vra:
                         entry_data['vra'] = vra
                         entry_data['clerk'] = clerk if clerk else None
@@ -1165,18 +1159,13 @@ def save_clerk_venues(request):
                                 continue
                     else:
                         if ward_id:
-                            ward = Ward.objects.filter(id=ward_id, is_active=True).first()
+                            ward = Ward.objects.filter(id=ward_id).first()
                             if ward:
                                 ward_vra = VRA.objects.filter(ward=ward, active=True).first()
-                                if ward_vra:
-                                    entry_data['vra'] = ward_vra
-                                else:
-                                    any_vra = VRA.objects.filter(active=True).first()
-                                    if any_vra:
-                                        entry_data['vra'] = any_vra
-                                    else:
-                                        errors.append('No VRA available')
-                                        continue
+                                entry_data['vra'] = ward_vra or VRA.objects.filter(active=True).first()
+                                if not entry_data['vra']:
+                                    errors.append('No VRA available')
+                                    continue
                             else:
                                 errors.append(f'Ward {ward_id} not found')
                                 continue
@@ -1188,53 +1177,66 @@ def save_clerk_venues(request):
                                 errors.append('No VRA available')
                                 continue
 
-                    entry = DailyKIEMSEntry.objects.create(**entry_data)
+                    try:
+                        entry = DailyKIEMSEntry.objects.create(**entry_data)
+                    except Exception as e:
+                        # e.g. unique constraint race — fall back to update
+                        existing_entry = DailyKIEMSEntry.objects.filter(
+                            kiems_kit=kit, phase=active_phase, entry_date=row_date_obj
+                        ).first()
+                        if existing_entry:
+                            existing_entry.venue = venue
+                            existing_entry.save(update_fields=['venue', 'updated_at'])
+                            updated_entries.append(existing_entry)
+                            saved_count += 1
+                            continue
+                        errors.append(f'Could not create entry for kit {kit.id}: {str(e)}')
+                        continue
+
                     created_entries.append(entry)
                     created_ids.append(entry.id)
                     saved_count += 1
-                    print(f"[clerk-mapping] Created new entry {entry.id} for kit {kit.id} on {date_obj}")
+                    print(f"[clerk-mapping] Created new entry {entry.id} for kit {kit.id} on {row_date_obj}")
 
             elif entry_id > 0:
-                # This is a regular entry ID - update existing entry
                 try:
                     entry = DailyKIEMSEntry.objects.get(id=entry_id)
                     old_venue = entry.venue
                     old_date = entry.entry_date
 
                     entry.venue = venue
-                    entry.save(update_fields=['venue', 'updated_at'])
+                    # Allow the clerk to correct the date on an existing row too
+                    if row_date_str and row_date_obj != entry.entry_date:
+                        entry.entry_date = row_date_obj
+                        entry.save(update_fields=['venue', 'entry_date', 'updated_at'])
+                    else:
+                        entry.save(update_fields=['venue', 'updated_at'])
 
                     updated_entries.append(entry)
                     saved_count += 1
-                    print(
-                        f"[clerk-mapping] Updated entry {entry_id}: date={old_date}, venue: '{old_venue}' -> '{venue}'")
+                    print(f"[clerk-mapping] Updated entry {entry_id}: date={old_date}->{entry.entry_date}, "
+                          f"venue: '{old_venue}' -> '{venue}'")
 
                 except DailyKIEMSEntry.DoesNotExist:
                     errors.append(f'Entry {entry_id} not found')
-                    print(f"[clerk-mapping] Entry {entry_id} not found")
                 except Exception as e:
                     errors.append(f'Entry {entry_id}: {str(e)}')
-                    print(f"[clerk-mapping] Error processing entry {entry_id}: {str(e)}")
             else:
                 errors.append(f'Invalid entry_id: {entry_id}')
 
-        # Skip WhatsApp notifications for venue-only updates
-        # Only send if there are actual voter counts
+        # Only notify WhatsApp when there's actual voter-count data (not plain venue edits)
         try:
-            has_vra_data = False
-            for entry in updated_entries + created_entries:
-                if entry.registered_male > 0 or entry.registered_female > 0:
-                    has_vra_data = True
-                    break
-
+            touched = updated_entries + created_entries
+            has_vra_data = any(
+                (e.registered_male > 0 or e.registered_female > 0) for e in touched
+            )
             if has_vra_data and vra:
-                for entry in updated_entries + created_entries:
+                for entry in touched:
                     if entry.vra and (entry.registered_male > 0 or entry.registered_female > 0):
                         is_update = entry in updated_entries
                         message = format_vra_submission_message(entry, is_update)
                         send_whatsapp_message_from_vra(message, entry.vra)
-
-                if updated_entries or created_entries:
+                if touched:
                     check_and_send_daily_report_from_vra(vra)
         except Exception as e:
             print(f"[clerk-mapping] WhatsApp error: {str(e)}")
@@ -1246,15 +1248,11 @@ def save_clerk_venues(request):
             'updated': len(updated_entries),
             'entry_ids': created_ids,
             'errors': errors if errors else None,
-            'message': f'Saved {saved_count} entries for {date_obj.strftime("%Y-%m-%d")}',
-            'date': date_obj.strftime('%Y-%m-%d'),
+            'message': f'Saved {saved_count} entr{"y" if saved_count == 1 else "ies"}.',
         })
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON data'}, status=400)
     except Exception as e:
         print(f"[clerk-mapping] Save error: {str(e)}")
-        return JsonResponse({
-            'ok': False,
-            'error': str(e)
-        }, status=500)
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)

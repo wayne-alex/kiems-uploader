@@ -233,80 +233,6 @@
     .modal-subtitle { font-size: 13px; color: var(--ink-2); margin: 0 0 18px; line-height: 1.4; }
     .modal-actions { display: flex; flex-direction: column; gap: 8px; }
 
-    .tab-switcher {
-      display: flex; gap: 3px; background: var(--surface-2); border-radius: 11px;
-      padding: 3px; margin-bottom: 11px; box-shadow: var(--shadow-sm);
-    }
-    .tab-btn {
-      flex: 1; border: none; background: transparent; color: var(--ink-2);
-      font-family: inherit; font-size: 12px; font-weight: 600; padding: 8px 6px;
-      border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;
-      transition: background .18s var(--ease), color .18s var(--ease), box-shadow .18s var(--ease);
-    }
-    .tab-btn i { font-size: 13px; }
-    .tab-btn.active { background: var(--surface); color: var(--green-dark); box-shadow: var(--shadow-sm); }
-
-    .mapping-progress {
-      display: flex; align-items: center; font-size: 11px; font-weight: 600; color: var(--ink-2);
-      background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow-sm);
-      padding: 9px 13px; margin-bottom: 9px;
-    }
-    .mapping-progress i { color: var(--green-dark); margin-right: 5px; }
-
-    .mapping-progress-bar {
-      height: 4px;
-      background: var(--surface-2);
-      border-radius: 4px;
-      margin-bottom: 10px;
-      overflow: hidden;
-    }
-    .mapping-progress-bar .fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, var(--green), #78ab4c);
-      transition: width 0.5s ease;
-    }
-    .mapping-progress-bar .fill.complete { background: linear-gradient(90deg, #34c759, #28a745); }
-    .mapping-progress-bar .fill.partial { background: linear-gradient(90deg, #ff9500, #ff6b00); }
-
-    .mapping-search .input-row { margin-bottom: 0; }
-    .mapping-search .search-count { font-size: 11px; color: var(--ink-3); white-space: nowrap; }
-
-    .mapping-row {
-      background: var(--surface); border-radius: var(--r); border: 1px solid var(--border);
-      box-shadow: var(--shadow-sm); padding: 11px 13px; margin-bottom: 8px;
-      display: flex; align-items: center; gap: 10px;
-      transition: border-color .2s var(--ease);
-    }
-    .mapping-row .kit-icon { width: 28px; height: 28px; border-radius: 8px; font-size: 13px; background: var(--surface-2); color: var(--ink-2); display:flex;align-items:center;justify-content:center;flex-shrink:0; }
-    .mapping-row .mr-info { min-width: 0; flex-shrink: 0; width: 96px; }
-    .mapping-row .mr-name { font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .mapping-row .mr-serial { font-size: 9px; color: var(--ink-3); font-family: var(--mono); }
-    .mapping-row .input-row { flex: 1; margin-bottom: 0; }
-    .mapping-row .mr-status {
-      flex-shrink: 0; font-size: 9px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
-      text-transform: uppercase; letter-spacing: 0.3px;
-    }
-    .mr-status.mapped { background: var(--green-tint); color: var(--green-dark); }
-    .mr-status.unmapped { background: #FFF4DE; color: #A5690C; }
-
-    .mapping-row .mr-actions {
-      display: flex;
-      gap: 4px;
-      flex-shrink: 0;
-    }
-    .mapping-row .mr-actions button {
-      background: none;
-      border: none;
-      color: var(--ink-3);
-      cursor: pointer;
-      font-size: 14px;
-      padding: 4px;
-      border-radius: 4px;
-      transition: all .15s var(--ease);
-    }
-    .mapping-row .mr-actions button:hover { background: var(--surface-2); color: var(--ink); }
-
     .future-note, .past-note {
       display: flex; gap: 10px; align-items: flex-start;
       background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow-sm);
@@ -346,13 +272,6 @@
     }
     .upload-all-btn:active:not(:disabled) { transform: scale(0.98); }
     .upload-all-btn:disabled { background: #D1D1D6; box-shadow: none; cursor: not-allowed; opacity: 0.85; }
-
-    @media (max-width: 480px) {
-      .mapping-row { flex-wrap: wrap; gap: 6px; }
-      .mapping-row .mr-info { width: 100%; flex-shrink: 1; }
-      .mapping-row .input-row { flex: 1 1 100%; }
-      .mapping-row .mr-status { margin-left: auto; }
-    }
   </style>
 </head>
 <body>
@@ -409,11 +328,6 @@
       <span class="badge-count" id="kit-count"></span>
     </div>
 
-    <div class="tab-switcher">
-      <button class="tab-btn active" data-tab="entry"><i class="ti ti-checklist"></i> KIEMS Entry</button>
-      <button class="tab-btn" data-tab="mapping"><i class="ti ti-map-pin-share"></i> Venue Mapping</button>
-    </div>
-
     <div id="entry-panel">
       <div id="summary-bar" class="summary-bar hidden">
         <div class="total-big"><i class="ti ti-users"></i> <span id="summary-total">0</span></div>
@@ -426,37 +340,12 @@
 
       <div id="kits-container"><div class="loading-spinner"><i class="ti ti-loader"></i><p>Loading kits...</p></div></div>
 
-      <!-- Submit All button - only visible when all kits are filled on today's date -->
       <div id="pending-actions">
         <button id="submit-btn" class="btn-primary hidden"><i class="ti ti-send"></i> Submit All Entries</button>
         <button id="upload-all-btn" class="upload-all-btn hidden"><i class="ti ti-cloud-upload"></i> Upload All KIEMS</button>
       </div>
       <div id="submit-message" class="msg-success hidden"><i class="ti ti-circle-check"></i><span></span></div>
       <div id="form-errors" class="msg-error hidden"><i class="ti ti-alert-circle"></i><span></span></div>
-    </div>
-
-    <div id="mapping-panel" class="hidden">
-      <div class="mapping-progress">
-        <span><i class="ti ti-map-pin-check"></i> <span id="mapping-mapped-count">0</span> of <span id="mapping-total-count">0</span> kits mapped</span>
-      </div>
-
-      <div class="mapping-progress-bar">
-        <div class="fill" id="mapping-progress-fill"></div>
-      </div>
-
-      <div class="mapping-search" style="margin-bottom:10px;">
-        <div class="input-row" style="margin-bottom:0;">
-          <i class="ti ti-search"></i>
-          <input id="mapping-search-input" placeholder="Search kits by name or serial..." style="font-size:13px;">
-          <span class="search-count" id="mapping-search-count">0 kits</span>
-        </div>
-      </div>
-
-      <div id="mapping-container"><div class="loading-spinner"><i class="ti ti-loader"></i><p>Loading kits...</p></div></div>
-
-      <button id="mapping-save-btn" class="btn-primary"><i class="ti ti-device-floppy"></i> Save Venue Mapping</button>
-      <div id="mapping-message" class="msg-success hidden"><i class="ti ti-circle-check"></i><span></span></div>
-      <div id="mapping-errors" class="msg-error hidden"><i class="ti ti-alert-circle"></i><span></span></div>
     </div>
   </div>
 
@@ -490,7 +379,7 @@
 
 <script>
 // ============================================================
-// DEVICE FINGERPRINTING SYSTEM (Fixed for newer versions)
+// DEVICE FINGERPRINTING SYSTEM
 // ============================================================
 
 class DeviceFingerprint {
@@ -687,7 +576,6 @@ let currentVRA = null;
 let kitsData = [];
 let isDeviceAuthorized = false;
 let lastSubmittedKitIds = [];
-let currentTab = 'entry';
 let isLoadingKits = false;
 
 function getDeviceToken() {
@@ -871,38 +759,6 @@ function dateRelation(dateStr) {
 }
 
 // ============================================================
-// TAB SWITCHING
-// ============================================================
-
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    if (btn.classList.contains('active')) return;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentTab = btn.dataset.tab;
-    document.getElementById('entry-panel').classList.toggle('hidden', currentTab !== 'entry');
-    document.getElementById('mapping-panel').classList.toggle('hidden', currentTab !== 'mapping');
-    renderActiveTab();
-  });
-});
-
-function renderActiveTab() {
-  // Make sure kitsData is loaded before rendering
-  if (!kitsData || kitsData.length === 0) {
-    // If no kits data, try loading it first
-    if (!isLoadingKits) {
-      loadKits().then(() => {
-        if (currentTab === 'mapping') renderMappingTab();
-        else renderEntryTab();
-      });
-    }
-    return;
-  }
-  if (currentTab === 'mapping') renderMappingTab();
-  else renderEntryTab();
-}
-
-// ============================================================
 // WARD BINDING
 // ============================================================
 
@@ -958,12 +814,6 @@ async function loadKits() {
   const container = document.getElementById('kits-container');
   container.innerHTML = `<div class="loading-spinner"><i class="ti ti-loader"></i><p>Loading kits...</p></div>`;
 
-  // Also show loading in mapping container
-  const mappingContainer = document.getElementById('mapping-container');
-  if (mappingContainer) {
-    mappingContainer.innerHTML = `<div class="loading-spinner"><i class="ti ti-loader"></i><p>Loading kits...</p></div>`;
-  }
-
   try {
     const datePicker = document.getElementById('date-picker');
     const selectedDate = datePicker.value;
@@ -975,9 +825,6 @@ async function loadKits() {
     const data = await res.json();
     if (data.error) {
       container.innerHTML = `<div class="empty-state"><i class="ti ti-alert-circle"></i><p style="color:var(--error);">${data.error}</p></div>`;
-      if (mappingContainer) {
-        mappingContainer.innerHTML = `<div class="empty-state"><i class="ti ti-alert-circle"></i><p style="color:var(--error);">${data.error}</p></div>`;
-      }
       document.getElementById('summary-bar').classList.add('hidden');
       document.getElementById('pending-actions').classList.add('hidden');
       isLoadingKits = false;
@@ -987,21 +834,15 @@ async function loadKits() {
     document.getElementById('kit-count').textContent = `${kitsData.length} kits`;
     if (kitsData.length === 0) {
       container.innerHTML = `<div class="empty-state"><i class="ti ti-device-tablet-off"></i><p>No KIEMS kits assigned to this ward</p><p style="font-size:11px;margin-top:4px;">Ward: ${data.ward_name || 'Unknown'}</p></div>`;
-      if (mappingContainer) {
-        mappingContainer.innerHTML = `<div class="empty-state"><i class="ti ti-device-tablet-off"></i><p>No KIEMS kits assigned to this ward</p><p style="font-size:11px;margin-top:4px;">Ward: ${data.ward_name || 'Unknown'}</p></div>`;
-      }
       document.getElementById('summary-bar').classList.add('hidden');
       document.getElementById('pending-actions').classList.add('hidden');
       isLoadingKits = false;
       return;
     }
-    renderActiveTab();
+    renderEntryTab();
   } catch (e) {
     console.error('Load kits error:', e);
     container.innerHTML = `<div class="empty-state"><i class="ti ti-alert-circle"></i><p style="color:var(--error);">Error loading kits. Please refresh.</p></div>`;
-    if (mappingContainer) {
-      mappingContainer.innerHTML = `<div class="empty-state"><i class="ti ti-alert-circle"></i><p style="color:var(--error);">Error loading kits. Please refresh.</p></div>`;
-    }
     document.getElementById('summary-bar').classList.add('hidden');
     document.getElementById('pending-actions').classList.add('hidden');
   } finally {
@@ -1066,12 +907,11 @@ function renderEntryTab() {
       container.innerHTML = `
         <div class="future-note">
           <i class="ti ti-calendar-time"></i>
-          <span>No venues have been pre-mapped for this date yet. Use the <strong>Venue Mapping</strong> tab to assign venues to KIEMS kits for <strong>${document.getElementById('date-picker').value}</strong>.</span>
+          <span>No venues have been pre-mapped for this date yet.</span>
         </div>
         <div class="empty-state" style="margin-top:10px;">
           <i class="ti ti-map-pin-off"></i>
           <p>No venues pre-mapped for this date</p>
-          <p style="font-size:11px;margin-top:4px;">Switch to the <strong>Venue Mapping</strong> tab to add venues.</p>
         </div>
       `;
     }
@@ -1082,7 +922,6 @@ function renderEntryTab() {
   if (relation === 'past') {
     document.getElementById('summary-bar').classList.remove('hidden');
 
-    // Show all kits as read-only cards
     let html = `
       <div class="past-note" style="background:var(--surface-2); border-left: 3px solid var(--ink-3);">
         <i class="ti ti-calendar-time" style="color:var(--ink-3);"></i>
@@ -1164,15 +1003,12 @@ function renderEntryTab() {
   const allFilled = kitsData.every(k => k.has_entry);
 
   if (allFilled && kitsData.length > 0) {
-    // All kits are filled - show Upload All button
     document.getElementById('upload-all-btn').classList.remove('hidden');
     document.getElementById('submit-btn').classList.add('hidden');
   } else if (pending.length > 0) {
-    // Some kits are pending - show Submit All button
     document.getElementById('submit-btn').classList.remove('hidden');
     document.getElementById('upload-all-btn').classList.add('hidden');
   } else {
-    // No kits or all filled but no kits? Hide both
     document.getElementById('submit-btn').classList.add('hidden');
     document.getElementById('upload-all-btn').classList.add('hidden');
   }
@@ -1188,12 +1024,21 @@ function renderEntryTab() {
     const femaleInput = card.querySelector('.female-input');
     const totalSpan = card.querySelector('.num');
     const saveBtn = card.querySelector('.save-individual-btn');
+    const kitId = card.dataset.kit;
 
     if (maleInput && femaleInput && totalSpan) {
       function updateTotal() {
         const m = parseInt(maleInput.value) || 0;
         const f = parseInt(femaleInput.value) || 0;
         totalSpan.textContent = m + f;
+
+        // Also update the kitsData for this kit
+        const kit = kitsData.find(k => k.kit_id == kitId);
+        if (kit) {
+          kit.registered_male = m;
+          kit.registered_female = f;
+        }
+
         if (saveBtn) {
           const origMale = parseInt(maleInput.dataset.original || 0);
           const origFemale = parseInt(femaleInput.dataset.original || 0);
@@ -1256,7 +1101,18 @@ function renderEntryTab() {
           const data = await res.json();
           if (data.ok) {
             lastSubmittedKitIds = [parseInt(kitId)];
-            await loadKits();
+
+            // Update the kit data locally
+            const kit = kitsData.find(k => k.kit_id == kitId);
+            if (kit) {
+              kit.has_entry = true;
+              kit.registered_male = male;
+              kit.registered_female = female;
+              kit.venue = venue;
+            }
+
+            // Re-render to reflect the saved state
+            renderEntryTab();
             updateLastUpdated();
             showSuccessModal(1);
           } else {
@@ -1291,7 +1147,7 @@ function renderEntryTab() {
 }
 
 // ============================================================
-// TODAY'S ENTRY FORM - Venue is READ-ONLY, always editable card
+// TODAY'S ENTRY FORM
 // ============================================================
 
 function formCardToday(kit, isSubmitted) {
@@ -1346,305 +1202,48 @@ function formCardToday(kit, isSubmitted) {
 }
 
 // ============================================================
-// VENUE MAPPING TAB
+// SUMMARY
 // ============================================================
 
-function renderMappingTab() {
-  const container = document.getElementById('mapping-container');
+function updateSummary() {
+  let totalMale = 0, totalFemale = 0;
+  const relation = dateRelation(document.getElementById('date-picker').value);
 
-  // Check if kitsData is available
-  if (!kitsData || kitsData.length === 0) {
-    container.innerHTML = `<div class="empty-state"><i class="ti ti-loader"></i><p>Loading kits...</p></div>`;
-    const saveBtn = document.getElementById('mapping-save-btn');
-    if (saveBtn) saveBtn.classList.add('hidden');
-    return;
-  }
-
-  const saveBtn = document.getElementById('mapping-save-btn');
-  if (saveBtn) saveBtn.classList.remove('hidden');
-
-  const datePicker = document.getElementById('date-picker');
-  const relation = dateRelation(datePicker.value);
-  const isFuture = relation === 'future';
-
-  let headerHtml = '';
-  if (isFuture) {
-    headerHtml = `
-      <div class="future-note" style="background:var(--green-tint); border-left: 3px solid var(--green); margin-bottom:10px;">
-        <i class="ti ti-calendar-check" style="color:var(--green-dark);"></i>
-        <span><strong>Planning for ${datePicker.value}</strong> - Assign venues to KIEMS kits ahead of time. These will be read-only in the Entry tab.</span>
-      </div>
-    `;
-  }
-
-  container.innerHTML = headerHtml + kitsData.map((kit, index) => {
-    const mapped = !!(kit.venue && kit.venue.trim());
-    return `
-    <div class="mapping-row" data-kit="${kit.kit_id}" style="animation-delay:${index * 30}ms">
-      <div class="kit-icon"><i class="ti ti-device-tablet"></i></div>
-      <div class="mr-info">
-        <div class="mr-name">${kit.kit_name}</div>
-        <div class="mr-serial">${kit.serial_no}</div>
-      </div>
-      <div class="input-row">
-        <i class="ti ti-map-pin"></i>
-        <input class="mapping-venue-input" data-kit="${kit.kit_id}"
-               value="${kit.venue || ''}"
-               placeholder="Assign a venue"
-               data-original="${kit.venue || ''}">
-      </div>
-      <span class="mr-status ${mapped ? 'mapped' : 'unmapped'}">${mapped ? 'Mapped' : 'Unmapped'}</span>
-    </div>`;
-  }).join('');
-
-  updateMappingProgress();
-
-  container.querySelectorAll('.mapping-venue-input').forEach(input => {
-    const original = input.dataset.original || '';
-    input.addEventListener('input', () => {
-      const row = input.closest('.mapping-row');
-      const badge = row.querySelector('.mr-status');
-      const mapped = !!input.value.trim();
-      badge.textContent = mapped ? 'Mapped' : 'Unmapped';
-      badge.className = `mr-status ${mapped ? 'mapped' : 'unmapped'}`;
-
-      if (input.value.trim() !== original) {
-        input.style.borderColor = 'var(--green)';
-        input.style.backgroundColor = 'var(--green-tint)';
-      } else {
-        input.style.borderColor = '';
-        input.style.backgroundColor = '';
-      }
-
-      updateMappingProgress();
-    });
-  });
-
-  // Setup search
-  const searchInput = document.getElementById('mapping-search-input');
-  if (searchInput) {
-    const newSearchInput = searchInput.cloneNode(true);
-    searchInput.parentNode.replaceChild(newSearchInput, searchInput);
-
-    newSearchInput.addEventListener('input', function() {
-      const searchTerm = this.value.toLowerCase().trim();
-      const rows = document.querySelectorAll('.mapping-row');
-      let visibleCount = 0;
-
-      rows.forEach(row => {
-        const name = row.querySelector('.mr-name')?.textContent?.toLowerCase() || '';
-        const serial = row.querySelector('.mr-serial')?.textContent?.toLowerCase() || '';
-        const matches = !searchTerm || name.includes(searchTerm) || serial.includes(searchTerm);
-        row.style.display = matches ? 'flex' : 'none';
-        if (matches) visibleCount++;
+  // For today, sum from the DOM or from kitsData
+  if (relation === 'today') {
+    // First try to get values from the DOM (for unsaved changes)
+    const kitCards = document.querySelectorAll('#kits-container .kit-card:not(.readonly)');
+    if (kitCards.length > 0) {
+      kitCards.forEach(card => {
+        const maleInput = card.querySelector('.male-input');
+        const femaleInput = card.querySelector('.female-input');
+        if (maleInput) totalMale += parseInt(maleInput.value) || 0;
+        if (femaleInput) totalFemale += parseInt(femaleInput.value) || 0;
       });
-
-      const countDisplay = document.getElementById('mapping-search-count');
-      if (countDisplay) countDisplay.textContent = `${visibleCount} kits`;
+    } else {
+      // Fallback to kitsData
+      kitsData.forEach(k => {
+        totalMale += parseInt(k.registered_male) || 0;
+        totalFemale += parseInt(k.registered_female) || 0;
+      });
+    }
+  } else {
+    // Past and future - use stored data
+    kitsData.forEach(k => {
+      totalMale += parseInt(k.registered_male) || 0;
+      totalFemale += parseInt(k.registered_female) || 0;
     });
   }
 
-  const countDisplay = document.getElementById('mapping-search-count');
-  if (countDisplay) countDisplay.textContent = `${kitsData.length} kits`;
-}
-
-function updateMappingProgress() {
-  const inputs = document.querySelectorAll('.mapping-venue-input');
-  const total = inputs.length || 1;
-  const mapped = Array.from(inputs).filter(i => i.value.trim()).length;
-  const percentage = Math.round((mapped / total) * 100);
-
-  const mappedCount = document.getElementById('mapping-mapped-count');
-  const totalCount = document.getElementById('mapping-total-count');
-  if (mappedCount) mappedCount.textContent = mapped;
-  if (totalCount) totalCount.textContent = total;
-
-  const fill = document.getElementById('mapping-progress-fill');
-  if (fill) {
-    fill.style.width = `${percentage}%`;
-    fill.className = 'fill';
-    if (percentage === 100) fill.classList.add('complete');
-    else if (percentage > 50) fill.classList.add('partial');
-  }
+  const total = totalMale + totalFemale;
+  document.getElementById('summary-total').textContent = total;
+  document.getElementById('summary-male').textContent = totalMale;
+  document.getElementById('summary-female').textContent = totalFemale;
+  document.getElementById('summary-kits').textContent = `${kitsData.length} kits`;
 }
 
 // ============================================================
-// MAPPING SAVE
-// ============================================================
-
-document.getElementById('mapping-save-btn').addEventListener('click', async () => {
-  const inputs = document.querySelectorAll('.mapping-venue-input');
-
-  const updates = [];
-  let hasChanges = false;
-
-  inputs.forEach(input => {
-    const kitId = input.dataset.kit;
-    const venue = input.value.trim();
-    const originalValue = input.dataset.original || '';
-    if (venue !== originalValue) {
-      hasChanges = true;
-      updates.push({
-        entry_id: parseInt(kitId),
-        kit_id: parseInt(kitId),
-        venue: venue
-      });
-    }
-  });
-
-  const errBox = document.getElementById('mapping-errors');
-  const msgBox = document.getElementById('mapping-message');
-  if (errBox) errBox.classList.add('hidden');
-  if (msgBox) msgBox.classList.add('hidden');
-
-  if (!hasChanges) {
-    if (errBox) setMsgBox(errBox, 'No changes to save. Please update a venue first.');
-    return;
-  }
-
-  const btn = document.getElementById('mapping-save-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="ti ti-loader spin"></i> Saving...';
-
-  try {
-    const deviceInfo = await deviceFingerprint.getDeviceInfo();
-    const requestBody = {
-      updates: updates,
-      date: document.getElementById('date-picker').value
-    };
-
-    if (deviceInfo && deviceInfo.fingerprint) {
-      requestBody.fingerprint = deviceInfo.fingerprint;
-    }
-    if (currentVRA && currentVRA.ward_id) {
-      requestBody.ward_id = currentVRA.ward_id;
-    }
-
-    const res = await fetch('/save-clerk-venues/', {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': CSRF,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    const data = await res.json();
-    console.log('[mapping] Save response:', data);
-
-    if (data.ok) {
-      inputs.forEach(input => {
-        input.dataset.original = input.value.trim();
-        input.style.borderColor = 'var(--green-dark)';
-        input.style.backgroundColor = 'var(--green-tint)';
-        setTimeout(() => {
-          input.style.borderColor = '';
-          input.style.backgroundColor = '';
-        }, 3000);
-      });
-
-      inputs.forEach(input => {
-        const row = input.closest('.mapping-row');
-        const badge = row.querySelector('.mr-status');
-        const mapped = !!input.value.trim();
-        badge.textContent = mapped ? 'Mapped' : 'Unmapped';
-        badge.className = `mr-status ${mapped ? 'mapped' : 'unmapped'}`;
-      });
-
-      if (msgBox) setMsgBox(msgBox, `✓ Saved venues for ${data.saved || updates.length} kit(s) on ${data.date || 'selected date'}.`);
-      updateMappingProgress();
-      updateLastUpdated();
-
-      await loadKits();
-    } else {
-      if (errBox) setMsgBox(errBox, data.error || 'Could not save venue mapping.');
-    }
-  } catch (e) {
-    console.error('Save error:', e);
-    if (errBox) setMsgBox(errBox, 'Network error. Please try again.');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-device-floppy"></i> Save Venue Mapping';
-  }
-});
-
-// ============================================================
-// UPLOAD ALL BUTTON - appears when all kits are filled
-// ============================================================
-
-document.getElementById('upload-all-btn').addEventListener('click', async () => {
-  // This submits ALL entries (even already submitted ones) - effectively "upload all"
-  const kitCards = document.querySelectorAll('#kits-container .kit-card:not(.readonly)');
-  const body = new URLSearchParams();
-
-  const deviceInfo = await deviceFingerprint.getDeviceInfo();
-  if (deviceInfo && deviceInfo.fingerprint) body.append('fingerprint', deviceInfo.fingerprint);
-  else body.append('token', getDeviceToken());
-
-  const datePicker = document.getElementById('date-picker');
-  body.append('date', datePicker.value);
-
-  let hasEntries = false;
-  const submittingKitIds = [];
-
-  kitCards.forEach(card => {
-    const kitId = card.dataset.kit;
-    if (!kitId) return;
-
-    const venue = card.querySelector('.venue-input')?.value.trim();
-    const male = card.querySelector('.male-input')?.value.trim();
-    const female = card.querySelector('.female-input')?.value.trim();
-    const maleNum = parseInt(male) || 0;
-    const femaleNum = parseInt(female) || 0;
-
-    if (venue && (maleNum > 0 || femaleNum > 0)) {
-      hasEntries = true;
-      body.append('kit_id[]', kitId);
-      body.append('venue[]', venue);
-      body.append('registered_male[]', maleNum);
-      body.append('registered_female[]', femaleNum);
-      submittingKitIds.push(kitId);
-    }
-  });
-
-  if (!hasEntries) {
-    setMsgBox(document.getElementById('submit-message'), 'No valid entries to upload.');
-    return;
-  }
-
-  const btn = document.getElementById('upload-all-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="ti ti-loader spin"></i> Uploading...';
-  document.getElementById('submit-message').classList.add('hidden');
-  document.getElementById('form-errors').classList.add('hidden');
-
-  try {
-    const res = await fetch('/kiems/submit-entries/', {
-      method: 'POST',
-      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body
-    });
-    const data = await res.json();
-    const errBox = document.getElementById('form-errors');
-    if (data.ok) {
-      lastSubmittedKitIds = submittingKitIds;
-      errBox.classList.add('hidden');
-      await loadKits();
-      showSuccessModal(data.saved);
-      updateLastUpdated();
-    } else {
-      setMsgBox(errBox, `${data.saved || 0} entries saved. Review highlighted issues.`);
-    }
-  } catch (e) {
-    setMsgBox(document.getElementById('form-errors'), 'Network error. Please try again.');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-cloud-upload"></i> Upload All KIEMS';
-  }
-});
-
-// ============================================================
-// BULK SUBMIT (for pending entries only)
+// BULK SUBMIT
 // ============================================================
 
 document.getElementById('submit-btn').addEventListener('click', async () => {
@@ -1721,8 +1320,13 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
     const errBox = document.getElementById('form-errors');
     if (data.ok) {
       lastSubmittedKitIds = submittingKitIds;
+      // Update kitsData with submitted status
+      submittingKitIds.forEach(id => {
+        const kit = kitsData.find(k => k.kit_id == id);
+        if (kit) kit.has_entry = true;
+      });
       errBox.classList.add('hidden');
-      await loadKits();
+      renderEntryTab();
       showSuccessModal(data.saved);
       updateLastUpdated();
     } else {
@@ -1737,50 +1341,81 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
 });
 
 // ============================================================
-// SUMMARY
+// UPLOAD ALL BUTTON
 // ============================================================
 
-function updateSummary() {
-  let totalMale = 0, totalFemale = 0;
-  const relation = dateRelation(document.getElementById('date-picker').value);
+document.getElementById('upload-all-btn').addEventListener('click', async () => {
+  const kitCards = document.querySelectorAll('#kits-container .kit-card:not(.readonly)');
+  const body = new URLSearchParams();
 
-  if (relation === 'today') {
-    // Sum from the DOM for today
-    if (currentTab === 'entry') {
-      kitsData.forEach(k => {
-        const card = document.querySelector(`#kits-container .kit-card[data-kit="${k.kit_id}"]`);
-        if (card) {
-          totalMale += parseInt(card.querySelector('.male-input')?.value) || 0;
-          totalFemale += parseInt(card.querySelector('.female-input')?.value) || 0;
-        } else {
-          totalMale += parseInt(k.registered_male) || 0;
-          totalFemale += parseInt(k.registered_female) || 0;
-        }
-      });
-    } else {
-      kitsData.forEach(k => {
-        totalMale += parseInt(k.registered_male) || 0;
-        totalFemale += parseInt(k.registered_female) || 0;
-      });
+  const deviceInfo = await deviceFingerprint.getDeviceInfo();
+  if (deviceInfo && deviceInfo.fingerprint) body.append('fingerprint', deviceInfo.fingerprint);
+  else body.append('token', getDeviceToken());
+
+  const datePicker = document.getElementById('date-picker');
+  body.append('date', datePicker.value);
+
+  let hasEntries = false;
+  const submittingKitIds = [];
+
+  kitCards.forEach(card => {
+    const kitId = card.dataset.kit;
+    if (!kitId) return;
+
+    const venue = card.querySelector('.venue-input')?.value.trim();
+    const male = card.querySelector('.male-input')?.value.trim();
+    const female = card.querySelector('.female-input')?.value.trim();
+    const maleNum = parseInt(male) || 0;
+    const femaleNum = parseInt(female) || 0;
+
+    if (venue && (maleNum > 0 || femaleNum > 0)) {
+      hasEntries = true;
+      body.append('kit_id[]', kitId);
+      body.append('venue[]', venue);
+      body.append('registered_male[]', maleNum);
+      body.append('registered_female[]', femaleNum);
+      submittingKitIds.push(kitId);
     }
-  } else {
-    // Past and future - use stored data
-    kitsData.forEach(k => {
-      totalMale += parseInt(k.registered_male) || 0;
-      totalFemale += parseInt(k.registered_female) || 0;
-    });
+  });
+
+  if (!hasEntries) {
+    setMsgBox(document.getElementById('submit-message'), 'No valid entries to upload.');
+    return;
   }
 
-  const total = totalMale + totalFemale;
-  document.getElementById('summary-total').textContent = total;
-  document.getElementById('summary-male').textContent = totalMale;
-  document.getElementById('summary-female').textContent = totalFemale;
-  document.getElementById('summary-kits').textContent = `${kitsData.length} kits`;
-}
+  const btn = document.getElementById('upload-all-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader spin"></i> Uploading...';
+  document.getElementById('submit-message').classList.add('hidden');
+  document.getElementById('form-errors').classList.add('hidden');
 
-document.getElementById('kits-container').addEventListener('input', (e) => {
-  if (e.target.classList.contains('male-input') || e.target.classList.contains('female-input')) {
-    updateSummary();
+  try {
+    const res = await fetch('/kiems/submit-entries/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    });
+    const data = await res.json();
+    const errBox = document.getElementById('form-errors');
+    if (data.ok) {
+      lastSubmittedKitIds = submittingKitIds;
+      // Update kitsData with submitted status
+      submittingKitIds.forEach(id => {
+        const kit = kitsData.find(k => k.kit_id == id);
+        if (kit) kit.has_entry = true;
+      });
+      errBox.classList.add('hidden');
+      renderEntryTab();
+      showSuccessModal(data.saved);
+      updateLastUpdated();
+    } else {
+      setMsgBox(errBox, `${data.saved || 0} entries saved. Review highlighted issues.`);
+    }
+  } catch (e) {
+    setMsgBox(document.getElementById('form-errors'), 'Network error. Please try again.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-cloud-upload"></i> Upload All KIEMS';
   }
 });
 
@@ -1820,30 +1455,17 @@ document.getElementById('success-modal').addEventListener('click', (e) => {
 document.addEventListener('keydown', function(e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        const activeTab = document.querySelector('.tab-btn.active');
-        if (activeTab) {
-            if (activeTab.dataset.tab === 'mapping') {
-                document.getElementById('mapping-save-btn').click();
-            } else {
-                // Check which button is visible
-                const submitBtn = document.getElementById('submit-btn');
-                const uploadBtn = document.getElementById('upload-all-btn');
-                if (!uploadBtn.classList.contains('hidden')) {
-                    uploadBtn.click();
-                } else if (!submitBtn.classList.contains('hidden')) {
-                    submitBtn.click();
-                }
-            }
+        const submitBtn = document.getElementById('submit-btn');
+        const uploadBtn = document.getElementById('upload-all-btn');
+        if (!uploadBtn.classList.contains('hidden')) {
+            uploadBtn.click();
+        } else if (!submitBtn.classList.contains('hidden')) {
+            submitBtn.click();
         }
     }
 
     if (e.key === 'Escape') {
-        const searchInput = document.getElementById('mapping-search-input');
-        if (searchInput && document.activeElement === searchInput) {
-            searchInput.value = '';
-            searchInput.dispatchEvent(new Event('input'));
-            searchInput.blur();
-        }
+        // Removed search input reference since we removed mapping tab
     }
 });
 
