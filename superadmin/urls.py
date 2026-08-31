@@ -75,5 +75,9 @@ urlpatterns = [
     # API endpoints
     path('api/device-status/', views.api_device_status, name='api_device_status'),
     path('api/vras-by-ward/', views.api_get_vras_by_ward, name='api_get_vras_by_ward'),
+
+    # Venue Management
     path('venue-management/', views.venue_management, name='venue_management'),
+    path('venue/generate_report/', views.generate_venue_report_pdf, name='generate_venue_report'),
+    path('delete-venue/', views.delete_venue, name='delete_venue'),
 ]

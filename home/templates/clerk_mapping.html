@@ -316,6 +316,17 @@
       cursor: default; padding-left: 2px; font-weight: 500;
     }
     .records-table input.venue-cell-input[readonly]::placeholder { color: var(--ink-3); }
+    .records-table .venue-display {
+      display: block;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      font-weight: 500;
+      color: var(--ink);
+      line-height: 1.4;
+      padding: 2px;
+    }
+    .records-table .venue-cell { min-width: 160px; }
     .records-table .time-cell { color: var(--ink-2); white-space: nowrap; font-size: 11.5px; font-family: var(--mono); }
     .records-table .day-cell { color: var(--ink-2); font-size: 11.5px; white-space: nowrap; }
     .records-table .status-cell { white-space: nowrap; }
@@ -335,6 +346,62 @@
     .records-table .save-feedback.success { color: var(--green-dark); }
     .records-table .save-feedback.error { color: var(--error); }
     .loading-cell, .empty-cell { text-align: center; padding: 22px; color: var(--ink-3); }
+
+    /* ==================== Mobile: cards instead of a scrolling table ==================== */
+    @media (max-width: 680px) {
+      .table-wrap {
+        overflow-x: visible;
+        border: none;
+        box-shadow: none;
+        background: transparent;
+      }
+      .records-table { min-width: 0; width: 100%; }
+      .records-table thead { display: none; }
+      .records-table, .records-table tbody, .records-table tr, .records-table td {
+        display: block;
+        width: 100%;
+      }
+      .records-table tbody tr {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        margin-bottom: 10px;
+        padding: 10px 12px 12px;
+        box-shadow: var(--shadow-sm);
+      }
+      .records-table tbody tr:hover { background: var(--surface); }
+      .records-table tr.new-row { border-color: var(--green); border-width: 1.5px; }
+      .records-table tr.new-row td { background: transparent; }
+      .records-table td {
+        border-top: none !important;
+        padding: 7px 0;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      .records-table td:not(:last-child) { border-bottom: 1px dashed var(--border-dash) !important; }
+      .records-table td::before {
+        content: attr(data-label);
+        flex: 0 0 58px;
+        padding-top: 6px;
+        font-size: 9px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: var(--ink-3);
+      }
+      .records-table td > input,
+      .records-table td > span.venue-display { flex: 1; min-width: 0; }
+      .records-table .action-cell {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        align-items: center;
+      }
+      .records-table .action-cell::before { content: none; flex: 0; }
+      .records-table .action-cell .save-feedback { flex-basis: 100%; text-align: right; }
+      .records-table .status-cell::before { padding-top: 1px; }
+    }
 
     /* ==================== Bottom bar (scroll-to-top only) ==================== */
     .bottom-bar { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
@@ -717,6 +784,14 @@ function getInitials(name) {
 
 function todayStr() {
   return new Date().toISOString().split('T')[0];
+}
+
+function escapeHtml(str) {
+  return (str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function dayName(dateStr) {
@@ -1155,20 +1230,21 @@ function renderRecords() {
     const show = matchesSearch;
     if (show) visibleCount++;
 
-    const venueVal = (record.venue || '').replace(/"/g, '&quot;');
+    const venueVal = escapeHtml(record.venue || '');
 
     html += `
       <tr class="${isNew ? 'new-row' : ''}" data-entry-id="${record.entry_id}" data-date="${record.date}" style="${show ? '' : 'display:none;'}">
-        <td><input class="date-cell-input" type="date" value="${record.date}" ${isNew ? '' : 'disabled'}></td>
-        <td class="day-cell">${dayName(record.date)}</td>
-        <td>
-          <input class="venue-cell-input" data-entry-id="${record.entry_id}"
+        <td data-label="Date"><input class="date-cell-input" type="date" value="${record.date}" ${isNew ? '' : 'disabled'}></td>
+        <td data-label="Day" class="day-cell">${dayName(record.date)}</td>
+        <td data-label="Venue" class="venue-cell">
+          <span class="venue-display ${isLocked ? '' : 'hidden'}">${venueVal}</span>
+          <input class="venue-cell-input ${isLocked ? 'hidden' : ''}" data-entry-id="${record.entry_id}"
                  value="${venueVal}" placeholder="Enter venue name"
-                 data-original="${venueVal}" ${isLocked ? 'readonly' : ''}>
+                 data-original="${venueVal}">
         </td>
-        <td class="time-cell">${FIXED_TIME_LABEL}</td>
-        <td class="status-cell"><span class="entry-status ${statusClass}">${statusLabel}</span></td>
-        <td class="action-cell">
+        <td data-label="Time" class="time-cell">${FIXED_TIME_LABEL}</td>
+        <td data-label="Status" class="status-cell"><span class="entry-status ${statusClass}">${statusLabel}</span></td>
+        <td class="action-cell" data-label="">
           <button class="btn-secondary small row-edit-btn edit-entry-btn" data-entry-id="${record.entry_id}"
                   style="${isLocked ? '' : 'display:none;'}">
             <i class="ti ti-pencil"></i> Edit
@@ -1190,12 +1266,14 @@ function renderRecords() {
 
   tbody.querySelectorAll('.edit-entry-btn').forEach(btn => {
     btn.addEventListener('click', function () {
-      const entryId = this.dataset.entryId;
       const row = this.closest('tr');
       const input = row.querySelector('.venue-cell-input');
+      const display = row.querySelector('.venue-display');
       const saveBtn = row.querySelector('.save-entry-btn');
       const badge = row.querySelector('.entry-status');
 
+      display.classList.add('hidden');
+      input.classList.remove('hidden');
       input.readOnly = false;
       input.focus();
       input.setSelectionRange(input.value.length, input.value.length);

@@ -2935,3 +2935,413 @@ def venue_management(request):
     }
 
     return render(request, 'superadmin/venue_management.html', context)
+
+# ============================================================
+# SHARED FILTER HELPER (ward / kit / date range)
+# Same logic as venue_management() itself, factored out so the
+# table, CSV/XLSX export, and this PDF report can never disagree
+# about which entries are "in scope".
+# ============================================================
+
+def _filtered_entries_qs(request):
+    ward_id = request.GET.get('ward')
+    kit_id = request.GET.get('kit')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+
+    entries = DailyKIEMSEntry.objects.select_related(
+        'kiems_kit', 'ward', 'vra', 'phase'
+    ).all()
+
+    ward_obj = None
+    kit_obj = None
+
+    if ward_id:
+        entries = entries.filter(ward_id=ward_id)
+        ward_obj = Ward.objects.filter(id=ward_id).first()
+
+    if kit_id:
+        entries = entries.filter(kiems_kit_id=kit_id)
+        kit_obj = KIEMSKit.objects.filter(id=kit_id).first()
+
+    if date_from:
+        try:
+            date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
+            entries = entries.filter(entry_date__gte=date_from_parsed)
+        except ValueError:
+            date_from = None
+
+    if date_to:
+        try:
+            date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
+            entries = entries.filter(entry_date__lte=date_to_parsed)
+        except ValueError:
+            date_to = None
+
+    entries = entries.order_by('entry_date', 'ward__name')
+
+    filters = {
+        'ward_obj': ward_obj,
+        'kit_obj': kit_obj,
+        'date_from': date_from,
+        'date_to': date_to,
+    }
+    return entries, filters
+
+
+# ============================================================
+# DELETE / CLEAR VENUE
+# ============================================================
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_POST
+def delete_venue(request):
+    """
+    Clears the venue field on a single DailyKIEMSEntry. Does NOT delete the
+    entry itself - registration counts, VRA, kit, and ward links are kept,
+    only the venue text is removed and the entry goes back to "Pending".
+    """
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON data'}, status=400)
+
+    entry_id = data.get('entry_id')
+    if not entry_id:
+        return JsonResponse({'ok': False, 'error': 'entry_id is required'}, status=400)
+
+    try:
+        entry = DailyKIEMSEntry.objects.get(id=entry_id)
+    except (DailyKIEMSEntry.DoesNotExist, ValueError):
+        return JsonResponse({'ok': False, 'error': 'Entry not found'}, status=404)
+
+    entry.venue = ''
+    entry.save(update_fields=['venue', 'updated_at'])
+
+    return JsonResponse({
+        'ok': True,
+        'entry_id': entry.id,
+        'message': 'Venue cleared.',
+    })
+
+
+# ============================================================
+# VENUE / MOVEMENT SCHEDULE REPORT
+# Mirrors generate_report_html / generate_report_pdf /
+# generate_report_pdf_fallback / generate_report exactly -
+# same PDF.co-first, ReportLab-fallback pattern, just pointed
+# at the Date/Day/Venue/Time schedule instead of the ward/phase/
+# kit statistics report.
+# ============================================================
+
+def _resolve_scope_names(filters, entries):
+    """
+    Work out what to print in the Ward / Kit meta boxes:
+    the explicit filter if one was applied, otherwise the single
+    value shared by every row, otherwise a generic label.
+    """
+    ward_obj = filters['ward_obj']
+    kit_obj = filters['kit_obj']
+
+    if ward_obj:
+        ward_name = ward_obj.name
+    else:
+        ward_names = {e.ward.name for e in entries if e.ward}
+        ward_name = ward_names.pop() if len(ward_names) == 1 else 'All Wards'
+
+    if kit_obj:
+        kit_no = f"{kit_obj.kit_name} ({kit_obj.serial_no})" if kit_obj.serial_no else kit_obj.kit_name
+    else:
+        kit_names = {
+            f"{e.kiems_kit.kit_name} ({e.kiems_kit.serial_no})" if e.kiems_kit.serial_no else e.kiems_kit.kit_name
+            for e in entries if e.kiems_kit
+        }
+        kit_no = kit_names.pop() if len(kit_names) == 1 else 'Multiple Kits'
+
+    return ward_name, kit_no
+
+
+from collections import defaultdict
+
+
+def generate_venue_report_html(request):
+    """Build the HTML for the venue/movement schedule notice, grouped by Ward and Kit."""
+    entries, filters = _filtered_entries_qs(request)
+    entries = list(entries.exclude(venue=''))
+
+    # Group entries by (Ward Name, Kit Number/Name)
+    grouped_data = defaultdict(list)
+    for e in entries:
+        ward_name = e.ward.name if e.ward else "All Wards"
+
+        if e.kiems_kit:
+            kit_no = f"{e.kiems_kit.kit_name} ({e.kiems_kit.serial_no})" if e.kiems_kit.serial_no else e.kiems_kit.kit_name
+        else:
+            kit_no = "Unassigned Kit"
+
+        grouped_data[(ward_name, kit_no)].append(e)
+
+    # Structure data for template iteration
+    report_groups = []
+    for (ward_name, kit_no), kit_entries in grouped_data.items():
+        schedule = [
+            {
+                'date': e.entry_date.strftime('%d %b %Y'),
+                'day': e.entry_date.strftime('%A'),
+                'venue': e.venue,
+                'time': '8:00 AM \u2013 5:00 PM',
+            }
+            for e in kit_entries
+        ]
+        report_groups.append({
+            'ward': ward_name,
+            'kit_no': kit_no,
+            'schedule': schedule,
+        })
+
+    html_string = render_to_string('superadmin/kitMovement_report.html', {
+        'constituency': 'TURBO',
+        'report_groups': report_groups,
+        'date_from': filters['date_from'],
+        'date_to': filters['date_to'],
+        'generated_at': timezone.localtime().strftime('%d %b %Y, %H:%M'),
+    })
+
+    return HttpResponse(html_string)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def generate_venue_report_pdf(request, as_attachment=False):
+    """Generate the venue/movement PDF using PDF.co (same as generate_report_pdf)."""
+    from django.conf import settings
+    import requests
+
+    try:
+        if not hasattr(settings, 'PDF_CO_API_KEY') or not settings.PDF_CO_API_KEY:
+            messages.error(request,
+                           'PDF.co API key is not configured. Please add PDF_CO_API_KEY to your environment variables.')
+            return redirect('superadmin:venue_management')
+
+        html_response = generate_venue_report_html(request)
+        html_string = html_response.content.decode('utf-8')
+
+        timestamp = timezone.localtime().strftime('%Y%m%d_%H%M%S')
+
+        api_url = f"{getattr(settings, 'PDF_CO_API_URL', 'https://api.pdf.co/v1')}/pdf/convert/from/html"
+
+        payload = json.dumps({
+            "name": f"KIEMS_Movement_Notice_{timestamp}.pdf",
+            "html": html_string,
+            "margin": "20px",
+            "paperSize": "Letter",
+            "orientation": "Portrait",
+            "printBackground": "true",
+            "header": "",
+            "footer": "",
+            "async": False
+        })
+
+        headers = {
+            'x-api-key': settings.PDF_CO_API_KEY,
+            'Content-Type': 'application/json'
+        }
+
+        response_api = requests.post(api_url, headers=headers, data=payload, timeout=60)
+
+        if response_api.status_code == 200:
+            result = response_api.json()
+
+            if result.get('error'):
+                messages.error(request, f'PDF generation error: {result["error"]}')
+                return redirect('superadmin:venue_management')
+
+            if result.get('url'):
+                pdf_response = requests.get(result['url'], timeout=30)
+                if pdf_response.status_code == 200:
+                    response = HttpResponse(pdf_response.content, content_type='application/pdf')
+                    filename = f"KIEMS_Movement_Notice_{timestamp}.pdf"
+                    disposition = 'attachment' if as_attachment else 'inline'
+                    response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+                    return response
+                else:
+                    messages.error(request, 'Failed to download generated PDF')
+                    return redirect('superadmin:venue_management')
+            elif result.get('file'):
+                response = HttpResponse(result['file'], content_type='application/pdf')
+                filename = f"KIEMS_Movement_Notice_{timestamp}.pdf"
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                return response
+            else:
+                messages.error(request, 'Unexpected response from PDF service')
+                return redirect('superadmin:venue_management')
+        else:
+            error_msg = response_api.json().get('error', 'Unknown error')
+            messages.error(request, f'PDF generation service error: {error_msg}')
+            return redirect('superadmin:venue_management')
+
+    except requests.exceptions.Timeout:
+        messages.error(request, 'PDF generation timed out. Please try again.')
+        return redirect('superadmin:venue_management')
+    except requests.exceptions.RequestException as e:
+        messages.error(request, f'Network error: {str(e)}')
+        return redirect('superadmin:venue_management')
+    except Exception as e:
+        messages.error(request, f'PDF generation failed: {str(e)}')
+        return redirect('superadmin:venue_management')
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def generate_venue_report_pdf_fallback(request, as_attachment=False):
+    """Local ReportLab fallback if PDF.co fails - mirrors generate_report_pdf_fallback."""
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+    except ImportError:
+        messages.error(request, 'ReportLab is not available. Please install reportlab.')
+        return redirect('superadmin:venue_management')
+
+    entries, filters = _filtered_entries_qs(request)
+    entries = list(entries.exclude(venue=''))
+    ward_name, kit_no = _resolve_scope_names(filters, entries)
+
+    timestamp = timezone.localtime().strftime('%Y%m%d_%H%M%S')
+    response = HttpResponse(content_type='application/pdf')
+    filename = f"KIEMS_Movement_Notice_{timestamp}.pdf"
+    disposition = 'attachment' if as_attachment else 'inline'
+    response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+
+    doc = SimpleDocTemplate(
+        response,
+        pagesize=letter,
+        rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40,
+    )
+
+    styles = getSampleStyleSheet()
+    story = []
+
+    # Title
+    title_style = ParagraphStyle(
+        'Title', parent=styles['Title'], fontSize=16,
+        textColor=colors.HexColor('#1B5E20'), alignment=TA_CENTER, spaceAfter=4,
+    )
+    story.append(Paragraph("NOTICE OF KIEMS KIT MOVEMENT SCHEDULE", title_style))
+
+    subtitle_style = ParagraphStyle(
+        'Subtitle', parent=styles['Normal'], fontSize=9,
+        textColor=colors.HexColor('#6b7280'), alignment=TA_CENTER, spaceAfter=14,
+    )
+    story.append(Paragraph(f"Voter Registration &mdash; Turbo Constituency &bull; "
+                            f"Generated: {timezone.localtime().strftime('%d %b %Y, %H:%M')}", subtitle_style))
+
+    # Meta table (Constituency / Ward / Kit No)
+    meta_data = [['Constituency', 'Ward', 'Kit No.'], ['Turbo', ward_name, kit_no]]
+    meta_table = Table(meta_data, colWidths=[150, 180, 180])
+    meta_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E7D32')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 1), (-1, 1), 11),
+        ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#F5F5F5')),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DDDDDD')),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(meta_table)
+    story.append(Spacer(1, 14))
+
+    # Body copy
+    body_style = ParagraphStyle(
+        'Body', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=14,
+    )
+    story.append(Paragraph(
+        "This is to inform the general public, especially potential eligible applicants for registration "
+        f"as voters, that the KIEMS Kit will be availed for registration of voters within "
+        f"<b>{ward_name}</b> County Assembly Ward as follows:",
+        body_style
+    ))
+
+    # Schedule table
+    table_data = [['Date', 'Day', 'Venue', 'Time']]
+    for row in entries:
+        table_data.append([
+            row.entry_date.strftime('%d %b %Y'),
+            row.entry_date.strftime('%A'),
+            row.venue,
+            '8:00 AM - 5:00 PM',
+        ])
+    if len(table_data) == 1:
+        table_data.append(['No schedule entries available', '', '', ''])
+
+    schedule_table = Table(table_data, colWidths=[90, 90, 220, 110])
+    schedule_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E7D32')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DDDDDD')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9F9F9')]),
+    ]))
+    story.append(schedule_table)
+    story.append(Spacer(1, 18))
+
+    # Requirements strip
+    req_style = ParagraphStyle(
+        'Req', parent=styles['Normal'], fontSize=9.5, textColor=colors.HexColor('#1B5E20'),
+        backColor=colors.HexColor('#E8F5E9'), borderPadding=10, spaceAfter=30,
+    )
+    story.append(Paragraph(
+        "<b>Requirements:</b> You must physically present yourself in person for biometric capture and be in "
+        "possession of your original National ID or valid Kenyan Passport in order to register as a voter.",
+        req_style
+    ))
+
+    # Signature block
+    sig_style = ParagraphStyle('Sig', parent=styles['Normal'], fontSize=9, spaceBefore=30)
+    sig_data = [
+        ['Signed: ' + '.' * 30, 'Date: ' + '.' * 20, 'Official Stamp: ' + '.' * 15],
+    ]
+    sig_table = Table(sig_data, colWidths=[220, 150, 180])
+    sig_table.setStyle(TableStyle([
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
+    ]))
+    story.append(sig_table)
+    story.append(Paragraph('(RO / ARO / VRA)', ParagraphStyle('Caption', fontSize=8, textColor=colors.HexColor('#6b7280'))))
+
+    doc.build(story)
+    return response
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def generate_venue_report(request):
+    """Try PDF.co first, fall back to ReportLab - same pattern as generate_report()."""
+    try:
+        return generate_venue_report_pdf(request, as_attachment=True)
+    except Exception as e:
+        messages.warning(request, f'PDF.co service failed, using fallback: {str(e)}')
+        return generate_venue_report_pdf_fallback(request, as_attachment=True)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def generate_venue_report_preview(request):
+    """HTML preview of the movement notice, same pattern as generate_report_preview()."""
+    return generate_venue_report_html(request)
+
+

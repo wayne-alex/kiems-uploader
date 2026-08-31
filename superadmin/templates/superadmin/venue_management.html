@@ -133,6 +133,11 @@
         background: #e0352b;
     }
 
+    .btn-danger:disabled {
+        background: #d1d1d6;
+        cursor: not-allowed;
+    }
+
     /* Filters */
     .filters-bar {
         background: #fff;
@@ -216,7 +221,7 @@
     table {
         width: 100%;
         border-collapse: collapse;
-        min-width: 700px;
+        min-width: 760px;
         font-size: 13px;
     }
 
@@ -506,7 +511,7 @@
                 Excel
             </a>
             <a class="btn-sm pdf" target="_blank" rel="noopener"
-               href="{% url 'superadmin:generate_report' %}?model_type=entry{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">
+               href="{% url 'superadmin:generate_venue_report' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 PDF
             </a>
@@ -579,6 +584,7 @@
                     <th>Ward</th>
                     <th>Venue</th>
                     <th style="width: 80px;">Status</th>
+                    <th style="width: 60px; text-align:right;">Actions</th>
                 </tr>
             </thead>
             <tbody id="entriesBody">
@@ -613,10 +619,25 @@
                             {% endif %}
                         </span>
                     </td>
+                    <td>
+                        <div class="actions-cell">
+                            <button class="btn-danger delete-venue-btn" data-entry-id="{{ entry.id }}"
+                                    title="Clear venue for this entry"
+                                    {% if not entry.venue %}disabled{% endif %}>
+                                <svg class="icon icon-sm" viewBox="0 0 24 24">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                    <path d="M10 11v6"/>
+                                    <path d="M14 11v6"/>
+                                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6">
+                    <td colspan="7">
                         <div class="empty-state">
                             <i class="ti ti-alert-circle"></i>
                             <h3>No Entries Found</h3>
@@ -664,6 +685,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveMessage = document.getElementById('save-message');
     const saveErrors = document.getElementById('save-errors');
     const csrfToken = "{{ csrf_token }}";
+    const deleteVenueUrl = "{% url 'superadmin:delete_venue' %}";
 
     // Get kit_id from the first entry or from the filter
     let kitId = null;
@@ -682,6 +704,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function flashMessage(el, text) {
+        el.querySelector('span').textContent = text;
+        el.classList.remove('hidden');
+        setTimeout(() => el.classList.add('hidden'), 4000);
+    }
+
     // Track changes on venue inputs
     document.querySelectorAll('.venue-input').forEach(input => {
         const original = input.dataset.original || '';
@@ -691,6 +719,68 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.classList.add('changed');
             } else {
                 this.classList.remove('changed');
+            }
+        });
+    });
+
+    // ================= Delete / Clear venue =================
+    document.querySelectorAll('.delete-venue-btn').forEach(btn => {
+        btn.addEventListener('click', async function () {
+            const entryId = this.dataset.entryId;
+            const row = this.closest('tr');
+            const input = row.querySelector('.venue-input');
+            const currentVenue = input ? input.value.trim() : '';
+
+            if (!currentVenue) return; // nothing to clear
+
+            if (!confirm('Clear the venue for this entry? This does not delete the entry itself, only its venue.')) {
+                return;
+            }
+
+            this.disabled = true;
+            const originalIcon = this.innerHTML;
+            this.innerHTML = '<svg class="icon icon-sm spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>';
+
+            try {
+                const resp = await fetch(deleteVenueUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ entry_id: entryId })
+                });
+
+                const data = await resp.json();
+
+                if (data.ok) {
+                    if (input) {
+                        input.value = '';
+                        input.dataset.original = '';
+                        input.classList.remove('changed');
+                    }
+                    const badge = row.querySelector('.status-badge');
+                    if (badge) {
+                        badge.innerHTML = '<svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending';
+                        badge.className = 'status-badge pending';
+                    }
+                    flashMessage(saveMessage, 'Venue cleared.');
+                } else {
+                    flashMessage(saveErrors, data.error || 'Could not clear venue.');
+                    this.disabled = false;
+                }
+            } catch (e) {
+                console.error('Delete venue error:', e);
+                flashMessage(saveErrors, 'Network error. Please try again.');
+                this.disabled = false;
+            } finally {
+                this.innerHTML = originalIcon;
+                // Keep disabled if venue is now empty
+                if (input && !input.value.trim()) {
+                    this.disabled = true;
+                } else {
+                    this.disabled = false;
+                }
             }
         });
     });
@@ -771,10 +861,13 @@ document.addEventListener('DOMContentLoaded', function() {
                                 badge.className = 'status-badge pending';
                             }
                         }
+                        // Keep delete button state in sync
+                        const delBtn = row.querySelector('.delete-venue-btn');
+                        if (delBtn) delBtn.disabled = !u.venue;
                     }
                 });
 
-                saveMessage.querySelector('span').textContent = `✅ Saved ${data.saved || updates.length} venue(s) successfully.`;
+                saveMessage.querySelector('span').textContent = `Saved ${data.saved || updates.length} venue(s) successfully.`;
                 saveMessage.classList.remove('hidden');
 
                 setTimeout(() => {

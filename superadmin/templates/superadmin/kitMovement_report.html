@@ -1,0 +1,391 @@
+{% load static %}
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Notice of KIEMS Kit Movement Schedule</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 0;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        :root {
+            --iebc-green: #2E7D32;
+            --iebc-green-dark: #1B5E20;
+            --iebc-green-light: #E8F5E9;
+            --ink: #1c1c1e;
+            --muted: #6b7280;
+            --border: #e5e7eb;
+            --bg-soft: #f8f9fb;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: var(--ink);
+            background: #fff;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        /* ===== PAGE BREAK CONTROL FOR EACH KIT ===== */
+        .page-container {
+            padding: 40px;
+            page-break-after: always;
+            break-after: page;
+        }
+        .page-container:last-child {
+            page-break-after: avoid;
+            break-after: avoid;
+        }
+
+        /* ===== Letterhead (using table layout for PDF engines) ===== */
+        .letterhead {
+            display: table;
+            width: 100%;
+            padding-bottom: 18px;
+            border-bottom: 3px solid var(--iebc-green);
+            margin-bottom: 4px;
+        }
+        .letterhead-brand {
+            display: table-cell;
+            vertical-align: middle;
+        }
+        .letterhead-brand img {
+            height: 56px;
+            width: 56px;
+            object-fit: contain;
+            vertical-align: middle;
+            margin-right: 12px;
+        }
+        .letterhead-brand .title-wrap {
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .letterhead-brand .org-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--iebc-green-dark);
+            letter-spacing: 0.2px;
+            text-transform: uppercase;
+            line-height: 1.3;
+        }
+        .letterhead-brand .org-tagline {
+            font-size: 10.5px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+        .letterhead-meta {
+            display: table-cell;
+            text-align: right;
+            vertical-align: middle;
+            font-size: 10.5px;
+            color: var(--muted);
+        }
+        .letterhead-meta .doc-tag {
+            display: inline-block;
+            background: var(--iebc-green-light);
+            color: var(--iebc-green-dark);
+            font-weight: 700;
+            font-size: 9.5px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+        }
+
+        /* ===== Title block ===== */
+        .report-title {
+            text-align: center;
+            margin: 22px 0 20px;
+        }
+        .report-title h1 {
+            font-size: 19px;
+            color: var(--ink);
+            letter-spacing: -0.2px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+        .report-title .subtitle {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        /* ===== Notice meta (Constituency / Ward / Kit No) ===== */
+        .notice-meta {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+            border-spacing: 12px 0;
+            margin-left: -12px;
+            margin-right: -12px;
+            margin-bottom: 22px;
+        }
+        .meta-card {
+            display: table-cell;
+            background: var(--bg-soft);
+            border-radius: 10px;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-top: 3px solid var(--iebc-green);
+        }
+        .meta-card .meta-label {
+            font-size: 9.5px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            font-weight: 700;
+            margin-bottom: 3px;
+        }
+        .meta-card .meta-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--ink);
+            letter-spacing: -0.1px;
+        }
+
+        /* ===== Body copy ===== */
+        .notice-body p {
+            margin-bottom: 14px;
+            text-align: justify;
+        }
+        .notice-body strong { color: var(--ink); }
+
+        /* ===== Schedule Table ===== */
+        .section {
+            margin-top: 18px;
+            margin-bottom: 20px;
+        }
+        .section h2 {
+            font-size: 13px;
+            color: var(--iebc-green-dark);
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th {
+            background: var(--iebc-green);
+            color: #fff;
+            padding: 9px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        td {
+            padding: 9px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        tr:nth-child(even) td {
+            background: var(--bg-soft);
+        }
+
+        /* ===== Requirements notice strip ===== */
+        .requirements-strip {
+            margin-top: 22px;
+            padding: 14px 16px;
+            background: var(--iebc-green-light);
+            border-left: 4px solid var(--iebc-green);
+            border-radius: 6px;
+            font-size: 12.5px;
+            color: var(--iebc-green-dark);
+            font-weight: 600;
+            line-height: 1.6;
+        }
+        .requirements-strip span.label {
+            display: block;
+            font-size: 9.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            font-weight: 700;
+            color: var(--iebc-green-dark);
+            margin-bottom: 4px;
+            opacity: 0.85;
+        }
+
+        /* ===== Signature block ===== */
+        .signature-block {
+            margin-top: 46px;
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+        .sig-item {
+            display: table-cell;
+            padding-right: 20px;
+        }
+        .sig-item:last-child {
+            padding-right: 0;
+        }
+        .sig-item .sig-label {
+            font-size: 10px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            font-weight: 700;
+            margin-bottom: 22px;
+        }
+        .sig-line {
+            border-bottom: 1px dotted #9ca3af;
+            height: 1px;
+            margin-bottom: 6px;
+        }
+        .sig-item .sig-caption {
+            font-size: 10.5px;
+            color: var(--muted);
+        }
+
+        /* ===== Footer ===== */
+        .footer {
+            margin-top: 36px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
+            font-size: 9.5px;
+            color: var(--muted);
+            display: table;
+            width: 100%;
+        }
+        .footer-left {
+            display: table-cell;
+            text-align: left;
+        }
+        .footer-right {
+            display: table-cell;
+            text-align: right;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+
+{% for group in report_groups %}
+    <div class="page-container">
+        <!-- Letterhead -->
+        <div class="letterhead">
+            <div class="letterhead-brand">
+                <img src="https://verify.iebc.or.ke/images/1.png" alt="IEBC Logo">
+                <div class="title-wrap">
+                    <div class="org-name">Independent Electoral and<br>Boundaries Commission</div>
+                    <div class="org-tagline">{{ constituency|default:"Turbo" }} Constituency &bull; Voter Registration Division</div>
+                </div>
+            </div>
+            <div class="letterhead-meta">
+                <span class="doc-tag">Public Notice</span><br>
+                {{ generated_at }}
+            </div>
+        </div>
+
+        <!-- Title -->
+        <div class="report-title">
+            <h1>Notice of KIEMS Kit Movement Schedule</h1>
+            <div class="subtitle">Voter Registration &mdash; {{ constituency|default:"Turbo" }} Constituency</div>
+        </div>
+
+        <!-- Meta (Constituency / Ward / Kit No) -->
+        <div class="notice-meta">
+            <div class="meta-card">
+                <div class="meta-label">Constituency</div>
+                <div class="meta-value">{{ constituency|default:"TURBO" }}</div>
+            </div>
+            <div class="meta-card">
+                <div class="meta-label">Ward</div>
+                <div class="meta-value">{{ group.ward }}</div>
+            </div>
+            <div class="meta-card">
+                <div class="meta-label">Kit No.</div>
+                <div class="meta-value">{{ group.kit_no }}</div>
+            </div>
+        </div>
+
+        <!-- Body -->
+        <div class="notice-body">
+            <p>
+                This is to inform the general public, especially potential eligible applicants for registration
+                as voters, that the KIEMS Kit will be availed for registration of voters within
+                <strong>{{ group.ward }}</strong> County Assembly Ward as follows:
+            </p>
+        </div>
+
+        <!-- Schedule Table -->
+        <div class="section">
+            <h2>Movement Schedule</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Day</th>
+                        <th>Venue</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in group.schedule %}
+                    <tr>
+                        <td>{{ row.date }}</td>
+                        <td>{{ row.day }}</td>
+                        <td>{{ row.venue|default:"Unknown" }}</td>
+                        <td>{{ row.time|default:"8:00 AM – 5:00 PM" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" style="text-align:center; color:#8e8e93;">No schedule entries available</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Requirements -->
+        <div class="requirements-strip">
+            <span class="label">Requirements</span>
+            You must physically present yourself in person for biometric capture and be in possession of your
+            original National ID or valid Kenyan Passport in order to register as a voter.
+        </div>
+
+        <!-- Signature Block -->
+        <div class="signature-block">
+            <div class="sig-item">
+                <div class="sig-label">Signed</div>
+                <div class="sig-line"></div>
+                <div class="sig-caption">RO / ARO / VRA</div>
+            </div>
+            <div class="sig-item">
+                <div class="sig-label">Date</div>
+                <div class="sig-line"></div>
+                <div class="sig-caption">&nbsp;</div>
+            </div>
+            <div class="sig-item">
+                <div class="sig-label">Official Stamp</div>
+                <div class="sig-line"></div>
+                <div class="sig-caption">&nbsp;</div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="footer-left">Independent Electoral and Boundaries Commission &bull; {{ generated_at }}</div>
+            <div class="footer-right">Public Notice</div>
+        </div>
+    </div>
+{% endfor %}
+
+</body>
+</html>
