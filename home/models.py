@@ -85,6 +85,16 @@ class Phase(models.Model):
         return self.name
 
 class DailyKIEMSEntry(models.Model):
+    ENTRY_TYPES = [
+        ('VENUE', 'Venue Mapping Only'),
+        ('REGISTRATION', 'Registration Entry'),
+    ]
+
+    entry_type = models.CharField(
+        max_length=20,
+        choices=ENTRY_TYPES,
+        default='REGISTRATION'
+    )
     kiems_kit = models.ForeignKey(KIEMSKit, on_delete=models.PROTECT, related_name="daily_entries")
     phase = models.ForeignKey(Phase, on_delete=models.PROTECT, related_name="daily_entries")
     ward = models.ForeignKey(Ward, on_delete=models.PROTECT, related_name="daily_entries")

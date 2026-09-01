@@ -91,10 +91,14 @@ class DailyKIEMSEntryForm(forms.ModelForm):
             'ward': forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}),
             'vra': forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}),
             'entry_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-input', 'style': 'font-size:13px;'}),
-            'venue': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Venue location', 'style': 'font-size:13px;'}),
-            'registered_male': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
-            'registered_female': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
-            'total_transferred': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
+            'venue': forms.TextInput(
+                attrs={'class': 'form-input', 'placeholder': 'Venue location', 'style': 'font-size:13px;'}),
+            'registered_male': forms.NumberInput(
+                attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
+            'registered_female': forms.NumberInput(
+                attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
+            'total_transferred': forms.NumberInput(
+                attrs={'class': 'form-input', 'min': 0, 'placeholder': '0', 'style': 'font-size:13px;'}),
             'uploaded': forms.CheckboxInput(attrs={'class': 'form-checkbox', 'style': 'width:18px;height:18px;'})
         }
 
@@ -110,20 +114,111 @@ class DailyKIEMSEntryForm(forms.ModelForm):
         elif self.instance.pk and self.instance.ward:
             self.fields['vra'].queryset = VRA.objects.filter(ward=self.instance.ward, active=True)
 
+    def clean(self):
+        """Validate and determine entry type based on registrations"""
+        cleaned_data = super().clean()
+
+        registered_male = cleaned_data.get('registered_male', 0)
+        registered_female = cleaned_data.get('registered_female', 0)
+        venue = cleaned_data.get('venue', '').strip()
+        entry_date = cleaned_data.get('entry_date')
+        kiems_kit = cleaned_data.get('kiems_kit')
+        phase = cleaned_data.get('phase')
+        ward = cleaned_data.get('ward')
+        vra = cleaned_data.get('vra')
+
+        # Check if there are any registrations
+        has_registrations = (registered_male > 0 or registered_female > 0)
+
+        # If there are registrations, venue is required
+        if has_registrations and not venue:
+            raise forms.ValidationError('Venue is required when registering voters.')
+
+        # If there's a venue but no registrations, it's a venue mapping
+        if venue and not has_registrations:
+            # This is a venue mapping - allow it
+            # We'll set the entry_type in the view after save
+            pass
+
+        # If no venue and no registrations, that's an error
+        if not venue and not has_registrations:
+            raise forms.ValidationError(
+                'Either provide a venue (for venue mapping) or enter voter registrations.'
+            )
+
+        # Check for duplicate entries (same kit, phase, date, vra)
+        if entry_date and kiems_kit and phase and vra:
+            existing = DailyKIEMSEntry.objects.filter(
+                kiems_kit=kiems_kit,
+                phase=phase,
+                entry_date=entry_date,
+                vra=vra
+            )
+
+            # Exclude current instance when editing
+            if self.instance and self.instance.pk:
+                existing = existing.exclude(pk=self.instance.pk)
+
+            if existing.exists():
+                raise forms.ValidationError(
+                    f'An entry already exists for Kit "{kiems_kit.kit_name}", '
+                    f'Phase "{phase.name}", Date "{entry_date}", and VRA "{vra.name}".'
+                )
+
+        return cleaned_data
+
 
 class DailyEntryFilterForm(forms.Form):
-    phase = forms.ModelChoiceField(queryset=Phase.objects.all(), required=False,
-                                   widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}))
-    ward = forms.ModelChoiceField(queryset=Ward.objects.all(), required=False,
-                                  widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}))
-    kit = forms.ModelChoiceField(queryset=KIEMSKit.objects.all(), required=False,
-                                 widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}))
-    vra = forms.ModelChoiceField(queryset=VRA.objects.all(), required=False,
-                                 widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}))
-    date_from = forms.DateField(widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-input', 'style': 'font-size:13px;'}), required=False)
-    date_to = forms.DateField(widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-input', 'style': 'font-size:13px;'}), required=False)
-    uploaded = forms.ChoiceField(choices=[('', 'All'), ('True', 'Uploaded'), ('False', 'Not Uploaded')],
-                                 required=False, widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}))
+    phase = forms.ModelChoiceField(
+        queryset=Phase.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'})
+    )
+    ward = forms.ModelChoiceField(
+        queryset=Ward.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'})
+    )
+    kit = forms.ModelChoiceField(
+        queryset=KIEMSKit.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'})
+    )
+    vra = forms.ModelChoiceField(
+        queryset=VRA.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'})
+    )
+    date_from = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-input', 'style': 'font-size:13px;'}),
+        required=False
+    )
+    date_to = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-input', 'style': 'font-size:13px;'}),
+        required=False
+    )
+    uploaded = forms.ChoiceField(
+        choices=[('', 'All'), ('True', 'Uploaded'), ('False', 'Not Uploaded')],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'})
+    )
+    entry_type = forms.ChoiceField(
+        choices=[
+            ('', 'All Types'),
+            ('REGISTRATION', 'Registration Entries'),
+            ('VENUE', 'Venue Mappings')
+        ],
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'})
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Add empty labels for clarity
+        self.fields['phase'].empty_label = 'All Phases'
+        self.fields['ward'].empty_label = 'All Wards'
+        self.fields['kit'].empty_label = 'All Kits'
+        self.fields['vra'].empty_label = 'All VRAs'
 
 
 class ImportForm(forms.Form):
@@ -139,6 +234,15 @@ class ImportForm(forms.Form):
 
     model_type = forms.ChoiceField(choices=MODEL_CHOICES, widget=forms.Select(attrs={'class': 'form-input'}))
     file = forms.FileField(widget=forms.FileInput(attrs={'class': 'form-input'}))
+
+    def clean_file(self):
+        """Validate file extension"""
+        file = self.cleaned_data.get('file')
+        if file:
+            ext = file.name.split('.')[-1].lower()
+            if ext not in ['csv', 'xlsx', 'xls']:
+                raise forms.ValidationError('File must be CSV or Excel format.')
+        return file
 
 
 class ExportForm(forms.Form):
@@ -156,7 +260,75 @@ class ExportForm(forms.Form):
         ('xlsx', 'Excel'),
     ]
 
-    model_type = forms.ChoiceField(choices=MODEL_CHOICES, initial='entry',
-                                   widget=forms.Select(attrs={'class': 'form-input'}))
-    format = forms.ChoiceField(choices=FORMAT_CHOICES, initial='csv',
-                               widget=forms.Select(attrs={'class': 'form-input'}))
+    model_type = forms.ChoiceField(
+        choices=MODEL_CHOICES,
+        initial='entry',
+        widget=forms.Select(attrs={'class': 'form-input'})
+    )
+    format = forms.ChoiceField(
+        choices=FORMAT_CHOICES,
+        initial='csv',
+        widget=forms.Select(attrs={'class': 'form-input'})
+    )
+
+
+# Optional: Separate form for venue mapping (if you want a dedicated form)
+class VenueMappingForm(forms.ModelForm):
+    """Dedicated form for pre-mapping venues without registrations"""
+
+    class Meta:
+        model = DailyKIEMSEntry
+        fields = ['kiems_kit', 'phase', 'ward', 'vra', 'entry_date', 'venue']
+        widgets = {
+            'kiems_kit': forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}),
+            'phase': forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}),
+            'ward': forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}),
+            'vra': forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}),
+            'entry_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-input', 'style': 'font-size:13px;'}),
+            'venue': forms.TextInput(
+                attrs={'class': 'form-input', 'placeholder': 'Venue location', 'style': 'font-size:13px;'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter VRAs by ward
+        if 'ward' in self.data:
+            try:
+                ward_id = int(self.data.get('ward'))
+                self.fields['vra'].queryset = VRA.objects.filter(ward_id=ward_id, active=True)
+            except (ValueError, TypeError):
+                pass
+        elif self.instance.pk and self.instance.ward:
+            self.fields['vra'].queryset = VRA.objects.filter(ward=self.instance.ward, active=True)
+
+    def clean(self):
+        """Ensure this is a venue mapping (no registrations)"""
+        cleaned_data = super().clean()
+        venue = cleaned_data.get('venue', '').strip()
+
+        if not venue:
+            raise forms.ValidationError('Venue is required for mapping.')
+
+        # Check for duplicate entries
+        entry_date = cleaned_data.get('entry_date')
+        kiems_kit = cleaned_data.get('kiems_kit')
+        phase = cleaned_data.get('phase')
+        vra = cleaned_data.get('vra')
+
+        if entry_date and kiems_kit and phase and vra:
+            existing = DailyKIEMSEntry.objects.filter(
+                kiems_kit=kiems_kit,
+                phase=phase,
+                entry_date=entry_date,
+                vra=vra
+            )
+
+            if self.instance and self.instance.pk:
+                existing = existing.exclude(pk=self.instance.pk)
+
+            if existing.exists():
+                raise forms.ValidationError(
+                    f'An entry already exists for this Kit, Phase, Date, and VRA combination.'
+                )
+
+        return cleaned_data

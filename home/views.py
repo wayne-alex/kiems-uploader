@@ -55,27 +55,29 @@ def send_whatsapp_message_from_vra(message, vra):
         print(f"WhatsApp error: {str(e)}")
         return False
 
-
 def format_vra_submission_message(entry, is_update=False):
-    """Format VRA submission message"""
+    """Format VRA submission message - only for REGISTRATION entries"""
+    total = entry.registered_male + entry.registered_female
+
+    # Only send if there are actual registrations
+    if total == 0:
+        return None
+
     if is_update:
         message = f"{entry.ward.name.upper()} UPDATED\n"
     else:
-        message = f"{entry.ward.name.upper()} CONFIRMED\n"
+        message = f"{entry.ward.name.upper()} CONFIRMED ✅\n"
 
-    # Ensure total is calculated correctly
-    total = entry.registered_male + entry.registered_female
-
-    message += f"{entry.kiems_kit.kit_name}: MALE:{entry.registered_male} FEMALE:{entry.registered_female} = {total}\n"
+    message += f"{entry.kiems_kit.kit_name}:Male:{entry.registered_male} Female:{entry.registered_female} ={total}"
 
     if entry.total_transferred and entry.total_transferred > 0:
-        message += f"Transferred: {entry.total_transferred}"
+        message += f"\nTransferred: {entry.total_transferred}"
 
     return message
 
 
 def format_grand_total_message(entries, total_wards):
-    """Format grand total message"""
+    """Format grand total message - only for REGISTRATION entries"""
     today = timezone.now().date()
 
     total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
@@ -89,13 +91,13 @@ def format_grand_total_message(entries, total_wards):
         total=Sum('total_registered')
     ).order_by('ward__name')
 
-    message = f"{today.strftime('%d %b %Y')}\n"
-    message += f"All {total_wards} Wards Submitted!\n\n"
+    message = f"DAILY REPORT - {today.strftime('%d %b %Y')}\n"
+    message += f"All {total_wards} Wards Submitted\n\n"
 
     for w in ward_data:
-        message += f"{w['ward__name']}: MALE:{w['male']} FEMALE:{w['female']} = {w['total']}\n"
+        message += f"{w['ward__name']}: Male: {w['male']} Female: {w['female']} = {w['total']}\n"
 
-    message += f"\nTOTAL: MALE:{total_male} FEMALE:{total_female} = {total_registered}"
+    message += f"\nTOTAL: Male: {total_male} Female: {total_female} = {total_registered}"
     if total_transferred > 0:
         message += f" | Transferred: {total_transferred}"
 
@@ -103,21 +105,30 @@ def format_grand_total_message(entries, total_wards):
 
 
 def check_and_send_daily_report_from_vra(vra):
-    """Check if all wards submitted and send grand total"""
+    """Check if all wards submitted and send grand total - only for REGISTRATION entries with actual votes"""
     try:
         today = timezone.now().date()
         total_wards = Ward.objects.count()
         if total_wards == 0:
             return
 
+        # Only count wards that have REGISTRATION entries with actual registered voters
+        # (guards against mislabeled 0-count venue-mapping rows triggering this early)
         submitted_wards = DailyKIEMSEntry.objects.filter(
-            entry_date=today
+            entry_date=today,
+            entry_type='REGISTRATION',
+            total_registered__gt=0,
         ).values('ward').distinct().count()
 
         if submitted_wards < total_wards:
             return
 
-        entries = DailyKIEMSEntry.objects.filter(entry_date=today)
+        # Get all REGISTRATION entries for today with actual votes
+        entries = DailyKIEMSEntry.objects.filter(
+            entry_date=today,
+            entry_type='REGISTRATION',
+            total_registered__gt=0,
+        )
         if not entries.exists():
             return
 
@@ -633,7 +644,7 @@ def auto_bind_clerk(request):
 
 @require_GET
 def kits_with_entries(request):
-    """Get kits with entries - uses fingerprint for auth"""
+    """Get kits with entries - distinguishes between venue mappings and registrations"""
     fingerprint = request.GET.get('fingerprint')
     date_str = request.GET.get('date')
 
@@ -702,23 +713,41 @@ def kits_with_entries(request):
     data = []
     for kit in kits:
         entry = existing.get(kit.id)
+
+        # Determine if this is a registration or venue mapping
+        has_registration = False
+        is_venue_mapping = False
+        registered_male = 0
+        registered_female = 0
         total = 0
+
         if entry:
-            total = entry.registered_male + entry.registered_female
+            registered_male = entry.registered_male or 0
+            registered_female = entry.registered_female or 0
+            total = registered_male + registered_female
+
+            # Check if there are actual registrations
+            has_registration = total > 0
+
+            # Check if it's a venue mapping (has venue but no registrations)
+            is_venue_mapping = (entry.venue and entry.venue.strip() and total == 0)
 
         kit_data = {
             "kit_id": kit.id,
             "kit_name": kit.kit_name,
             "serial_no": kit.serial_no,
             "venue": entry.venue if entry else "",
-            "registered_male": entry.registered_male if entry else 0,
-            "registered_female": entry.registered_female if entry else 0,
+            "registered_male": registered_male,
+            "registered_female": registered_female,
             "total_registered": total,
             "total_transferred": entry.total_transferred if entry else 0,
             "has_entry": bool(entry),
+            "has_registration": has_registration,  # NEW: actual voter registrations
+            "is_venue_mapping": is_venue_mapping,  # NEW: venue only, no registrations
             "is_today": selected_date == timezone.localdate(),
             "selected_date": selected_date.strftime('%Y-%m-%d'),
             "is_future": selected_date > timezone.localdate(),
+            "entry_type": entry.entry_type if entry else None,  # NEW: entry type from model
         }
         data.append(kit_data)
 
@@ -733,14 +762,12 @@ def kits_with_entries(request):
         "device_authorized": True
     })
 
-
 @csrf_exempt
 @require_POST
 def submit_daily_entries(request):
-    """Submit entries - uses fingerprint for auth"""
+    """Submit entries - distinguishes between venue mappings and registrations"""
     fingerprint = request.POST.get('fingerprint')
 
-    # Try to find VRA by fingerprint
     if fingerprint:
         try:
             device = Device.objects.select_related('vra').get(
@@ -752,7 +779,6 @@ def submit_daily_entries(request):
         except Device.DoesNotExist:
             return JsonResponse({"ok": False, "error": "Device not authorized"}, status=401)
     else:
-        # Fallback to token-based
         token = request.POST.get("token")
         if not token:
             return JsonResponse({"ok": False, "error": "No authentication provided"}, status=400)
@@ -767,7 +793,6 @@ def submit_daily_entries(request):
     if not active_phase:
         return JsonResponse({"ok": False, "error": "No active phase found"}, status=404)
 
-    # Parse date or use today
     try:
         if date_str:
             entry_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -776,9 +801,8 @@ def submit_daily_entries(request):
     except ValueError:
         entry_date = timezone.localdate()
 
-    # Prevent editing entries from past dates (only allow today)
-    if entry_date != timezone.localdate():
-        return JsonResponse({"ok": False, "error": "Can only submit entries for today's date"}, status=403)
+    if entry_date < timezone.localdate():
+        return JsonResponse({"ok": False, "error": "Cannot submit entries for past dates"}, status=403)
 
     kit_ids = request.POST.getlist("kit_id[]")
     venues = request.POST.getlist("venue[]")
@@ -788,6 +812,7 @@ def submit_daily_entries(request):
     errors = {}
     saved = 0
     entries_created = []
+    venue_mappings_created = []
 
     for i, kit_id in enumerate(kit_ids):
         venue = venues[i].strip() if i < len(venues) else ""
@@ -799,16 +824,11 @@ def submit_daily_entries(request):
             errors[kit_id] = "Venue is required."
             continue
 
-        if male_count == 0 and female_count == 0:
-            errors[kit_id] = "Enter at least one registered voter (Male/Female)."
-            continue
-
+        has_registrations = male_count > 0 or female_count > 0
         kit = get_object_or_404(KIEMSKit, id=kit_id, ward=vra.ward)
-
-        # Calculate total
         total_count = male_count + female_count
+        entry_type = 'REGISTRATION' if has_registrations else 'VENUE'
 
-        # Try to get existing entry
         entry, created = DailyKIEMSEntry.objects.get_or_create(
             kiems_kit=kit,
             phase=active_phase,
@@ -819,33 +839,48 @@ def submit_daily_entries(request):
                 "venue": venue,
                 "registered_male": male_count,
                 "registered_female": female_count,
-                "total_registered": total_count,  # Set total on create
+                "total_registered": total_count,
+                "entry_type": entry_type,
             },
         )
 
-        is_update = False
+        # The row may already exist purely because a venue was pre-mapped -
+        # that is NOT a prior "registration". Only treat this as an UPDATE
+        # if it already had actual registered voters on it before this save.
+        is_update = (not created) and entry.total_registered > 0
+
         if not created:
-            is_update = True
-            # Update the entry - the model's save() will recalculate total
             entry.venue = venue
             entry.registered_male = male_count
             entry.registered_female = female_count
+            entry.entry_type = entry_type
             entry.edit_count += 1
-            # Note: total_registered will be recalculated in the model's save()
-            entry.save()  # Don't use update_fields to ensure total is recalculated
+            entry.save()
 
-        entries_created.append(entry)
+        if has_registrations:
+            entries_created.append(entry)
+            entry._is_update_for_message = is_update
+        else:
+            venue_mappings_created.append(entry)
+
         saved += 1
 
-    # Send WhatsApp notifications
+    # Send WhatsApp notifications ONLY for REGISTRATION entries
     try:
-        for entry in entries_created:
-            is_update = entry.edit_count > 0
-            message = format_vra_submission_message(entry, is_update)
-            send_whatsapp_message_from_vra(message, vra)
-
         if entries_created:
+            for entry in entries_created:
+                is_update = getattr(entry, '_is_update_for_message', False)
+                message = format_vra_submission_message(entry, is_update)
+                if message:
+                    send_whatsapp_message_from_vra(message, vra)
+
             check_and_send_daily_report_from_vra(vra)
+
+        if venue_mappings_created:
+            print(f"Venue mappings created: {len(venue_mappings_created)} entries")
+            for vm in venue_mappings_created:
+                print(f"  - {vm.ward.name}: {vm.venue} on {vm.entry_date}")
+
     except Exception as e:
         print(f"WhatsApp error: {str(e)}")
 
@@ -855,7 +890,9 @@ def submit_daily_entries(request):
     return JsonResponse({
         "ok": True,
         "saved": saved,
-        "message": "Entries submitted successfully!"
+        "registrations": len(entries_created),
+        "venue_mappings": len(venue_mappings_created),
+        "message": f"{saved} entries submitted successfully!"
     })
 
 
@@ -946,11 +983,19 @@ def clerk_records(request):
 
     records = []
     for entry in entries:
+        # Determine if this is a registration or venue mapping
+        total = (entry.registered_male or 0) + (entry.registered_female or 0)
+        is_registration = total > 0
+        is_venue_mapping = bool(entry.venue and entry.venue.strip() and not is_registration)
+
         records.append({
             'entry_id': entry.id,
             'date': entry.entry_date.isoformat(),
             'venue': entry.venue or '',
             'editable': True,
+            'has_registration': is_registration,
+            'is_venue_mapping': is_venue_mapping,
+            'entry_type': entry.entry_type,
         })
 
     # Ensure there's always a row for today, even if nothing's been saved yet
@@ -962,6 +1007,9 @@ def clerk_records(request):
             'venue': '',
             'editable': True,
             'is_new': True,
+            'has_registration': False,
+            'is_venue_mapping': False,
+            'entry_type': None,
         })
 
     clerk_data = None
@@ -995,14 +1043,10 @@ def clerk_records(request):
 def save_clerk_venues(request):
     """
     Save venue updates for one or more entries.
-
-    Each item in `updates` may now carry its own `date` (YYYY-MM-DD).
-    This lets the clerk table save:
-      - an edit to an existing entry (entry_id > 0)
-      - a brand-new row added via "Add Entry" (entry_id <= 0, e.g. a
-        negative temp id generated client-side)
-    A top-level `date` is still accepted as a fallback for any update
-    that doesn't specify its own date.
+    DISTINGUISHES between venue mappings and registration entries.
+    entry_type is always derived from the actual registered_male/registered_female
+    counts on the record - never trusted from a client-supplied flag - so a
+    venue-only premap can never masquerade as a REGISTRATION entry.
     """
     try:
         data = json.loads(request.body)
@@ -1057,6 +1101,7 @@ def save_clerk_venues(request):
         errors = []
         updated_entries = []
         created_entries = []
+        venue_mappings_created = []
         created_ids = []
 
         for update in updates:
@@ -1093,12 +1138,11 @@ def save_clerk_venues(request):
             print(f"[clerk-mapping] Processing: entry_id={entry_id}, kit_id={actual_kit_id}, "
                   f"date={row_date_obj}, venue={venue}")
 
-            # entry_id <= 0 always means "new row from the table" (temp/placeholder id).
-            # A positive id that doesn't correspond to a real row is also treated as new.
+            # entry_id <= 0 always means "new row from the table"
             is_from_mapping = (
-                entry_id <= 0
-                or kit_id_from_update is not None
-                or not DailyKIEMSEntry.objects.filter(id=entry_id).exists()
+                    entry_id <= 0
+                    or kit_id_from_update is not None
+                    or not DailyKIEMSEntry.objects.filter(id=entry_id).exists()
             )
 
             if is_from_mapping:
@@ -1125,12 +1169,22 @@ def save_clerk_venues(request):
                 if existing_entry:
                     old_venue = existing_entry.venue
                     existing_entry.venue = venue
-                    existing_entry.save(update_fields=['venue', 'updated_at'])
+                    # entry_type is derived from the record's own counts, never
+                    # from a client flag - this tool never writes vote counts,
+                    # so an entry only becomes REGISTRATION if it already has
+                    # real registered voters on it from elsewhere.
+                    existing_entry.entry_type = (
+                        'REGISTRATION' if existing_entry.total_registered > 0 else 'VENUE'
+                    )
+                    existing_entry.save(update_fields=['venue', 'entry_type', 'updated_at'])
                     updated_entries.append(existing_entry)
                     saved_count += 1
                     print(f"[clerk-mapping] Updated existing entry {existing_entry.id} for kit "
-                          f"{kit.id} on {row_date_obj}: '{old_venue}' -> '{venue}'")
+                          f"{kit.id} on {row_date_obj}: '{old_venue}' -> '{venue}' "
+                          f"(entry_type={existing_entry.entry_type})")
                 else:
+                    # Brand new row from this tool is always a pure venue mapping -
+                    # it never carries vote counts, so it is always 'VENUE'.
                     entry_data = {
                         'kiems_kit': kit,
                         'phase': active_phase,
@@ -1139,6 +1193,7 @@ def save_clerk_venues(request):
                         'venue': venue,
                         'registered_male': 0,
                         'registered_female': 0,
+                        'entry_type': 'VENUE',
                     }
 
                     if vra:
@@ -1180,13 +1235,16 @@ def save_clerk_venues(request):
                     try:
                         entry = DailyKIEMSEntry.objects.create(**entry_data)
                     except Exception as e:
-                        # e.g. unique constraint race — fall back to update
+                        # Unique constraint race - fall back to update
                         existing_entry = DailyKIEMSEntry.objects.filter(
                             kiems_kit=kit, phase=active_phase, entry_date=row_date_obj
                         ).first()
                         if existing_entry:
                             existing_entry.venue = venue
-                            existing_entry.save(update_fields=['venue', 'updated_at'])
+                            existing_entry.entry_type = (
+                                'REGISTRATION' if existing_entry.total_registered > 0 else 'VENUE'
+                            )
+                            existing_entry.save(update_fields=['venue', 'entry_type', 'updated_at'])
                             updated_entries.append(existing_entry)
                             saved_count += 1
                             continue
@@ -1196,7 +1254,8 @@ def save_clerk_venues(request):
                     created_entries.append(entry)
                     created_ids.append(entry.id)
                     saved_count += 1
-                    print(f"[clerk-mapping] Created new entry {entry.id} for kit {kit.id} on {row_date_obj}")
+                    print(f"[clerk-mapping] Created new venue-mapping entry {entry.id} for kit "
+                          f"{kit.id} on {row_date_obj}")
 
             elif entry_id > 0:
                 try:
@@ -1205,17 +1264,21 @@ def save_clerk_venues(request):
                     old_date = entry.entry_date
 
                     entry.venue = venue
+                    # Derived purely from the record's own counts - this endpoint
+                    # never touches registered_male/registered_female.
+                    entry.entry_type = 'REGISTRATION' if entry.total_registered > 0 else 'VENUE'
+
                     # Allow the clerk to correct the date on an existing row too
                     if row_date_str and row_date_obj != entry.entry_date:
                         entry.entry_date = row_date_obj
-                        entry.save(update_fields=['venue', 'entry_date', 'updated_at'])
+                        entry.save(update_fields=['venue', 'entry_date', 'entry_type', 'updated_at'])
                     else:
-                        entry.save(update_fields=['venue', 'updated_at'])
+                        entry.save(update_fields=['venue', 'entry_type', 'updated_at'])
 
                     updated_entries.append(entry)
                     saved_count += 1
                     print(f"[clerk-mapping] Updated entry {entry_id}: date={old_date}->{entry.entry_date}, "
-                          f"venue: '{old_venue}' -> '{venue}'")
+                          f"venue: '{old_venue}' -> '{venue}' (entry_type={entry.entry_type})")
 
                 except DailyKIEMSEntry.DoesNotExist:
                     errors.append(f'Entry {entry_id} not found')
@@ -1226,18 +1289,23 @@ def save_clerk_venues(request):
 
         # Only notify WhatsApp when there's actual voter-count data (not plain venue edits)
         try:
-            touched = updated_entries + created_entries
-            has_vra_data = any(
-                (e.registered_male > 0 or e.registered_female > 0) for e in touched
-            )
-            if has_vra_data and vra:
-                for entry in touched:
-                    if entry.vra and (entry.registered_male > 0 or entry.registered_female > 0):
+            registration_entries = [e for e in updated_entries + created_entries
+                                    if e.total_registered > 0]
+            venue_only_entries = [e for e in updated_entries + created_entries
+                                  if e.total_registered == 0]
+
+            if registration_entries and vra:
+                for entry in registration_entries:
+                    if entry.vra:
                         is_update = entry in updated_entries
                         message = format_vra_submission_message(entry, is_update)
-                        send_whatsapp_message_from_vra(message, entry.vra)
-                if touched:
-                    check_and_send_daily_report_from_vra(vra)
+                        if message:
+                            send_whatsapp_message_from_vra(message, entry.vra)
+                check_and_send_daily_report_from_vra(vra)
+
+            if venue_only_entries:
+                print(f"? Venue mappings saved: {len(venue_only_entries)} entries")
+
         except Exception as e:
             print(f"[clerk-mapping] WhatsApp error: {str(e)}")
 
@@ -1246,6 +1314,8 @@ def save_clerk_venues(request):
             'saved': saved_count,
             'created': len(created_entries),
             'updated': len(updated_entries),
+            'registrations': len([e for e in created_entries + updated_entries if e.total_registered > 0]),
+            'venue_mappings': len([e for e in created_entries + updated_entries if e.total_registered == 0]),
             'entry_ids': created_ids,
             'errors': errors if errors else None,
             'message': f'Saved {saved_count} entr{"y" if saved_count == 1 else "ies"}.',

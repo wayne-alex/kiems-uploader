@@ -4,7 +4,6 @@ import json
 import logging
 from datetime import datetime, timedelta
 
-
 import openpyxl
 import requests
 from django.conf import settings
@@ -42,7 +41,7 @@ from home.models import (
 )
 from .forms import (
     WardForm, VRAForm, ClerkForm, KIEMSKitForm, PhaseForm,
-    DailyKIEMSEntryForm, DailyEntryFilterForm, ImportForm
+    DailyKIEMSEntryForm, DailyEntryFilterForm, ImportForm, VenueMappingForm
 )
 
 
@@ -157,6 +156,8 @@ def dashboard(request):
         'total_registered': DailyKIEMSEntry.objects.aggregate(Sum('total_registered'))['total_registered__sum'] or 0,
         'total_transferred': DailyKIEMSEntry.objects.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0,
         'total_updated': DailyKIEMSEntry.objects.aggregate(Sum('total_updated'))['total_updated__sum'] or 0,
+        'venue_mappings': DailyKIEMSEntry.objects.filter(entry_type='VENUE').count(),
+        'registration_entries': DailyKIEMSEntry.objects.filter(entry_type='REGISTRATION').count(),
     }
 
     # Recent entries
@@ -166,13 +167,17 @@ def dashboard(request):
 
     # Today's activity
     today = timezone.now().date()
-    today_activity = DailyKIEMSEntry.objects.filter(
-        entry_date=today
-    ).aggregate(
-        registered=Sum('total_registered'),
-        transferred=Sum('total_transferred'),
-        deleted=Sum('total_updated')
-    )
+    today_entries = DailyKIEMSEntry.objects.filter(entry_date=today)
+    today_activity = {
+        'registered': today_entries.filter(entry_type='REGISTRATION').aggregate(Sum('total_registered'))[
+                          'total_registered__sum'] or 0,
+        'transferred': today_entries.filter(entry_type='REGISTRATION').aggregate(Sum('total_transferred'))[
+                           'total_transferred__sum'] or 0,
+        'deleted': today_entries.filter(entry_type='REGISTRATION').aggregate(Sum('total_updated'))[
+                       'total_updated__sum'] or 0,
+        'venue_mappings': today_entries.filter(entry_type='VENUE').count(),
+        'registration_entries': today_entries.filter(entry_type='REGISTRATION').count(),
+    }
 
     # Kits by ward
     kits_by_ward = KIEMSKit.objects.values('ward__name').annotate(
@@ -520,6 +525,9 @@ def entry_list(request):
         elif form.cleaned_data.get('uploaded') == 'False':
             entries = entries.filter(uploaded=False)
             filter_params['uploaded'] = 'False'
+        if form.cleaned_data.get('entry_type'):
+            entries = entries.filter(entry_type=form.cleaned_data['entry_type'])
+            filter_params['entry_type'] = form.cleaned_data['entry_type']
 
     # Calculate totals with gender breakdown
     total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
@@ -527,6 +535,16 @@ def entry_list(request):
     total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
     total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
     total_updated = entries.aggregate(Sum('total_updated'))['total_updated__sum'] or 0
+
+    # Entry type stats
+    entry_type_stats = {
+        'venue_count': entries.filter(entry_type='VENUE').count(),
+        'registration_count': entries.filter(entry_type='REGISTRATION').count(),
+        'venue_registered': entries.filter(entry_type='VENUE').aggregate(Sum('total_registered'))[
+                                'total_registered__sum'] or 0,
+        'registration_registered': entries.filter(entry_type='REGISTRATION').aggregate(Sum('total_registered'))[
+                                       'total_registered__sum'] or 0,
+    }
 
     # Today's statistics with gender breakdown
     today = timezone.now().date()
@@ -539,6 +557,8 @@ def entry_list(request):
         'registered_female': today_entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0,
         'total_transferred': today_entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0,
         'total_updated': today_entries.aggregate(Sum('total_updated'))['total_updated__sum'] or 0,
+        'venue_mappings': today_entries.filter(entry_type='VENUE').count(),
+        'registration_entries': today_entries.filter(entry_type='REGISTRATION').count(),
     }
 
     paginator = Paginator(entries, 50)
@@ -555,6 +575,7 @@ def entry_list(request):
         'total_transferred': total_transferred,
         'total_updated': total_updated,
         'today_stats': today_stats,
+        'entry_type_stats': entry_type_stats,
         'filter_params': filter_params,
     }
     return render(request, 'superadmin/entry_list.html', context)
@@ -567,42 +588,107 @@ def entry_create(request):
     if request.method == 'POST':
         form = DailyKIEMSEntryForm(request.POST)
         if form.is_valid():
-            entry = form.save()
-            messages.success(request, 'Daily entry created successfully!')
+            entry = form.save(commit=False)
 
-            print("=" * 50)
-            print("ENTRY CREATED - SENDING WHATSAPP")
-            print(f"Ward: {entry.ward.name}")
-            print(f"Kit: {entry.kiems_kit.kit_name}")
-            print(f"VRA: {entry.vra.name}")
-            print("=" * 50)
+            # Determine entry type based on registrations
+            has_registrations = (entry.registered_male > 0 or entry.registered_female > 0)
 
-            # Send WhatsApp notification
-            try:
-                # Get user settings
-                settings = get_whatsapp_settings(request.user)
-                print(f"WhatsApp settings: notify_vra={settings.notify_vra if settings else 'None'}")
+            if has_registrations:
+                entry.entry_type = 'REGISTRATION'
+                messages.success(request, '✅ Daily entry created successfully with voter registrations!')
+            else:
+                entry.entry_type = 'VENUE'
+                messages.success(request, '📍 Venue mapping created successfully! No WhatsApp notification sent.')
 
-                # Send VRA submission message if enabled
-                if settings and settings.notify_vra:
-                    message = format_vra_message(entry)
-                    print("Sending VRA submission message...")
-                    print(message)
-                    send_whatsapp_message(message, request.user)
+            entry.save()
 
-                # Check if all wards submitted and send grand total
-                print("Checking if all wards submitted...")
-                check_and_send_daily_report(request.user)
+            # ONLY send WhatsApp notifications for REGISTRATION entries
+            if entry.entry_type == 'REGISTRATION':
+                print("=" * 50)
+                print("📊 REGISTRATION ENTRY CREATED - SENDING WHATSAPP")
+                print(f"Ward: {entry.ward.name}")
+                print(f"Kit: {entry.kiems_kit.kit_name}")
+                print(f"VRA: {entry.vra.name}")
+                print(f"Total Registered: {entry.total_registered}")
+                print(f"Male: {entry.registered_male}, Female: {entry.registered_female}")
+                print("=" * 50)
 
-            except Exception as e:
-                print(f"WhatsApp error: {str(e)}")
-                import traceback
-                traceback.print_exc()
+                try:
+                    # Get user settings
+                    settings = get_whatsapp_settings(request.user)
+
+                    # Send VRA submission message if enabled
+                    if settings and settings.notify_vra:
+                        message = format_vra_message(entry)
+                        print("📱 Sending VRA submission message...")
+                        send_whatsapp_message(message, request.user)
+
+                    # Check if all wards submitted and send grand total
+                    print("🔍 Checking if all wards submitted...")
+                    check_and_send_daily_report(request.user)
+
+                except Exception as e:
+                    print(f"❌ WhatsApp error: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print("=" * 50)
+                print("📍 VENUE MAPPING CREATED - NO WHATSAPP NOTIFICATION")
+                print(f"Ward: {entry.ward.name}")
+                print(f"Venue: {entry.venue}")
+                print(f"Date: {entry.entry_date}")
+                print(f"Kit: {entry.kiems_kit.kit_name}")
+                print("=" * 50)
 
             return redirect('superadmin:entry_list')
     else:
         form = DailyKIEMSEntryForm()
-    return render(request, 'superadmin/entry_form.html', {'form': form, 'title': 'Create Daily Entry'})
+
+    return render(request, 'superadmin/entry_form.html', {
+        'form': form,
+        'title': 'Create Daily Entry',
+        'entry_type': 'REGISTRATION'
+    })
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def venue_mapping_create(request):
+    """Create a venue mapping without registrations"""
+    if request.method == 'POST':
+        form = VenueMappingForm(request.POST)
+        if form.is_valid():
+            entry = form.save(commit=False)
+
+            # Set entry type to VENUE
+            entry.entry_type = 'VENUE'
+            entry.registered_male = 0
+            entry.registered_female = 0
+            entry.total_registered = 0
+            entry.total_transferred = 0
+            entry.total_updated = 0
+
+            entry.save()
+
+            messages.success(request,
+                             f'📍 Venue mapping created successfully for {entry.ward.name} on {entry.entry_date}!')
+
+            print("=" * 50)
+            print("📍 VENUE MAPPING CREATED - NO WHATSAPP NOTIFICATION")
+            print(f"Ward: {entry.ward.name}")
+            print(f"Venue: {entry.venue}")
+            print(f"Date: {entry.entry_date}")
+            print(f"Kit: {entry.kiems_kit.kit_name}")
+            print("=" * 50)
+
+            return redirect('superadmin:entry_list')
+    else:
+        form = VenueMappingForm()
+
+    return render(request, 'superadmin/venue_mapping_form.html', {
+        'form': form,
+        'title': 'Create Venue Mapping'
+    })
 
 
 @login_required
@@ -610,25 +696,46 @@ def entry_create(request):
 def entry_edit(request, pk):
     """Edit a daily entry"""
     entry = get_object_or_404(DailyKIEMSEntry, pk=pk)
+
     if request.method == 'POST':
         form = DailyKIEMSEntryForm(request.POST, instance=entry)
         if form.is_valid():
-            form.save()
-            messages.success(request, 'Daily entry updated successfully!')
+            updated_entry = form.save(commit=False)
 
-            # Send WhatsApp notification for update
-            try:
-                settings = get_whatsapp_settings(request.user)
-                if settings and settings.notify_edit:
-                    message = format_vra_update_message(entry)
-                    send_whatsapp_message(message, request.user)
-            except Exception as e:
-                print(f"WhatsApp error: {str(e)}")
+            # Determine entry type based on registrations
+            has_registrations = (updated_entry.registered_male > 0 or updated_entry.registered_female > 0)
+
+            if has_registrations:
+                updated_entry.entry_type = 'REGISTRATION'
+                messages.success(request, '✅ Daily entry updated successfully with voter registrations!')
+            else:
+                updated_entry.entry_type = 'VENUE'
+                messages.success(request, '📍 Venue mapping updated successfully!')
+
+            updated_entry.save()
+
+            # ONLY send WhatsApp notifications for REGISTRATION entries
+            if updated_entry.entry_type == 'REGISTRATION':
+                try:
+                    settings = get_whatsapp_settings(request.user)
+                    if settings and settings.notify_edit:
+                        message = format_vra_update_message(updated_entry)
+                        send_whatsapp_message(message, request.user)
+                except Exception as e:
+                    print(f"WhatsApp error: {str(e)}")
+            else:
+                print(f"✏️ EDIT SKIPPED - Entry {pk} is VENUE type, no WhatsApp notification")
 
             return redirect('superadmin:entry_list')
     else:
         form = DailyKIEMSEntryForm(instance=entry)
-    return render(request, 'superadmin/entry_form.html', {'form': form, 'title': 'Edit Daily Entry'})
+
+    return render(request, 'superadmin/entry_form.html', {
+        'form': form,
+        'title': 'Edit Daily Entry',
+        'entry': entry,
+        'entry_type': entry.entry_type
+    })
 
 
 @login_required
@@ -637,8 +744,14 @@ def entry_edit(request, pk):
 def entry_delete(request, pk):
     """Delete a daily entry"""
     entry = get_object_or_404(DailyKIEMSEntry, pk=pk)
+    entry_type = entry.entry_type
     entry.delete()
-    messages.success(request, 'Daily entry deleted successfully!')
+
+    if entry_type == 'VENUE':
+        messages.success(request, '📍 Venue mapping deleted successfully!')
+    else:
+        messages.success(request, '📊 Daily entry deleted successfully!')
+
     return redirect('superadmin:entry_list')
 
 
@@ -680,6 +793,8 @@ def export_data(request):
         filter_params['date_to'] = request.GET.get('date_to')
     if request.GET.get('uploaded'):
         filter_params['uploaded'] = request.GET.get('uploaded')
+    if request.GET.get('entry_type'):
+        filter_params['entry_type'] = request.GET.get('entry_type')
 
     timestamp = timezone.localtime().strftime('%Y%m%d_%H%M%S')
     filename = f"export_{model_type}_{timestamp}"
@@ -719,7 +834,7 @@ def export_data(request):
             'headers': [
                 'Kit', 'Phase', 'Ward', 'VRA', 'Date', 'Venue',
                 'Male', 'Female', 'Total Registered',
-                'Transferred', 'Deleted', 'Uploaded'
+                'Transferred', 'Deleted', 'Uploaded', 'Entry Type'
             ],
             'rows': lambda q: [[
                 e.kiems_kit.kit_name,
@@ -733,7 +848,8 @@ def export_data(request):
                 e.total_registered,
                 e.total_transferred,
                 e.total_updated,
-                'Yes' if e.uploaded else 'No'
+                'Yes' if e.uploaded else 'No',
+                'Registration' if e.entry_type == 'REGISTRATION' else 'Venue Mapping'
             ] for e in q]
         }
     }
@@ -762,6 +878,8 @@ def export_data(request):
             queryset = queryset.filter(uploaded=True)
         elif filter_params.get('uploaded') == 'False':
             queryset = queryset.filter(uploaded=False)
+        if filter_params.get('entry_type'):
+            queryset = queryset.filter(entry_type=filter_params['entry_type'])
 
     headers = data['headers']
     rows = data['rows'](queryset)
@@ -906,7 +1024,7 @@ def import_data(request):
                         except Exception:
                             error_count += 1
 
-                elif model_type == 'entry':
+                elif model_type == 'entry' or model_type == 'venue_mapping':
                     for row in rows:
                         try:
                             kit = KIEMSKit.objects.filter(kit_name=row.get('Kit') or row.get('kit')).first()
@@ -915,24 +1033,36 @@ def import_data(request):
                             vra = VRA.objects.filter(name=row.get('VRA') or row.get('vra'), ward=ward).first()
 
                             if kit and phase and ward and vra:
+                                # Determine entry type
+                                registered_male = int(row.get('Male', 0) or row.get('registered_male', 0))
+                                registered_female = int(row.get('Female', 0) or row.get('registered_female', 0))
+                                has_registrations = (registered_male > 0 or registered_female > 0)
+
+                                entry_type = 'REGISTRATION' if has_registrations else 'VENUE'
+
                                 DailyKIEMSEntry.objects.get_or_create(
                                     kiems_kit=kit,
                                     phase=phase,
-                                    entry_date=row.get('Date') or row.get('date'),
+                                    entry_date=row.get('Date') or row.get('entry_date'),
                                     vra=vra,
                                     defaults={
                                         'ward': ward,
                                         'venue': row.get('Venue') or row.get('venue', ''),
-                                        'total_registered': int(row.get('Registered', 0)),
-                                        'total_transferred': int(row.get('Transferred', 0)),
-                                        'total_updated': int(row.get('Deleted', 0)),
+                                        'registered_male': registered_male,
+                                        'registered_female': registered_female,
+                                        'total_registered': registered_male + registered_female,
+                                        'total_transferred': int(
+                                            row.get('Transferred', 0) or row.get('total_transferred', 0)),
+                                        'total_updated': int(row.get('Deleted', 0) or row.get('total_updated', 0)),
                                         'uploaded': row.get('Uploaded', 'False') in ['True', 'true', '1', 'Yes'],
+                                        'entry_type': entry_type,
                                     }
                                 )
                                 success_count += 1
                             else:
                                 error_count += 1
-                        except Exception:
+                        except Exception as e:
+                            print(f"Import error: {str(e)}")
                             error_count += 1
 
                 messages.success(request, f'Import completed: {success_count} records imported, {error_count} errors.')
@@ -956,6 +1086,7 @@ def get_chart_data(request):
     """API endpoint for chart data"""
     chart_type = request.GET.get('type', 'daily')
     days = int(request.GET.get('days', 30))
+    entry_type = request.GET.get('entry_type', 'REGISTRATION')
 
     data = {'labels': [], 'datasets': []}
 
@@ -965,7 +1096,8 @@ def get_chart_data(request):
 
         daily_data = DailyKIEMSEntry.objects.filter(
             entry_date__gte=start_date,
-            entry_date__lte=end_date
+            entry_date__lte=end_date,
+            entry_type=entry_type  # Only include specified entry type
         ).values('entry_date').annotate(
             registered=Sum('total_registered'),
             transferred=Sum('total_transferred'),
@@ -998,7 +1130,7 @@ def get_chart_data(request):
         ]
 
     elif chart_type == 'phase':
-        phase_data = DailyKIEMSEntry.objects.values('phase__name').annotate(
+        phase_data = DailyKIEMSEntry.objects.filter(entry_type=entry_type).values('phase__name').annotate(
             total=Sum('total_registered')
         ).order_by('-total')
 
@@ -1012,7 +1144,7 @@ def get_chart_data(request):
         ]
 
     elif chart_type == 'ward':
-        ward_data = DailyKIEMSEntry.objects.values('ward__name').annotate(
+        ward_data = DailyKIEMSEntry.objects.filter(entry_type=entry_type).values('ward__name').annotate(
             total=Sum('total_registered')
         ).order_by('-total')[:10]
 
@@ -1028,7 +1160,7 @@ def get_chart_data(request):
         ]
 
     elif chart_type == 'kit':
-        kit_data = DailyKIEMSEntry.objects.values('kiems_kit__kit_name').annotate(
+        kit_data = DailyKIEMSEntry.objects.filter(entry_type=entry_type).values('kiems_kit__kit_name').annotate(
             total=Sum('total_registered')
         ).order_by('-total')[:10]
 
@@ -1088,6 +1220,7 @@ def _parse_report_filters(request):
     kit_id = request.GET.get('kit')
     vra_id = request.GET.get('vra')
     uploaded = request.GET.get('uploaded')
+    entry_type = request.GET.get('entry_type', 'REGISTRATION')  # Default to REGISTRATION
 
     today = timezone.now().date()
     default_start = today - timedelta(days=30)
@@ -1110,10 +1243,11 @@ def _parse_report_filters(request):
         'kit_id': kit_id,
         'vra_id': vra_id,
         'uploaded': uploaded,
+        'entry_type': entry_type,
     }
 
 
-def _filter_labels(date_from, date_to, phase_id, ward_id, kit_id, vra_id, uploaded):
+def _filter_labels(date_from, date_to, phase_id, ward_id, kit_id, vra_id, uploaded, entry_type):
     """Generate human-readable filter labels"""
     labels = [f"{date_from.strftime('%d %b %Y')} - {date_to.strftime('%d %b %Y')}"]
 
@@ -1140,6 +1274,9 @@ def _filter_labels(date_from, date_to, phase_id, ward_id, kit_id, vra_id, upload
     if uploaded in ('True', 'False'):
         labels.append(f"Status: {'Uploaded' if uploaded == 'True' else 'Pending'}")
 
+    if entry_type:
+        labels.append(f"Type: {'Registration' if entry_type == 'REGISTRATION' else 'Venue Mapping'}")
+
     return labels
 
 
@@ -1147,13 +1284,14 @@ def generate_report_html(request):
     """Generate HTML report content"""
     f = _parse_report_filters(request)
     date_from, date_to = f['date_from'], f['date_to']
-    phase_id, ward_id, kit_id, vra_id, uploaded = (
-        f['phase_id'], f['ward_id'], f['kit_id'], f['vra_id'], f['uploaded']
+    phase_id, ward_id, kit_id, vra_id, uploaded, entry_type = (
+        f['phase_id'], f['ward_id'], f['kit_id'], f['vra_id'], f['uploaded'], f['entry_type']
     )
 
     entries = DailyKIEMSEntry.objects.filter(
         entry_date__gte=date_from,
-        entry_date__lte=date_to
+        entry_date__lte=date_to,
+        entry_type=entry_type  # Filter by entry type
     ).select_related('kiems_kit', 'phase', 'ward', 'vra').order_by('entry_date')
 
     if phase_id:
@@ -1192,8 +1330,10 @@ def generate_report_html(request):
         female=Sum('registered_female'), count=Count('id'),
     ).order_by('-registered')[:20]
 
-    filter_labels = _filter_labels(date_from, date_to, phase_id, ward_id, kit_id, vra_id, uploaded)
+    filter_labels = _filter_labels(date_from, date_to, phase_id, ward_id, kit_id, vra_id, uploaded, entry_type)
     scope = " | ".join(filter_labels[1:]) or "All wards, phases and kits"
+
+    entry_type_display = "Registration" if entry_type == 'REGISTRATION' else "Venue Mapping"
 
     html_string = render_to_string('superadmin/report_template.html', {
         'total_entries': total_entries,
@@ -1206,6 +1346,7 @@ def generate_report_html(request):
         'kit_summary': kit_summary,
         'filter_labels': filter_labels,
         'scope': scope,
+        'entry_type_display': entry_type_display,
         'generated_at': timezone.localtime().strftime('%d %b %Y, %H:%M'),
         'date_from': date_from,
         'date_to': date_to,
@@ -1233,12 +1374,13 @@ def generate_report_pdf(request, as_attachment=False):
         # Get filter params for filename
         f = _parse_report_filters(request)
         date_from, date_to = f['date_from'], f['date_to']
+        entry_type = f['entry_type']
 
         # Prepare PDF.co API request
         api_url = f"{getattr(settings, 'PDF_CO_API_URL', 'https://api.pdf.co/v1')}/pdf/convert/from/html"
 
         payload = json.dumps({
-            "name": f"KIEMS_Report_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf",
+            "name": f"KIEMS_Report_{entry_type}_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf",
             "html": html_string,
             "margin": "20px",
             "paperSize": "Letter",
@@ -1271,7 +1413,7 @@ def generate_report_pdf(request, as_attachment=False):
 
                 if pdf_response.status_code == 200:
                     response = HttpResponse(pdf_response.content, content_type='application/pdf')
-                    filename = f"KIEMS_Report_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
+                    filename = f"KIEMS_Report_{entry_type}_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
 
                     if as_attachment:
                         response['Content-Disposition'] = f'attachment; filename="{filename}"'
@@ -1285,7 +1427,7 @@ def generate_report_pdf(request, as_attachment=False):
             elif result.get('file'):
                 # Some versions return file directly
                 response = HttpResponse(result['file'], content_type='application/pdf')
-                filename = f"KIEMS_Report_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
+                filename = f"KIEMS_Report_{entry_type}_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
                 response['Content-Disposition'] = f'attachment; filename="{filename}"'
                 return response
             else:
@@ -1318,14 +1460,15 @@ def generate_report_pdf_fallback(request, as_attachment=False):
 
         f = _parse_report_filters(request)
         date_from, date_to = f['date_from'], f['date_to']
-        phase_id, ward_id, kit_id, vra_id, uploaded = (
-            f['phase_id'], f['ward_id'], f['kit_id'], f['vra_id'], f['uploaded']
+        phase_id, ward_id, kit_id, vra_id, uploaded, entry_type = (
+            f['phase_id'], f['ward_id'], f['kit_id'], f['vra_id'], f['uploaded'], f['entry_type']
         )
 
         # Get data
         entries = DailyKIEMSEntry.objects.filter(
             entry_date__gte=date_from,
-            entry_date__lte=date_to
+            entry_date__lte=date_to,
+            entry_type=entry_type
         ).select_related('kiems_kit', 'phase', 'ward', 'vra').order_by('entry_date')
 
         if phase_id:
@@ -1347,7 +1490,8 @@ def generate_report_pdf_fallback(request, as_attachment=False):
         total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
 
         response = HttpResponse(content_type='application/pdf')
-        filename = f"KIEMS_Report_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
+        entry_type_display = "Registration" if entry_type == 'REGISTRATION' else "Venue Mapping"
+        filename = f"KIEMS_Report_{entry_type}_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.pdf"
         if as_attachment:
             response['Content-Disposition'] = f'attachment; filename="{filename}"'
         else:
@@ -1375,7 +1519,7 @@ def generate_report_pdf_fallback(request, as_attachment=False):
             alignment=TA_CENTER,
             spaceAfter=6
         )
-        story.append(Paragraph("KIEMS Daily Registration Report", title_style))
+        story.append(Paragraph(f"KIEMS {entry_type_display} Report", title_style))
 
         # Subtitle
         subtitle_style = ParagraphStyle(
@@ -1386,7 +1530,7 @@ def generate_report_pdf_fallback(request, as_attachment=False):
             alignment=TA_CENTER,
             spaceAfter=12
         )
-        filter_text = f"{date_from.strftime('%d %b %Y')} - {date_to.strftime('%d %b %Y')}"
+        filter_text = f"{date_from.strftime('%d %b %Y')} - {date_to.strftime('%d %b %Y')} | Type: {entry_type_display}"
         if phase_id:
             phase = Phase.objects.filter(id=phase_id).first()
             if phase: filter_text += f" | Phase: {phase.name}"
@@ -1564,6 +1708,7 @@ def kit_report_api(request, kit_id):
                 "total": e.total_registered,
                 "transferred": e.total_transferred,
                 "uploaded": e.uploaded,
+                "type": "Registration" if e.entry_type == 'REGISTRATION' else "Venue Mapping",
             }
             for e in entries
         ],
@@ -1622,6 +1767,10 @@ def filtered_preview(request):
         entries = entries.filter(uploaded=False)
         filter_params['uploaded'] = 'False'
 
+    if request.GET.get('entry_type'):
+        entries = entries.filter(entry_type=request.GET.get('entry_type'))
+        filter_params['entry_type'] = request.GET.get('entry_type')
+
     # Build query string for links
     query_string = '&'.join([f'{k}={v}' for k, v in filter_params.items()])
 
@@ -1656,6 +1805,10 @@ def filtered_preview(request):
         filter_parts.append('Status: Uploaded')
     elif filter_params.get('uploaded') == 'False':
         filter_parts.append('Status: Pending')
+    if filter_params.get('entry_type') == 'REGISTRATION':
+        filter_parts.append('Type: Registration')
+    elif filter_params.get('entry_type') == 'VENUE':
+        filter_parts.append('Type: Venue Mapping')
 
     filter_summary = ' &middot; '.join(filter_parts) if filter_parts else 'No filters applied - showing all entries'
 
@@ -1671,11 +1824,13 @@ def filtered_preview(request):
 
 
 # ==================== PERFORMANCE DASHBOARD ====================
+
 @login_required
 @user_passes_test(is_superadmin)
 def performance_dashboard(request):
     """Performance dashboard showing best performing kits"""
     period = request.GET.get('period', 'weekly')
+    entry_type = request.GET.get('entry_type', 'REGISTRATION')
 
     # Determine date range
     today = timezone.now().date()
@@ -1714,8 +1869,8 @@ def performance_dashboard(request):
     else:  # all
         period_label = 'All Time'
 
-    # Build base queryset
-    entries = DailyKIEMSEntry.objects.select_related('kiems_kit', 'ward')
+    # Build base queryset - only include REGISTRATION entries for performance
+    entries = DailyKIEMSEntry.objects.filter(entry_type=entry_type).select_related('kiems_kit', 'ward')
 
     if date_from:
         entries = entries.filter(entry_date__gte=date_from)
@@ -1761,7 +1916,10 @@ def performance_dashboard(request):
 
     # Daily performance (last 7 days)
     daily_start = today - timedelta(days=7)
-    daily_entries = DailyKIEMSEntry.objects.filter(entry_date__gte=daily_start).values('entry_date').annotate(
+    daily_entries = DailyKIEMSEntry.objects.filter(
+        entry_date__gte=daily_start,
+        entry_type=entry_type
+    ).values('entry_date').annotate(
         entry_count=Count('id'),
         male=Sum('registered_male'),
         female=Sum('registered_female'),
@@ -1772,8 +1930,12 @@ def performance_dashboard(request):
     # Get top kit per day
     daily_performance = []
     for day in daily_entries:
-        top_kit_day = DailyKIEMSEntry.objects.filter(entry_date=day['entry_date']).values(
-            'kiems_kit__kit_name').annotate(
+        top_kit_day = DailyKIEMSEntry.objects.filter(
+            entry_date=day['entry_date'],
+            entry_type=entry_type
+        ).values(
+            'kiems_kit__kit_name'
+        ).annotate(
             total=Sum('total_registered')
         ).order_by('-total').first()
 
@@ -1815,6 +1977,7 @@ def performance_dashboard(request):
         'gender_male_pct': gender_male_pct,
         'gender_female_pct': gender_female_pct,
         'daily_performance': daily_performance,
+        'entry_type': entry_type,
     }
 
     return render(request, 'superadmin/performance_dashboard.html', context)
@@ -1959,7 +2122,7 @@ def whatsapp_groups(request):
                             'participants': group_data.get('participants', 0),
                             'isActive': group.is_active
                         })
-                        print(f"📱 Group saved: {group.name} ({group.group_id})")
+                        print(f"? Group saved: {group.name} ({group.group_id})")
                     except Exception as e:
                         print(f"Error saving group {group_id}: {str(e)}")
 
@@ -2005,7 +2168,7 @@ def whatsapp_save_settings(request):
             data = request.POST.dict()
 
         group_id = data.get('group_id')
-        print(f"📱 Group ID received: {group_id}")
+        print(f"? Group ID received: {group_id}")
 
         notify_vra = data.get('notify_vra', 'true') == 'true'
         notify_edit = data.get('notify_edit', 'true') == 'true'
@@ -2028,7 +2191,7 @@ def whatsapp_save_settings(request):
             try:
                 # Try to find existing group
                 group = WhatsAppGroup.objects.get(group_id=group_id, is_active=True)
-                print(f"✅ Found existing group: {group.name}")
+                print(f"? Found existing group: {group.name}")
             except WhatsAppGroup.DoesNotExist:
                 # Group doesn't exist, create it
                 try:
@@ -2053,9 +2216,9 @@ def whatsapp_save_settings(request):
                         name=group_name,
                         is_active=True
                     )
-                    print(f"✅ Created new group: {group.name} with ID: {group.group_id}")
+                    print(f"? Created new group: {group.name} with ID: {group.group_id}")
                 except Exception as e:
-                    print(f"❌ Error creating group: {str(e)}")
+                    print(f"? Error creating group: {str(e)}")
                     # Fallback: create with minimal info
                     group = WhatsAppGroup.objects.create(
                         group_id=group_id,
@@ -2065,7 +2228,7 @@ def whatsapp_save_settings(request):
 
             if group:
                 setting.default_group = group
-                print(f"✅ Set default_group to: {group.name}")
+                print(f"? Set default_group to: {group.name}")
             else:
                 return JsonResponse({
                     'success': False,
@@ -2340,13 +2503,13 @@ def send_whatsapp_message(message, user=None):
         )
 
         if response.status_code == 200:
-            print("✅ WhatsApp message sent successfully")
+            print("? WhatsApp message sent successfully")
             return True
         else:
-            print(f"❌ WhatsApp send failed: {response.text}")
+            print(f"? WhatsApp send failed: {response.text}")
             return False
     except Exception as e:
-        print(f"❌ WhatsApp error: {str(e)}")
+        print(f"? WhatsApp error: {str(e)}")
         return False
 
 
@@ -2386,7 +2549,7 @@ def format_grand_total_message(entries, total_wards):
     ).order_by('ward__name')
 
     # Build message - Simple format
-    message = f"DATE:{today.strftime('%d %b %Y')}\n"
+    message = f"📊 DAILY REPORT - {today.strftime('%d %b %Y')}\n"
     message += f"✅ All {total_wards} Wards Submitted!\n\n"
 
     # Per ward breakdown - one line each
@@ -2394,7 +2557,7 @@ def format_grand_total_message(entries, total_wards):
         message += f"{w['ward__name']}: MALE:{w['male']}  FEMALE:{w['female']} = {w['total']}\n"
 
     # Grand totals at the end
-    message += f"\nTOTAL: {total_male}♂ {total_female}♀ = {total_registered}"
+    message += f"\n📈 TOTAL: {total_male}♂ {total_female}♀ = {total_registered}"
     if total_transferred > 0:
         message += f" | Transferred: {total_transferred}"
 
@@ -2411,9 +2574,10 @@ def check_and_send_daily_report(user=None):
         print("No wards found")
         return
 
-    # Get wards that have submitted today
+    # Count wards that have REGISTRATION entries (not just venue mappings)
     submitted_wards = DailyKIEMSEntry.objects.filter(
-        entry_date=today
+        entry_date=today,
+        entry_type='REGISTRATION'  # Only count actual registration entries
     ).values('ward').distinct().count()
 
     print(f"Total wards: {total_wards}, Submitted: {submitted_wards}")
@@ -2433,11 +2597,14 @@ def check_and_send_daily_report(user=None):
         print("Grand total notifications disabled in settings")
         return
 
-    # Get all entries for today
-    entries = DailyKIEMSEntry.objects.filter(entry_date=today)
+    # Get all REGISTRATION entries for today
+    entries = DailyKIEMSEntry.objects.filter(
+        entry_date=today,
+        entry_type='REGISTRATION'  # Only include registration entries
+    )
 
     if not entries.exists():
-        print("No entries found")
+        print("No registration entries found")
         return
 
     # Format and send message
@@ -2455,11 +2622,14 @@ def send_daily_report_job():
         print("No wards found")
         return
 
-    # Get entries for today
-    entries = DailyKIEMSEntry.objects.filter(entry_date=today)
+    # Get REGISTRATION entries for today
+    entries = DailyKIEMSEntry.objects.filter(
+        entry_date=today,
+        entry_type='REGISTRATION'
+    )
 
     if not entries.exists():
-        print(f"No entries found for {today}")
+        print(f"No registration entries found for {today}")
         return
 
     # Get admin user for settings
@@ -2496,6 +2666,8 @@ def send_daily_report_manual(request):
 
     return redirect('superadmin:whatsapp_status')
 
+
+# ==================== DEVICE MANAGEMENT ====================
 
 def device_list(request):
     """List all devices with filtering and pagination"""
@@ -2879,6 +3051,8 @@ def delete_device(request):
     return redirect('superadmin:device_list')
 
 
+# ==================== VENUE MANAGEMENT ====================
+
 @login_required
 @user_passes_test(is_superadmin)
 def venue_management(request):
@@ -2888,11 +3062,12 @@ def venue_management(request):
     kit_id = request.GET.get('kit')
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
+    entry_type = request.GET.get('entry_type', 'VENUE')  # Default to VENUE entries
 
     # Start with all entries
     entries = DailyKIEMSEntry.objects.select_related(
         'kiems_kit', 'ward', 'vra'
-    ).all()
+    ).filter(entry_type=entry_type)
 
     # Apply filters
     if ward_id:
@@ -2932,15 +3107,14 @@ def venue_management(request):
         'kit_selected': kit_id,
         'date_from': date_from,
         'date_to': date_to,
+        'entry_type': entry_type,
     }
 
     return render(request, 'superadmin/venue_management.html', context)
 
+
 # ============================================================
 # SHARED FILTER HELPER (ward / kit / date range)
-# Same logic as venue_management() itself, factored out so the
-# table, CSV/XLSX export, and this PDF report can never disagree
-# about which entries are "in scope".
 # ============================================================
 
 def _filtered_entries_qs(request):
@@ -2948,10 +3122,11 @@ def _filtered_entries_qs(request):
     kit_id = request.GET.get('kit')
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
+    entry_type = request.GET.get('entry_type', 'VENUE')
 
     entries = DailyKIEMSEntry.objects.select_related(
         'kiems_kit', 'ward', 'vra', 'phase'
-    ).all()
+    ).filter(entry_type=entry_type)
 
     ward_obj = None
     kit_obj = None
@@ -2985,6 +3160,7 @@ def _filtered_entries_qs(request):
         'kit_obj': kit_obj,
         'date_from': date_from,
         'date_to': date_to,
+        'entry_type': entry_type,
     }
     return entries, filters
 
@@ -3028,11 +3204,6 @@ def delete_venue(request):
 
 # ============================================================
 # VENUE / MOVEMENT SCHEDULE REPORT
-# Mirrors generate_report_html / generate_report_pdf /
-# generate_report_pdf_fallback / generate_report exactly -
-# same PDF.co-first, ReportLab-fallback pattern, just pointed
-# at the Date/Day/Venue/Time schedule instead of the ward/phase/
-# kit statistics report.
 # ============================================================
 
 def _resolve_scope_names(filters, entries):
@@ -3090,7 +3261,7 @@ def generate_venue_report_html(request):
                 'date': e.entry_date.strftime('%d %b %Y'),
                 'day': e.entry_date.strftime('%A'),
                 'venue': e.venue,
-                'time': '8:00 AM \u2013 5:00 PM',
+                'time': '8:00 AM – 5:00 PM',
             }
             for e in kit_entries
         ]
@@ -3238,7 +3409,7 @@ def generate_venue_report_pdf_fallback(request, as_attachment=False):
         textColor=colors.HexColor('#6b7280'), alignment=TA_CENTER, spaceAfter=14,
     )
     story.append(Paragraph(f"Voter Registration &mdash; Turbo Constituency &bull; "
-                            f"Generated: {timezone.localtime().strftime('%d %b %Y, %H:%M')}", subtitle_style))
+                           f"Generated: {timezone.localtime().strftime('%d %b %Y, %H:%M')}", subtitle_style))
 
     # Meta table (Constituency / Ward / Kit No)
     meta_data = [['Constituency', 'Ward', 'Kit No.'], ['Turbo', ward_name, kit_no]]
@@ -3321,7 +3492,8 @@ def generate_venue_report_pdf_fallback(request, as_attachment=False):
         ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
     ]))
     story.append(sig_table)
-    story.append(Paragraph('(RO / ARO / VRA)', ParagraphStyle('Caption', fontSize=8, textColor=colors.HexColor('#6b7280'))))
+    story.append(
+        Paragraph('(RO / ARO / VRA)', ParagraphStyle('Caption', fontSize=8, textColor=colors.HexColor('#6b7280'))))
 
     doc.build(story)
     return response
@@ -3343,5 +3515,3 @@ def generate_venue_report(request):
 def generate_venue_report_preview(request):
     """HTML preview of the movement notice, same pattern as generate_report_preview()."""
     return generate_venue_report_html(request)
-
-

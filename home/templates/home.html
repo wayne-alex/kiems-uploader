@@ -9,7 +9,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
-  <!-- FingerprintJS -->
   <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3.4.1/dist/fp.min.js"></script>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -25,21 +24,20 @@
       --green: #6B9C3F;
       --green-dark: #4C7128;
       --green-tint: #EAF3DD;
-      --ink-stamp: #2F5A18;
       --bg: #F0F1EC;
       --surface: #FFFFFF;
       --surface-2: #F6F6F2;
-      --paper: #FCFBF7;
       --ink: #1C1C1E;
       --ink-2: #6E6E73;
       --ink-3: #ACACA8;
       --border: #E7E7E2;
-      --border-dash: #D8D8D2;
       --error: #D3372A;
       --male: #1E5FA8;
       --male-tint: #E9F1FB;
       --female: #B23A32;
       --female-tint: #FBEAE8;
+      --amber: #A5690C;
+      --amber-tint: #FFF4DE;
       --r: 13px;
       --r-lg: 20px;
       --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
@@ -87,7 +85,7 @@
       font-family: inherit;
     }
     .btn-primary:active:not(:disabled) { transform: scale(0.98); }
-    .btn-primary:disabled { background: #D1D1D6; box-shadow: none; cursor: not-allowed; opacity: 0.85; }
+    .btn-primary:disabled { background: #D1D1D6; box-shadow: none; cursor: not-allowed; opacity: 0.7; }
     .btn-secondary {
       width: 100%; padding: 12px; border: none; border-radius: 11px;
       background: var(--surface-2); color: var(--ink); font-weight: 600; font-size: 14px;
@@ -96,8 +94,6 @@
       border: 1px solid var(--border);
     }
     .btn-secondary:active { transform: scale(0.98); background: #EFEFEA; }
-    .btn-secondary.small { padding: 6px 12px; font-size: 12px; width: auto; }
-    .btn-secondary.danger { color: var(--error); }
     .spin { animation: spin 0.85s linear infinite; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
 
@@ -108,23 +104,31 @@
     }
     .section-label:first-child { margin-top: 2px; }
     .section-label .count { background: var(--surface-2); color: var(--ink-2); padding: 1px 7px; border-radius: 8px; font-size: 10px; letter-spacing: 0; }
-    .section-label.pending { color: var(--green-dark); }
-    .section-label.pending::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .section-label.pending { color: var(--amber); }
+    .section-label.pending::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
+    .section-label.entered { color: var(--green-dark); }
+    .section-label.entered::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
 
-    .kit-card { background: var(--surface); border-radius: var(--r); border: 1px solid var(--border); box-shadow: var(--shadow-sm); padding: 12px 14px; margin-bottom: 8px; }
+    .kit-card { background: var(--surface); border-radius: var(--r); border: 1px solid var(--border); box-shadow: var(--shadow-sm); padding: 12px 14px; margin-bottom: 8px; transition: box-shadow .2s var(--ease); }
     .kit-card.flash { animation: rowFlash 1.5s var(--ease); }
     .kit-card.readonly { opacity: 0.85; background: var(--surface-2); }
     .kit-card.readonly .input-row { background: var(--surface) !important; }
     .kit-card.readonly input { cursor: default; opacity: 0.7; }
+    .kit-card.dirty { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-tint); }
     .kit-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
     .kit-head-left { display: flex; gap: 9px; flex: 1; min-width: 0; }
     .kit-icon { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; background: var(--surface-2); color: var(--ink-2); }
-    .kit-icon.pending { background: #FFF4DE; color: #A5690C; }
+    .kit-icon.pending { background: var(--amber-tint); color: var(--amber); }
+    .kit-icon.mapped { background: var(--male-tint); color: var(--male); }
     .kit-icon.saved { background: var(--green-tint); color: var(--green-dark); }
     .kit-info { flex: 1; min-width: 0; }
     .kit-name { font-size: 13px; font-weight: 600; color: var(--ink); display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
     .kit-serial { font-size: 9.5px; font-weight: 500; color: var(--ink-3); font-family: var(--mono); background: var(--surface-2); padding: 1px 6px; border-radius: 5px; }
     .kit-sub { font-size: 11px; color: var(--ink-2); margin-top: 1px; display: flex; align-items: center; gap: 4px; }
+    .kit-status { padding: 2px 10px; border-radius: 12px; font-size: 10px; font-weight: 700; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.3px; }
+    .kit-status.pending { background: var(--amber-tint); color: var(--amber); }
+    .kit-status.mapped { background: var(--male-tint); color: var(--male); }
+    .kit-status.entered { background: var(--green-tint); color: var(--green-dark); }
     .input-row { display: flex; align-items: center; gap: 7px; background: var(--surface-2); border-radius: 9px; padding: 6px 10px; margin-bottom: 6px; border: 1px solid transparent; transition: border-color .15s var(--ease), background .15s var(--ease); }
     .input-row:focus-within { border-color: var(--green); background: var(--surface); box-shadow: 0 0 0 3px var(--green-tint); }
     .input-row i { font-size: 13px; color: var(--ink-3); flex-shrink: 0; }
@@ -143,7 +147,6 @@
     .total-display .num { font-weight: 700; color: var(--green-dark); font-size: 14px; font-family: var(--mono); }
     .msg-success { display: flex; align-items: center; gap: 6px; color: var(--green-dark); font-size: 12.5px; font-weight: 600; margin-top: 9px; padding: 9px 13px; background: var(--green-tint); border-radius: var(--r); }
     .msg-error { display: flex; align-items: center; gap: 6px; color: var(--error); font-size: 11.5px; margin-top: 9px; padding: 9px 13px; background: #FBE8E6; border-radius: var(--r); }
-    .msg-note { display: flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 11.5px; margin-top: 8px; padding: 9px 13px; background: var(--surface-2); border-radius: var(--r); }
     .hidden { display: none !important; }
     .empty-state { text-align: center; padding: 28px 16px; color: var(--ink-3); background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow-sm); }
     .empty-state i { font-size: 30px; display: block; margin-bottom: 8px; }
@@ -154,17 +157,13 @@
     @media (max-width: 400px) { .content { padding: 9px 10px 24px; } .input-grid { gap: 5px; } }
     input[readonly] { background: var(--surface-2); cursor: not-allowed; opacity: 0.8; }
 
-    /* Venue read-only style */
     .venue-readonly {
       background: var(--surface-2) !important;
       cursor: default !important;
       opacity: 0.8;
       border-color: var(--border) !important;
     }
-    .venue-readonly:focus {
-      box-shadow: none !important;
-      border-color: var(--border) !important;
-    }
+    .venue-readonly:focus { box-shadow: none !important; border-color: var(--border) !important; }
 
     .summary-bar {
       background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow-sm);
@@ -194,8 +193,6 @@
       padding: 8px 13px; margin-bottom: 9px; display: flex; flex-wrap: wrap;
       align-items: center; justify-content: space-between; gap: 5px; font-size: 10.5px; color: var(--ink-2); font-weight: 500;
     }
-    .status-badge.authorized { background: var(--green-tint); color: var(--green-dark); }
-    .status-badge.unauthorized { background: #FBE8E6; color: var(--error); }
 
     .modal-overlay {
       position: fixed; inset: 0; z-index: 100;
@@ -240,7 +237,6 @@
     }
     .future-note i { color: var(--green-dark); font-size: 18px; flex-shrink: 0; margin-top: 1px; }
 
-    /* Individual save button style */
     .save-individual-btn {
       padding: 4px 12px;
       font-size: 11px;
@@ -257,21 +253,16 @@
       font-family: inherit;
     }
     .save-individual-btn:hover:not(:disabled) { opacity: 0.85; }
-    .save-individual-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .save-individual-btn.small { padding: 3px 8px; font-size: 10px; }
+    .save-individual-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    /* Upload all button - appears when all kits are filled */
-    .upload-all-btn {
-      width: 100%; padding: 12px; border: none; border-radius: 11px;
-      background: linear-gradient(180deg, #4CAF50, #2E7D32);
-      color: #fff; font-weight: 700; font-size: 14px; margin-top: 6px; cursor: pointer;
-      transition: transform .15s var(--ease), opacity .15s var(--ease), box-shadow .15s var(--ease);
-      display: flex; align-items: center; justify-content: center; gap: 6px;
-      box-shadow: 0 4px 14px rgba(46, 125, 50, 0.32);
-      font-family: inherit;
+    .submit-hint {
+      text-align: center;
+      font-size: 11px;
+      color: var(--ink-3);
+      margin-top: 6px;
+      font-weight: 500;
     }
-    .upload-all-btn:active:not(:disabled) { transform: scale(0.98); }
-    .upload-all-btn:disabled { background: #D1D1D6; box-shadow: none; cursor: not-allowed; opacity: 0.85; }
+    .submit-hint.ready { color: var(--green-dark); font-weight: 600; }
   </style>
 </head>
 <body>
@@ -284,7 +275,7 @@
   <div class="date-selector">
     <label class="date-label" for="date-picker"><i class="ti ti-calendar"></i> Date:</label>
     <input type="date" id="date-picker" class="date-input">
-    <span class="shortcut-hint">?S to save</span>
+    <span class="shortcut-hint">⌘S to save</span>
   </div>
 </div>
 <div class="content">
@@ -341,8 +332,8 @@
       <div id="kits-container"><div class="loading-spinner"><i class="ti ti-loader"></i><p>Loading kits...</p></div></div>
 
       <div id="pending-actions">
-        <button id="submit-btn" class="btn-primary hidden"><i class="ti ti-send"></i> Submit All Entries</button>
-        <button id="upload-all-btn" class="upload-all-btn hidden"><i class="ti ti-cloud-upload"></i> Upload All KIEMS</button>
+        <button id="submit-btn" class="btn-primary hidden" disabled><i class="ti ti-send"></i> Submit Entries</button>
+        <div id="submit-hint" class="submit-hint hidden"></div>
       </div>
       <div id="submit-message" class="msg-success hidden"><i class="ti ti-circle-check"></i><span></span></div>
       <div id="form-errors" class="msg-error hidden"><i class="ti ti-alert-circle"></i><span></span></div>
@@ -807,6 +798,11 @@ async function enterForm() {
   await loadKits();
 }
 
+function updateKitCountBadge() {
+  const registered = kitsData.filter(k => k.has_registration).length;
+  document.getElementById('kit-count').textContent = `${registered}/${kitsData.length} entered`;
+}
+
 async function loadKits() {
   if (isLoadingKits) return;
   isLoadingKits = true;
@@ -831,7 +827,7 @@ async function loadKits() {
       return;
     }
     kitsData = data.kits || [];
-    document.getElementById('kit-count').textContent = `${kitsData.length} kits`;
+    updateKitCountBadge();
     if (kitsData.length === 0) {
       container.innerHTML = `<div class="empty-state"><i class="ti ti-device-tablet-off"></i><p>No KIEMS kits assigned to this ward</p><p style="font-size:11px;margin-top:4px;">Ward: ${data.ward_name || 'Unknown'}</p></div>`;
       document.getElementById('summary-bar').classList.add('hidden');
@@ -856,14 +852,12 @@ async function loadKits() {
 
 function renderEntryTab() {
   const container = document.getElementById('kits-container');
-  const pendingActions = document.getElementById('pending-actions');
   const relation = dateRelation(document.getElementById('date-picker').value);
 
-  // Hide buttons by default
   document.getElementById('submit-btn').classList.add('hidden');
-  document.getElementById('upload-all-btn').classList.add('hidden');
+  document.getElementById('submit-hint').classList.add('hidden');
 
-  // For future dates - show venues as read-only (pre-filled from mapping)
+  // ---------------- FUTURE DATES ----------------
   if (relation === 'future') {
     document.getElementById('summary-bar').classList.add('hidden');
 
@@ -875,27 +869,25 @@ function renderEntryTab() {
           <i class="ti ti-calendar-check" style="color:var(--green-dark);"></i>
           <span><strong>Future date planning</strong> - Venues have been pre-mapped for ${document.getElementById('date-picker').value}. Come back on the election day to enter voter counts.</span>
         </div>
-        <div class="section-label">Pre-mapped Venues <span class="count">${kitsData.filter(k => k.venue && k.venue.trim()).length}</span></div>
+        <div class="section-label">Pre-mapped venues <span class="count">${kitsData.filter(k => k.venue && k.venue.trim()).length}</span></div>
       `;
 
       kitsData.forEach(kit => {
         if (kit.venue && kit.venue.trim()) {
           html += `
-            <div class="kit-card" style="border-left: 3px solid var(--green);">
+            <div class="kit-card" style="border-left: 3px solid var(--male);">
               <div class="kit-head">
                 <div class="kit-head-left">
-                  <div class="kit-icon" style="background:var(--green-tint); color:var(--green-dark);">
-                    <i class="ti ti-map-pin-check"></i>
-                  </div>
+                  <div class="kit-icon mapped"><i class="ti ti-map-pin-check"></i></div>
                   <div class="kit-info">
                     <div class="kit-name">${kit.kit_name} <span class="kit-serial">${kit.serial_no}</span></div>
                     <div class="kit-sub"><i class="ti ti-map-pin"></i> ${kit.venue}</div>
                   </div>
                 </div>
-                <span class="kit-status" style="background:var(--green-tint); color:var(--green-dark); padding:2px 10px; border-radius:12px; font-size:10px; font-weight:600;">Pre-mapped</span>
+                <span class="kit-status mapped">Mapped</span>
               </div>
               <div style="margin-top:6px; padding:6px 10px; background:var(--surface-2); border-radius:6px; font-size:11px; color:var(--ink-2);">
-                <i class="ti ti-info-circle"></i> Venue pre-mapped. Counts will be entered on election day.
+                <i class="ti ti-info-circle"></i> Venue pre-mapped. Voter counts will be entered on election day.
               </div>
             </div>
           `;
@@ -918,7 +910,7 @@ function renderEntryTab() {
     return;
   }
 
-  // PAST dates - READ ONLY view, no save buttons
+  // ---------------- PAST DATES (read-only) ----------------
   if (relation === 'past') {
     document.getElementById('summary-bar').classList.remove('hidden');
 
@@ -931,27 +923,26 @@ function renderEntryTab() {
 
     kitsData.forEach(kit => {
       const venue = kit.venue || (currentVRA ? currentVRA.ward_name : '') || '';
-      const isVenueFromMapping = kit.venue && kit.venue.trim() !== '';
-      const statusBg = kit.has_entry ? 'var(--green-tint)' : '#FFF4DE';
-      const statusColor = kit.has_entry ? 'var(--green-dark)' : '#A5690C';
-      const statusLabel = kit.has_entry ? 'Entered' : 'Pending';
+      const registered = !!kit.has_registration;
+      const mappedOnly = !!kit.is_venue_mapping && !registered;
+
+      let statusClass = 'pending';
+      let statusLabel = 'Pending';
+      let iconClass = 'pending';
+      if (registered) { statusClass = 'entered'; statusLabel = 'Entered'; iconClass = 'saved'; }
+      else if (mappedOnly) { statusClass = 'mapped'; statusLabel = 'Mapped'; iconClass = 'mapped'; }
 
       html += `
       <div class="kit-card readonly" data-kit="${kit.kit_id}">
         <div class="kit-head">
           <div class="kit-head-left">
-            <div class="kit-icon ${kit.has_entry ? 'saved' : 'pending'}"><i class="ti ti-device-tablet"></i></div>
+            <div class="kit-icon ${iconClass}"><i class="ti ti-device-tablet"></i></div>
             <div class="kit-info">
               <div class="kit-name">${kit.kit_name} <span class="kit-serial">${kit.serial_no}</span></div>
-              <div class="kit-sub">${isVenueFromMapping ? '<i class="ti ti-map-pin" style="color:var(--green-dark);"></i> Venue pre-mapped' : '<i class="ti ti-circle-dashed"></i> No venue set'}</div>
+              <div class="kit-sub">${venue ? `<i class="ti ti-map-pin"></i> ${venue}` : '<i class="ti ti-circle-dashed"></i> No venue set'}</div>
             </div>
           </div>
-          <span class="kit-status" style="background:${statusBg}; color:${statusColor}; padding:2px 10px; border-radius:12px; font-size:10px; font-weight:600; white-space:nowrap;">${statusLabel}</span>
-        </div>
-        <div class="input-row" style="${isVenueFromMapping ? 'background:var(--green-tint); border-color:var(--green);' : ''}">
-          <i class="ti ti-map-pin" style="${isVenueFromMapping ? 'color:var(--green-dark);' : ''}"></i>
-          <input class="venue-input" value="${venue}" style="font-size:13px;" readonly>
-          ${isVenueFromMapping ? '<span style="font-size:9px; color:var(--green-dark); font-weight:600; white-space:nowrap;"><i class="ti ti-check"></i> mapped</span>' : ''}
+          <span class="kit-status ${statusClass}">${statusLabel}</span>
         </div>
         <div class="input-grid">
           <div class="input-row">
@@ -967,11 +958,6 @@ function renderEntryTab() {
           <span>Total:</span>
           <span class="num">${(kit.registered_male || 0) + (kit.registered_female || 0)}</span>
         </div>
-        <div style="display:flex; justify-content:flex-end; margin-top:6px;">
-          <span style="font-size:10px; color:var(--ink-3); background:var(--surface-2); padding:4px 10px; border-radius:4px;">
-            <i class="ti ti-lock"></i> Read-only
-          </span>
-        </div>
       </div>`;
     });
 
@@ -981,44 +967,25 @@ function renderEntryTab() {
     return;
   }
 
-  // TODAY - editable cards with individual save buttons
-  const pending = kitsData.filter(k => !k.has_entry);
-  const submitted = kitsData.filter(k => k.has_entry);
+  // ---------------- TODAY (editable) ----------------
+  const pending = kitsData.filter(k => !k.has_registration);
+  const registered = kitsData.filter(k => k.has_registration);
 
   let html = '';
 
   if (pending.length) {
     html += `<div class="section-label pending">Pending entries <span class="count">${pending.length}</span></div>`;
-    html += pending.map(kit => formCardToday(kit, false)).join('');
+    html += pending.map(kit => formCardToday(kit)).join('');
   }
 
-  if (submitted.length) {
-    html += `<div class="section-label">Already entered <span class="count">${submitted.length}</span></div>`;
-    html += submitted.map(kit => formCardToday(kit, true)).join('');
+  if (registered.length) {
+    html += `<div class="section-label entered">Registered <span class="count">${registered.length}</span></div>`;
+    html += registered.map(kit => formCardToday(kit)).join('');
   }
 
   container.innerHTML = html;
 
-  // Show buttons based on whether all kits are filled or not
-  const allFilled = kitsData.every(k => k.has_entry);
-
-  if (allFilled && kitsData.length > 0) {
-    document.getElementById('upload-all-btn').classList.remove('hidden');
-    document.getElementById('submit-btn').classList.add('hidden');
-  } else if (pending.length > 0) {
-    document.getElementById('submit-btn').classList.remove('hidden');
-    document.getElementById('upload-all-btn').classList.add('hidden');
-  } else {
-    document.getElementById('submit-btn').classList.add('hidden');
-    document.getElementById('upload-all-btn').classList.add('hidden');
-  }
-
-  if (kitsData.length === 0) {
-    document.getElementById('submit-btn').classList.add('hidden');
-    document.getElementById('upload-all-btn').classList.add('hidden');
-  }
-
-  // Wire up all kit-card inputs
+  // Wire up inputs
   container.querySelectorAll('.kit-card:not(.readonly)').forEach(card => {
     const maleInput = card.querySelector('.male-input');
     const femaleInput = card.querySelector('.female-input');
@@ -1032,29 +999,21 @@ function renderEntryTab() {
         const f = parseInt(femaleInput.value) || 0;
         totalSpan.textContent = m + f;
 
-        // Also update the kitsData for this kit
         const kit = kitsData.find(k => k.kit_id == kitId);
-        if (kit) {
-          kit.registered_male = m;
-          kit.registered_female = f;
-        }
+        const origMale = parseInt(maleInput.dataset.original || 0);
+        const origFemale = parseInt(femaleInput.dataset.original || 0);
+        const isDirty = m !== origMale || f !== origFemale;
+
+        card.classList.toggle('dirty', isDirty);
 
         if (saveBtn) {
-          const origMale = parseInt(maleInput.dataset.original || 0);
-          const origFemale = parseInt(femaleInput.dataset.original || 0);
-          if (m !== origMale || f !== origFemale) {
-            saveBtn.disabled = false;
-            saveBtn.style.opacity = '1';
-          } else {
-            saveBtn.disabled = true;
-            saveBtn.style.opacity = '0.5';
-          }
+          saveBtn.disabled = !isDirty;
         }
         updateSummary();
+        refreshSubmitButtonState();
       }
       maleInput.addEventListener('input', updateTotal);
       femaleInput.addEventListener('input', updateTotal);
-      updateTotal();
     }
 
     if (saveBtn) {
@@ -1102,32 +1061,29 @@ function renderEntryTab() {
           if (data.ok) {
             lastSubmittedKitIds = [parseInt(kitId)];
 
-            // Update the kit data locally
             const kit = kitsData.find(k => k.kit_id == kitId);
             if (kit) {
-              kit.has_entry = true;
               kit.registered_male = male;
               kit.registered_female = female;
               kit.venue = venue;
+              kit.has_registration = male > 0 || female > 0;
+              kit.is_venue_mapping = !kit.has_registration && !!venue;
+              kit.has_entry = true;
             }
 
-            // Re-render to reflect the saved state
+            updateKitCountBadge();
             renderEntryTab();
             updateLastUpdated();
             showSuccessModal(1);
           } else {
             setMsgBox(document.getElementById('form-errors'), data.error || 'Could not save entry.');
+            this.disabled = false;
+            this.innerHTML = '<i class="ti ti-device-floppy"></i> Save';
           }
         } catch (e) {
           setMsgBox(document.getElementById('form-errors'), 'Network error. Please try again.');
-        } finally {
-          this.disabled = true;
-          this.innerHTML = '<i class="ti ti-check"></i> Saved';
-          this.style.background = 'var(--green-dark)';
-          setTimeout(() => {
-            this.innerHTML = '<i class="ti ti-device-floppy"></i> Save Entry';
-            this.style.background = '';
-          }, 3000);
+          this.disabled = false;
+          this.innerHTML = '<i class="ti ti-device-floppy"></i> Save';
         }
       });
     }
@@ -1144,39 +1100,52 @@ function renderEntryTab() {
   document.getElementById('summary-bar').classList.remove('hidden');
   updateSummary();
   updateLastUpdated();
+  refreshSubmitButtonState();
 }
 
 // ============================================================
-// TODAY'S ENTRY FORM
+// TODAY'S ENTRY CARD
 // ============================================================
 
-function formCardToday(kit, isSubmitted) {
+function formCardToday(kit) {
   const venue = kit.venue || (currentVRA ? currentVRA.ward_name : '') || '';
-  const isVenueFromMapping = kit.venue && kit.venue.trim() !== '';
-  const statusBg = isSubmitted ? 'var(--green-tint)' : '#FFF4DE';
-  const statusColor = isSubmitted ? 'var(--green-dark)' : '#A5690C';
-  const statusLabel = isSubmitted ? 'Entered' : 'Pending';
+  const registered = !!kit.has_registration;
+  const mappedOnly = !!kit.is_venue_mapping && !registered;
+
+  let statusClass = 'pending';
+  let statusLabel = 'Pending';
+  let iconClass = 'pending';
+  let subLabel = '<i class="ti ti-circle-dashed"></i> No venue set';
+
+  if (registered) {
+    statusClass = 'entered'; statusLabel = 'Entered'; iconClass = 'saved';
+    subLabel = `<i class="ti ti-map-pin"></i> ${venue}`;
+  } else if (mappedOnly) {
+    statusClass = 'mapped'; statusLabel = 'Mapped'; iconClass = 'mapped';
+    subLabel = `<i class="ti ti-map-pin" style="color:var(--male);"></i> Venue mapped - counts pending`;
+  } else if (venue) {
+    subLabel = `<i class="ti ti-map-pin"></i> ${venue}`;
+  }
 
   return `
   <div class="kit-card" data-kit="${kit.kit_id}">
     <div class="kit-head">
       <div class="kit-head-left">
-        <div class="kit-icon ${isSubmitted ? 'saved' : 'pending'}"><i class="ti ti-device-tablet"></i></div>
+        <div class="kit-icon ${iconClass}"><i class="ti ti-device-tablet"></i></div>
         <div class="kit-info">
           <div class="kit-name">${kit.kit_name} <span class="kit-serial">${kit.serial_no}</span></div>
-          <div class="kit-sub">${isVenueFromMapping ? '<i class="ti ti-map-pin" style="color:var(--green-dark);"></i> Venue pre-mapped' : '<i class="ti ti-circle-dashed"></i> No venue set'}</div>
+          <div class="kit-sub">${subLabel}</div>
         </div>
       </div>
-      <span class="kit-status" style="background:${statusBg}; color:${statusColor}; padding:2px 10px; border-radius:12px; font-size:10px; font-weight:600; white-space:nowrap;">${statusLabel}</span>
+      <span class="kit-status ${statusClass}">${statusLabel}</span>
     </div>
-    <div class="input-row" style="${isVenueFromMapping ? 'background:var(--green-tint); border-color:var(--green);' : ''}">
-      <i class="ti ti-map-pin" style="${isVenueFromMapping ? 'color:var(--green-dark);' : ''}"></i>
+    <div class="input-row venue-readonly-row" style="${venue ? 'background:var(--male-tint); border-color:var(--male);' : ''}">
+      <i class="ti ti-map-pin" style="${venue ? 'color:var(--male);' : ''}"></i>
       <input class="venue-input venue-readonly"
              value="${venue}"
              placeholder="Venue (read-only)"
              style="font-size:13px;"
              readonly>
-      ${isVenueFromMapping ? '<span style="font-size:9px; color:var(--green-dark); font-weight:600; white-space:nowrap;"><i class="ti ti-check"></i> mapped</span>' : ''}
     </div>
     <div class="input-grid">
       <div class="input-row">
@@ -1193,12 +1162,65 @@ function formCardToday(kit, isSubmitted) {
       <span class="num">${(kit.registered_male || 0) + (kit.registered_female || 0)}</span>
     </div>
     <div style="display:flex; justify-content:flex-end; margin-top:6px;">
-      <button class="save-individual-btn" data-kit="${kit.kit_id}" disabled style="opacity:0.5;">
-        <i class="ti ti-device-floppy"></i> Save Entry
+      <button class="save-individual-btn" data-kit="${kit.kit_id}" disabled>
+        <i class="ti ti-device-floppy"></i> ${registered ? 'Update' : 'Save'}
       </button>
     </div>
     <div class="field-error hidden" id="err-${kit.kit_id}"><i class="ti ti-alert-circle"></i><span></span></div>
   </div>`;
+}
+
+// ============================================================
+// SUBMIT-ALL BUTTON STATE (dirty tracking - prevents resending
+// data that hasn't changed)
+// ============================================================
+
+function refreshSubmitButtonState() {
+  const submitBtn = document.getElementById('submit-btn');
+  const hint = document.getElementById('submit-hint');
+  const relation = dateRelation(document.getElementById('date-picker').value);
+
+  if (relation !== 'today') {
+    submitBtn.classList.add('hidden');
+    hint.classList.add('hidden');
+    return;
+  }
+
+  const pendingCards = Array.from(document.querySelectorAll('#kits-container .kit-card:not(.readonly)'))
+    .filter(card => {
+      const kit = kitsData.find(k => k.kit_id == card.dataset.kit);
+      return kit && !kit.has_registration;
+    });
+
+  if (pendingCards.length === 0) {
+    submitBtn.classList.add('hidden');
+    hint.classList.add('hidden');
+    return;
+  }
+
+  submitBtn.classList.remove('hidden');
+  hint.classList.remove('hidden');
+
+  let dirtyCount = 0;
+  pendingCards.forEach(card => {
+    const maleInput = card.querySelector('.male-input');
+    const femaleInput = card.querySelector('.female-input');
+    const m = parseInt(maleInput.value) || 0;
+    const f = parseInt(femaleInput.value) || 0;
+    const origM = parseInt(maleInput.dataset.original || 0);
+    const origF = parseInt(femaleInput.dataset.original || 0);
+    if (m !== origM || f !== origF) dirtyCount++;
+  });
+
+  if (dirtyCount > 0) {
+    submitBtn.disabled = false;
+    hint.classList.add('ready');
+    hint.textContent = `${dirtyCount} kit${dirtyCount === 1 ? '' : 's'} ready to submit`;
+  } else {
+    submitBtn.disabled = true;
+    hint.classList.remove('ready');
+    hint.textContent = `${pendingCards.length} pending - enter counts to enable submit`;
+  }
 }
 
 // ============================================================
@@ -1209,9 +1231,7 @@ function updateSummary() {
   let totalMale = 0, totalFemale = 0;
   const relation = dateRelation(document.getElementById('date-picker').value);
 
-  // For today, sum from the DOM or from kitsData
   if (relation === 'today') {
-    // First try to get values from the DOM (for unsaved changes)
     const kitCards = document.querySelectorAll('#kits-container .kit-card:not(.readonly)');
     if (kitCards.length > 0) {
       kitCards.forEach(card => {
@@ -1221,14 +1241,12 @@ function updateSummary() {
         if (femaleInput) totalFemale += parseInt(femaleInput.value) || 0;
       });
     } else {
-      // Fallback to kitsData
       kitsData.forEach(k => {
         totalMale += parseInt(k.registered_male) || 0;
         totalFemale += parseInt(k.registered_female) || 0;
       });
     }
   } else {
-    // Past and future - use stored data
     kitsData.forEach(k => {
       totalMale += parseInt(k.registered_male) || 0;
       totalFemale += parseInt(k.registered_female) || 0;
@@ -1243,7 +1261,7 @@ function updateSummary() {
 }
 
 // ============================================================
-// BULK SUBMIT
+// BULK SUBMIT (only sends kits that actually changed)
 // ============================================================
 
 document.getElementById('submit-btn').addEventListener('click', async () => {
@@ -1257,7 +1275,6 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
   const datePicker = document.getElementById('date-picker');
   body.append('date', datePicker.value);
 
-  let hasEntries = false;
   let valid = true;
   let firstError = null;
   const submittingKitIds = [];
@@ -1266,36 +1283,43 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
     const kitId = card.dataset.kit;
     if (!kitId) return;
     const kit = kitsData.find(k => k.kit_id == kitId);
-    if (kit && kit.has_entry) return;
+    if (kit && kit.has_registration) return; // already registered - skip
 
+    const maleInput = card.querySelector('.male-input');
+    const femaleInput = card.querySelector('.female-input');
     const venue = card.querySelector('.venue-input')?.value.trim();
-    const male = card.querySelector('.male-input')?.value.trim();
-    const female = card.querySelector('.female-input')?.value.trim();
-    const maleNum = parseInt(male) || 0;
-    const femaleNum = parseInt(female) || 0;
+    const male = parseInt(maleInput?.value) || 0;
+    const female = parseInt(femaleInput?.value) || 0;
+    const origMale = parseInt(maleInput?.dataset.original || 0);
+    const origFemale = parseInt(femaleInput?.dataset.original || 0);
 
-    hasEntries = true;
+    // Skip untouched pending cards entirely - don't error, don't submit
+    if (male === origMale && female === origFemale) return;
+
     if (!venue) {
       valid = false;
       const errEl = document.getElementById(`err-${kitId}`);
       if (errEl) { setMsgBox(errEl, 'Venue required.'); }
-      if (!firstError) firstError = 'Venue required for all kits.';
-    } else if (maleNum === 0 && femaleNum === 0) {
+      if (!firstError) firstError = 'Venue required for all changed kits.';
+      return;
+    }
+    if (male === 0 && female === 0) {
       valid = false;
       const errEl = document.getElementById(`err-${kitId}`);
       if (errEl) { setMsgBox(errEl, 'Enter at least one voter.'); }
-      if (!firstError) firstError = 'Each kit needs at least one registered voter.';
-    } else {
-      body.append('kit_id[]', kitId);
-      body.append('venue[]', venue);
-      body.append('registered_male[]', maleNum);
-      body.append('registered_female[]', femaleNum);
-      submittingKitIds.push(kitId);
+      if (!firstError) firstError = 'Each changed kit needs at least one registered voter.';
+      return;
     }
+
+    body.append('kit_id[]', kitId);
+    body.append('venue[]', venue);
+    body.append('registered_male[]', male);
+    body.append('registered_female[]', female);
+    submittingKitIds.push(kitId);
   });
 
-  if (!hasEntries) {
-    setMsgBox(document.getElementById('submit-message'), 'No pending entries to submit.');
+  if (submittingKitIds.length === 0 && valid) {
+    setMsgBox(document.getElementById('submit-message'), 'No changes to submit.');
     return;
   }
   if (!valid) {
@@ -1319,103 +1343,33 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
     const data = await res.json();
     const errBox = document.getElementById('form-errors');
     if (data.ok) {
-      lastSubmittedKitIds = submittingKitIds;
-      // Update kitsData with submitted status
+      lastSubmittedKitIds = submittingKitIds.map(Number);
       submittingKitIds.forEach(id => {
+        const card = document.querySelector(`.kit-card[data-kit="${id}"]`);
         const kit = kitsData.find(k => k.kit_id == id);
-        if (kit) kit.has_entry = true;
+        if (kit && card) {
+          const m = parseInt(card.querySelector('.male-input')?.value) || 0;
+          const f = parseInt(card.querySelector('.female-input')?.value) || 0;
+          kit.registered_male = m;
+          kit.registered_female = f;
+          kit.has_registration = m > 0 || f > 0;
+          kit.is_venue_mapping = false;
+        }
       });
       errBox.classList.add('hidden');
+      updateKitCountBadge();
       renderEntryTab();
       showSuccessModal(data.saved);
       updateLastUpdated();
     } else {
       setMsgBox(errBox, `${data.saved || 0} entries saved. Review highlighted issues.`);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-send"></i> Submit Entries';
     }
   } catch (e) {
     setMsgBox(document.getElementById('form-errors'), 'Network error. Please try again.');
-  } finally {
     btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-send"></i> Submit All Entries';
-  }
-});
-
-// ============================================================
-// UPLOAD ALL BUTTON
-// ============================================================
-
-document.getElementById('upload-all-btn').addEventListener('click', async () => {
-  const kitCards = document.querySelectorAll('#kits-container .kit-card:not(.readonly)');
-  const body = new URLSearchParams();
-
-  const deviceInfo = await deviceFingerprint.getDeviceInfo();
-  if (deviceInfo && deviceInfo.fingerprint) body.append('fingerprint', deviceInfo.fingerprint);
-  else body.append('token', getDeviceToken());
-
-  const datePicker = document.getElementById('date-picker');
-  body.append('date', datePicker.value);
-
-  let hasEntries = false;
-  const submittingKitIds = [];
-
-  kitCards.forEach(card => {
-    const kitId = card.dataset.kit;
-    if (!kitId) return;
-
-    const venue = card.querySelector('.venue-input')?.value.trim();
-    const male = card.querySelector('.male-input')?.value.trim();
-    const female = card.querySelector('.female-input')?.value.trim();
-    const maleNum = parseInt(male) || 0;
-    const femaleNum = parseInt(female) || 0;
-
-    if (venue && (maleNum > 0 || femaleNum > 0)) {
-      hasEntries = true;
-      body.append('kit_id[]', kitId);
-      body.append('venue[]', venue);
-      body.append('registered_male[]', maleNum);
-      body.append('registered_female[]', femaleNum);
-      submittingKitIds.push(kitId);
-    }
-  });
-
-  if (!hasEntries) {
-    setMsgBox(document.getElementById('submit-message'), 'No valid entries to upload.');
-    return;
-  }
-
-  const btn = document.getElementById('upload-all-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="ti ti-loader spin"></i> Uploading...';
-  document.getElementById('submit-message').classList.add('hidden');
-  document.getElementById('form-errors').classList.add('hidden');
-
-  try {
-    const res = await fetch('/kiems/submit-entries/', {
-      method: 'POST',
-      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body
-    });
-    const data = await res.json();
-    const errBox = document.getElementById('form-errors');
-    if (data.ok) {
-      lastSubmittedKitIds = submittingKitIds;
-      // Update kitsData with submitted status
-      submittingKitIds.forEach(id => {
-        const kit = kitsData.find(k => k.kit_id == id);
-        if (kit) kit.has_entry = true;
-      });
-      errBox.classList.add('hidden');
-      renderEntryTab();
-      showSuccessModal(data.saved);
-      updateLastUpdated();
-    } else {
-      setMsgBox(errBox, `${data.saved || 0} entries saved. Review highlighted issues.`);
-    }
-  } catch (e) {
-    setMsgBox(document.getElementById('form-errors'), 'Network error. Please try again.');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-cloud-upload"></i> Upload All KIEMS';
+    btn.innerHTML = '<i class="ti ti-send"></i> Submit Entries';
   }
 });
 
@@ -1456,16 +1410,9 @@ document.addEventListener('keydown', function(e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         const submitBtn = document.getElementById('submit-btn');
-        const uploadBtn = document.getElementById('upload-all-btn');
-        if (!uploadBtn.classList.contains('hidden')) {
-            uploadBtn.click();
-        } else if (!submitBtn.classList.contains('hidden')) {
+        if (!submitBtn.classList.contains('hidden') && !submitBtn.disabled) {
             submitBtn.click();
         }
-    }
-
-    if (e.key === 'Escape') {
-        // Removed search input reference since we removed mapping tab
     }
 });
 
