@@ -78,10 +78,18 @@ class PhaseForm(forms.ModelForm):
 
 
 class DailyKIEMSEntryForm(forms.ModelForm):
+    entry_type = forms.ChoiceField(
+        choices=[('', 'Auto-detect from registrations')] + list(DailyKIEMSEntry.ENTRY_TYPES),
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-input', 'style': 'font-size:13px;'}),
+        help_text='Leave as Auto-detect to let the system decide from Male/Female counts, or force a type explicitly.'
+    )
+
     class Meta:
         model = DailyKIEMSEntry
         fields = [
             'kiems_kit', 'phase', 'ward', 'vra', 'entry_date', 'venue',
+            'entry_type',
             'registered_male', 'registered_female',
             'total_transferred', 'uploaded'
         ]
@@ -104,7 +112,6 @@ class DailyKIEMSEntryForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Filter VRAs by ward
         if 'ward' in self.data:
             try:
                 ward_id = int(self.data.get('ward'))
@@ -113,52 +120,48 @@ class DailyKIEMSEntryForm(forms.ModelForm):
                 pass
         elif self.instance.pk and self.instance.ward:
             self.fields['vra'].queryset = VRA.objects.filter(ward=self.instance.ward, active=True)
+        # Pre-select the current explicit type when editing
+        if self.instance.pk:
+            self.fields['entry_type'].initial = self.instance.entry_type
 
     def clean(self):
-        """Validate and determine entry type based on registrations"""
         cleaned_data = super().clean()
 
-        registered_male = cleaned_data.get('registered_male', 0)
-        registered_female = cleaned_data.get('registered_female', 0)
-        venue = cleaned_data.get('venue', '').strip()
+        registered_male = cleaned_data.get('registered_male') or 0
+        registered_female = cleaned_data.get('registered_female') or 0
+        venue = (cleaned_data.get('venue') or '').strip()
+        entry_type_choice = cleaned_data.get('entry_type')  # '', 'VENUE', or 'REGISTRATION'
         entry_date = cleaned_data.get('entry_date')
         kiems_kit = cleaned_data.get('kiems_kit')
         phase = cleaned_data.get('phase')
-        ward = cleaned_data.get('ward')
         vra = cleaned_data.get('vra')
 
-        # Check if there are any registrations
         has_registrations = (registered_male > 0 or registered_female > 0)
 
-        # If there are registrations, venue is required
-        if has_registrations and not venue:
-            raise forms.ValidationError('Venue is required when registering voters.')
+        # Explicit choice wins; otherwise fall back to the old auto-detect behavior
+        if entry_type_choice in ('VENUE', 'REGISTRATION'):
+            effective_type = entry_type_choice
+        else:
+            effective_type = 'REGISTRATION' if has_registrations else 'VENUE'
 
-        # If there's a venue but no registrations, it's a venue mapping
-        if venue and not has_registrations:
-            # This is a venue mapping - allow it
-            # We'll set the entry_type in the view after save
-            pass
+        if effective_type == 'REGISTRATION':
+            if not venue:
+                raise forms.ValidationError('Venue is required when registering voters.')
+            if not has_registrations:
+                raise forms.ValidationError(
+                    'Enter Male/Female registration numbers, or set Entry Type to "Venue Mapping Only".'
+                )
+        elif effective_type == 'VENUE' and not venue:
+            raise forms.ValidationError('Venue is required for a venue mapping entry.')
 
-        # If no venue and no registrations, that's an error
-        if not venue and not has_registrations:
-            raise forms.ValidationError(
-                'Either provide a venue (for venue mapping) or enter voter registrations.'
-            )
+        cleaned_data['resolved_entry_type'] = effective_type
 
-        # Check for duplicate entries (same kit, phase, date, vra)
         if entry_date and kiems_kit and phase and vra:
             existing = DailyKIEMSEntry.objects.filter(
-                kiems_kit=kiems_kit,
-                phase=phase,
-                entry_date=entry_date,
-                vra=vra
+                kiems_kit=kiems_kit, phase=phase, entry_date=entry_date, vra=vra
             )
-
-            # Exclude current instance when editing
             if self.instance and self.instance.pk:
                 existing = existing.exclude(pk=self.instance.pk)
-
             if existing.exists():
                 raise forms.ValidationError(
                     f'An entry already exists for Kit "{kiems_kit.kit_name}", '

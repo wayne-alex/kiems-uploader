@@ -91,9 +91,9 @@
         gap: 14px;
     }
 
-    .form-row-3 {
+    .form-row-2 {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-columns: 1fr 1fr;
         gap: 14px;
     }
 
@@ -203,9 +203,21 @@
         margin-top: 2px;
     }
 
+    .type-toggle-hint {
+        font-size: 11px;
+        color: #8e8e93;
+        margin-top: 4px;
+        padding: 6px 10px;
+        background: #f2f2f7;
+        border-radius: 6px;
+        display: none;
+    }
+
+    .type-toggle-hint.visible { display: block; }
+
     @media (max-width: 600px) {
         .form-row,
-        .form-row-3 {
+        .form-row-2 {
             grid-template-columns: 1fr;
         }
 
@@ -228,7 +240,7 @@
 <div class="form-container">
     <div class="form-header">
         <h2>{{ title }}</h2>
-        <a href="{% url 'superadmin:entry_list' %}">← Back to Entries</a>
+        <a href="{% url 'superadmin:entry_list' %}">? Back to Entries</a>
     </div>
 
     <div class="form-card">
@@ -251,6 +263,7 @@
                     {% if form.kiems_kit.errors %}
                         <div class="error-text">{{ form.kiems_kit.errors.0 }}</div>
                     {% endif %}
+                    <div class="form-hint">Selecting a kit auto-fills its Ward below.</div>
                 </div>
                 <div class="form-group">
                     <label for="{{ form.phase.id_for_label }}">Phase <span class="required">*</span></label>
@@ -279,8 +292,16 @@
                 </div>
             </div>
 
-            <!-- Date & Venue -->
+            <!-- Entry Type -->
             <div class="form-row">
+                <div class="form-group">
+                    <label for="{{ form.entry_type.id_for_label }}">Entry Type</label>
+                    {{ form.entry_type }}
+                    {% if form.entry_type.errors %}
+                        <div class="error-text">{{ form.entry_type.errors.0 }}</div>
+                    {% endif %}
+                    <div class="form-hint">{{ form.entry_type.help_text }}</div>
+                </div>
                 <div class="form-group">
                     <label for="{{ form.entry_date.id_for_label }}">Entry Date <span class="required">*</span></label>
                     {{ form.entry_date }}
@@ -288,6 +309,10 @@
                         <div class="error-text">{{ form.entry_date.errors.0 }}</div>
                     {% endif %}
                 </div>
+            </div>
+
+            <!-- Venue -->
+            <div class="form-row-2">
                 <div class="form-group">
                     <label for="{{ form.venue.id_for_label }}">Venue <span class="required">*</span></label>
                     {{ form.venue }}
@@ -304,26 +329,19 @@
             </div>
 
             <div class="gender-grid">
-                <div class="form-row-3">
+                <div class="form-row-2">
                     <div class="form-group">
-                        <label for="{{ form.registered_male.id_for_label }}">👨 Male</label>
+                        <label for="{{ form.registered_male.id_for_label }}">Male</label>
                         {{ form.registered_male }}
                         {% if form.registered_male.errors %}
                             <div class="error-text">{{ form.registered_male.errors.0 }}</div>
                         {% endif %}
                     </div>
                     <div class="form-group">
-                        <label for="{{ form.registered_female.id_for_label }}">👩 Female</label>
+                        <label for="{{ form.registered_female.id_for_label }}">Female</label>
                         {{ form.registered_female }}
                         {% if form.registered_female.errors %}
                             <div class="error-text">{{ form.registered_female.errors.0 }}</div>
-                        {% endif %}
-                    </div>
-                    <div class="form-group">
-                        <label for="{{ form.registered_other.id_for_label }}">👤 Other</label>
-                        {{ form.registered_other }}
-                        {% if form.registered_other.errors %}
-                            <div class="error-text">{{ form.registered_other.errors.0 }}</div>
                         {% endif %}
                     </div>
                 </div>
@@ -331,13 +349,16 @@
                     <span class="label">Total Registered:</span>
                     <span class="value" id="totalRegistered">0</span>
                 </div>
+                <div class="type-toggle-hint" id="venueOnlyHint">
+                    Entry Type is set to "Venue Mapping Only" — Male/Female counts will be ignored on save.
+                </div>
                 <div class="form-hint">Enter the number of voters registered by gender</div>
             </div>
 
             <!-- Transfers -->
             <div class="form-row">
                 <div class="form-group">
-                    <label for="{{ form.total_transferred.id_for_label }}">🔄 Transferred</label>
+                    <label for="{{ form.total_transferred.id_for_label }}">Transferred</label>
                     {{ form.total_transferred }}
                     {% if form.total_transferred.errors %}
                         <div class="error-text">{{ form.total_transferred.errors.0 }}</div>
@@ -364,48 +385,80 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto-calculate total
     const maleField = document.getElementById('{{ form.registered_male.id_for_label }}');
     const femaleField = document.getElementById('{{ form.registered_female.id_for_label }}');
-    const otherField = document.getElementById('{{ form.registered_other.id_for_label }}');
     const totalDisplay = document.getElementById('totalRegistered');
+    const entryTypeField = document.getElementById('{{ form.entry_type.id_for_label }}');
+    const venueOnlyHint = document.getElementById('venueOnlyHint');
 
     function updateTotal() {
         const male = parseInt(maleField.value) || 0;
         const female = parseInt(femaleField.value) || 0;
-        const other = parseInt(otherField.value) || 0;
-        const total = male + female + other;
-        totalDisplay.textContent = total;
+        totalDisplay.textContent = male + female;
     }
 
-    if (maleField && femaleField && otherField) {
+    if (maleField && femaleField) {
         maleField.addEventListener('input', updateTotal);
         femaleField.addEventListener('input', updateTotal);
-        otherField.addEventListener('input', updateTotal);
         updateTotal();
     }
 
-    // Filter VRAs by ward
+    function toggleVenueOnlyHint() {
+        if (entryTypeField && venueOnlyHint) {
+            venueOnlyHint.classList.toggle('visible', entryTypeField.value === 'VENUE');
+        }
+    }
+
+    if (entryTypeField) {
+        entryTypeField.addEventListener('change', toggleVenueOnlyHint);
+        toggleVenueOnlyHint();
+    }
+
+    // ================= Ward -> VRA cascade =================
     const wardField = document.getElementById('{{ form.ward.id_for_label }}');
     const vraField = document.getElementById('{{ form.vra.id_for_label }}');
+    const kitField = document.getElementById('{{ form.kiems_kit.id_for_label }}');
+
+    function loadVrasForWard(wardId, preselectVraId) {
+        if (!wardId || !vraField) return;
+        fetch(`/superadmin/api/get-vras-by-ward/?ward_id=${wardId}`)
+            .then(response => response.json())
+            .then(data => {
+                vraField.innerHTML = '<option value="">---------</option>';
+                (data.vras || []).forEach(vra => {
+                    const option = document.createElement('option');
+                    option.value = vra.id;
+                    option.textContent = vra.name;
+                    if (preselectVraId && String(vra.id) === String(preselectVraId)) {
+                        option.selected = true;
+                    }
+                    vraField.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error fetching VRAs:', error));
+    }
 
     if (wardField && vraField) {
         wardField.addEventListener('change', function() {
-            const wardId = this.value;
-            if (wardId) {
-                fetch(`/superadmin/api/get-vras-by-ward/?ward_id=${wardId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        vraField.innerHTML = '<option value="">---------</option>';
-                        data.vras.forEach(vra => {
-                            const option = document.createElement('option');
-                            option.value = vra.id;
-                            option.textContent = vra.name;
-                            vraField.appendChild(option);
-                        });
-                    })
-                    .catch(error => console.error('Error fetching VRAs:', error));
-            }
+            loadVrasForWard(this.value);
+        });
+    }
+
+    // ================= Kit -> Ward (+ VRA) auto-fill =================
+    if (kitField && wardField) {
+        kitField.addEventListener('change', function() {
+            const kitId = this.value;
+            if (!kitId) return;
+
+            fetch(`/superadmin/api/kit-details/?kit_id=${kitId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.ward_id) {
+                        wardField.value = data.ward_id;
+                        loadVrasForWard(data.ward_id);
+                    }
+                })
+                .catch(error => console.error('Error fetching kit details:', error));
         });
     }
 });

@@ -589,17 +589,11 @@ def entry_create(request):
         form = DailyKIEMSEntryForm(request.POST)
         if form.is_valid():
             entry = form.save(commit=False)
-
-            # Determine entry type based on registrations
-            has_registrations = (entry.registered_male > 0 or entry.registered_female > 0)
-
-            if has_registrations:
-                entry.entry_type = 'REGISTRATION'
-                messages.success(request, '✅ Daily entry created successfully with voter registrations!')
+            entry.entry_type = form.cleaned_data['resolved_entry_type']
+            if entry.entry_type == 'REGISTRATION':
+                messages.success(request, 'Daily entry created successfully with voter registrations!')
             else:
-                entry.entry_type = 'VENUE'
-                messages.success(request, '📍 Venue mapping created successfully! No WhatsApp notification sent.')
-
+                messages.success(request, 'Venue mapping created successfully! No WhatsApp notification sent.')
             entry.save()
 
             # ONLY send WhatsApp notifications for REGISTRATION entries
@@ -3057,76 +3051,91 @@ def delete_device(request):
 @user_passes_test(is_superadmin)
 def venue_management(request):
     """Venue management for daily entries"""
-    # Get filter parameters
     ward_id = request.GET.get('ward')
     kit_id = request.GET.get('kit')
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
-    entry_type = request.GET.get('entry_type', 'VENUE')  # Default to VENUE entries
+    entry_type = request.GET.get('entry_type', '')      # '' = all types (fixes the empty-filter bug)
+    venue_status = request.GET.get('venue_status', '')  # '', 'set', 'missing'
+    search = request.GET.get('search', '')
 
-    # Start with all entries
-    entries = DailyKIEMSEntry.objects.select_related(
-        'kiems_kit', 'ward', 'vra'
-    ).filter(entry_type=entry_type)
+    base = DailyKIEMSEntry.objects.select_related('kiems_kit', 'ward', 'vra')
 
-    # Apply filters
+    if entry_type in ('VENUE', 'REGISTRATION'):
+        base = base.filter(entry_type=entry_type)
     if ward_id:
-        entries = entries.filter(ward_id=ward_id)
+        base = base.filter(ward_id=ward_id)
     if kit_id:
-        entries = entries.filter(kiems_kit_id=kit_id)
+        base = base.filter(kiems_kit_id=kit_id)
     if date_from:
         try:
-            date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
-            entries = entries.filter(entry_date__gte=date_from_parsed)
+            base = base.filter(entry_date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
         except ValueError:
-            pass
+            date_from = None
     if date_to:
         try:
-            date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
-            entries = entries.filter(entry_date__lte=date_to_parsed)
+            base = base.filter(entry_date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
         except ValueError:
-            pass
+            date_to = None
+    if search:
+        base = base.filter(venue__icontains=search)
 
-    # Order by entry date descending, then ward name
+    # Count missing venues BEFORE the venue_status filter narrows the set further
+    missing_count = base.filter(venue='').count()
+
+    entries = base
+    if venue_status == 'set':
+        entries = entries.exclude(venue='')
+    elif venue_status == 'missing':
+        entries = entries.filter(venue='')
+
     entries = entries.order_by('-entry_date', 'ward__name')
+    total_count = entries.count()
 
-    # Pagination
-    paginator = Paginator(entries, 50)  # 50 entries per page
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    # Duplicate venue/date detection across the WHOLE filtered set, not just the current page
+    pairs = list(entries.exclude(venue='').values('id', 'venue', 'entry_date'))
+    key_counts = Counter((p['venue'].strip().lower(), p['entry_date']) for p in pairs)
+    conflict_ids = {
+        p['id'] for p in pairs
+        if key_counts[(p['venue'].strip().lower(), p['entry_date'])] > 1
+    }
 
-    # Get all wards and kits for filter dropdowns
-    wards = Ward.objects.all().order_by('name')
-    kits = KIEMSKit.objects.all().order_by('kit_name')
+    paginator = Paginator(entries, 50)
+    page_obj = paginator.get_page(request.GET.get('page'))
 
     context = {
         'page_obj': page_obj,
-        'wards': wards,
-        'kits': kits,
-        'ward_selected': ward_id,
-        'kit_selected': kit_id,
+        'wards': Ward.objects.all().order_by('name'),
+        'kits': KIEMSKit.objects.all().order_by('kit_name'),
+        'ward_selected': int(ward_id) if ward_id else None,
+        'kit_selected': int(kit_id) if kit_id else None,
         'date_from': date_from,
         'date_to': date_to,
         'entry_type': entry_type,
+        'venue_status': venue_status,
+        'search': search,
+        'total_count': total_count,
+        'missing_count': missing_count,
+        'conflict_ids': conflict_ids,
     }
-
     return render(request, 'superadmin/venue_management.html', context)
 
 
 # ============================================================
 # SHARED FILTER HELPER (ward / kit / date range)
 # ============================================================
-
 def _filtered_entries_qs(request):
     ward_id = request.GET.get('ward')
     kit_id = request.GET.get('kit')
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
-    entry_type = request.GET.get('entry_type', 'VENUE')
+    entry_type = request.GET.get('entry_type', '')   # '' = all types, matches venue_management now
+    search = request.GET.get('search', '')
 
-    entries = DailyKIEMSEntry.objects.select_related(
-        'kiems_kit', 'ward', 'vra', 'phase'
-    ).filter(entry_type=entry_type)
+    entries = DailyKIEMSEntry.objects.select_related('kiems_kit', 'ward', 'vra', 'phase')
+
+    if entry_type in ('VENUE', 'REGISTRATION'):
+        entries = entries.filter(entry_type=entry_type)
 
     ward_obj = None
     kit_obj = None
@@ -3141,28 +3150,28 @@ def _filtered_entries_qs(request):
 
     if date_from:
         try:
-            date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
-            entries = entries.filter(entry_date__gte=date_from_parsed)
+            entries = entries.filter(entry_date__gte=datetime.strptime(date_from, '%Y-%m-%d').date())
         except ValueError:
             date_from = None
 
     if date_to:
         try:
-            date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
-            entries = entries.filter(entry_date__lte=date_to_parsed)
+            entries = entries.filter(entry_date__lte=datetime.strptime(date_to, '%Y-%m-%d').date())
         except ValueError:
             date_to = None
 
+    if search:
+        entries = entries.filter(venue__icontains=search)
+
     entries = entries.order_by('entry_date', 'ward__name')
 
-    filters = {
+    return entries, {
         'ward_obj': ward_obj,
         'kit_obj': kit_obj,
         'date_from': date_from,
         'date_to': date_to,
         'entry_type': entry_type,
     }
-    return entries, filters
 
 
 # ============================================================
@@ -3233,52 +3242,37 @@ def _resolve_scope_names(filters, entries):
     return ward_name, kit_no
 
 
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 
 def generate_venue_report_html(request):
-    """Build the HTML for the venue/movement schedule notice, grouped by Ward and Kit."""
     entries, filters = _filtered_entries_qs(request)
     entries = list(entries.exclude(venue=''))
 
-    # Group entries by (Ward Name, Kit Number/Name)
     grouped_data = defaultdict(list)
     for e in entries:
         ward_name = e.ward.name if e.ward else "All Wards"
-
-        if e.kiems_kit:
-            kit_no = f"{e.kiems_kit.kit_name} ({e.kiems_kit.serial_no})" if e.kiems_kit.serial_no else e.kiems_kit.kit_name
-        else:
-            kit_no = "Unassigned Kit"
-
+        kit_no = f"{e.kiems_kit.kit_name} ({e.kiems_kit.serial_no})" if e.kiems_kit.serial_no else e.kiems_kit.kit_name
         grouped_data[(ward_name, kit_no)].append(e)
 
-    # Structure data for template iteration
     report_groups = []
     for (ward_name, kit_no), kit_entries in grouped_data.items():
-        schedule = [
-            {
-                'date': e.entry_date.strftime('%d %b %Y'),
-                'day': e.entry_date.strftime('%A'),
-                'venue': e.venue,
-                'time': '8:00 AM – 5:00 PM',
-            }
-            for e in kit_entries
-        ]
-        report_groups.append({
-            'ward': ward_name,
-            'kit_no': kit_no,
-            'schedule': schedule,
-        })
+        schedule = [{
+            'date': e.entry_date.strftime('%d %b %Y'),
+            'day': e.entry_date.strftime('%A'),
+            'venue': e.venue,
+            'time': '8:00 AM – 5:00 PM',
+        } for e in kit_entries]
+        report_groups.append({'ward': ward_name, 'kit_no': kit_no, 'schedule': schedule})
 
     html_string = render_to_string('superadmin/kitMovement_report.html', {
         'constituency': 'TURBO',
         'report_groups': report_groups,
+        'has_entries': bool(report_groups),   # <-- new
         'date_from': filters['date_from'],
         'date_to': filters['date_to'],
         'generated_at': timezone.localtime().strftime('%d %b %Y, %H:%M'),
     })
-
     return HttpResponse(html_string)
 
 
@@ -3515,3 +3509,50 @@ def generate_venue_report(request):
 def generate_venue_report_preview(request):
     """HTML preview of the movement notice, same pattern as generate_report_preview()."""
     return generate_venue_report_html(request)
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_GET
+def entry_detail_api(request, pk):
+    """Read-only entry details for the preview modal"""
+    entry = get_object_or_404(
+        DailyKIEMSEntry.objects.select_related('kiems_kit', 'phase', 'ward', 'vra', 'clerk'),
+        pk=pk
+    )
+    return JsonResponse({
+        'id': entry.id,
+        'entry_type': entry.get_entry_type_display(),
+        'date': entry.entry_date.strftime('%d %b %Y'),
+        'kit': entry.kiems_kit.kit_name,
+        'serial_no': entry.kiems_kit.serial_no,
+        'phase': entry.phase.name,
+        'ward': entry.ward.name,
+        'vra': entry.vra.name,
+        'clerk': entry.clerk.name if entry.clerk else '—',
+        'venue': entry.venue or '—',
+        'male': entry.registered_male,
+        'female': entry.registered_female,
+        'total_registered': entry.total_registered,
+        'transferred': entry.total_transferred,
+        'deleted': entry.total_updated,
+        'uploaded': entry.uploaded,
+        'edit_count': entry.edit_count,
+        'created_at': entry.created_at.strftime('%d %b %Y, %H:%M'),
+        'updated_at': entry.updated_at.strftime('%d %b %Y, %H:%M'),
+        'office_updated_by': entry.office_updated_by or None,
+        'office_updated_at': entry.office_updated_at.strftime('%d %b %Y, %H:%M') if entry.office_updated_at else None,
+    })
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_GET
+def get_kit_details(request):
+    """Return a kit's ward, for auto-filling the entry form"""
+    kit_id = request.GET.get('kit_id')
+    if not kit_id:
+        return JsonResponse({'error': 'No kit specified'}, status=400)
+    try:
+        kit = KIEMSKit.objects.select_related('ward').get(id=kit_id)
+        return JsonResponse({'ward_id': kit.ward_id, 'ward_name': kit.ward.name})
+    except KIEMSKit.DoesNotExist:
+        return JsonResponse({'error': 'Kit not found'}, status=404)

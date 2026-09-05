@@ -76,6 +76,24 @@
         box-shadow: none;
     }
 
+    .btn-secondary {
+        background: #f2f2f7;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: 0.5px solid rgba(0,0,0,0.06);
+        color: #000;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+
+    .btn-secondary:hover { background: #e5e5ea; }
+    .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
     .btn-sm {
         padding: 4px 10px;
         font-size: 11px;
@@ -92,28 +110,18 @@
         gap: 4px;
     }
 
-    .btn-sm:hover {
-        background: #e5e5ea;
-    }
+    .btn-sm:hover { background: #e5e5ea; }
+    .btn-sm.primary { background: #90EE90; border-color: #90EE90; }
+    .btn-sm.primary:hover { background: #7fe07f; }
+    .btn-sm.pdf { background: #ff3b30; color: #fff; border-color: #ff3b30; }
+    .btn-sm.pdf:hover { background: #e0352b; }
 
-    .btn-sm.primary {
-        background: #90EE90;
-        border-color: #90EE90;
+    .btn-sm.warning {
+        background: #fff8e1;
+        color: #f57f17;
+        border-color: #ffe0a3;
     }
-
-    .btn-sm.primary:hover {
-        background: #7fe07f;
-    }
-
-    .btn-sm.pdf {
-        background: #ff3b30;
-        color: #fff;
-        border-color: #ff3b30;
-    }
-
-    .btn-sm.pdf:hover {
-        background: #e0352b;
-    }
+    .btn-sm.warning:hover { background: #ffecb3; }
 
     .btn-danger {
         background: #ff3b30;
@@ -129,14 +137,8 @@
         align-items: center;
     }
 
-    .btn-danger:hover {
-        background: #e0352b;
-    }
-
-    .btn-danger:disabled {
-        background: #d1d1d6;
-        cursor: not-allowed;
-    }
+    .btn-danger:hover { background: #e0352b; }
+    .btn-danger:disabled { background: #d1d1d6; cursor: not-allowed; }
 
     /* Filters */
     .filters-bar {
@@ -197,11 +199,50 @@
         padding-top: 4px;
     }
 
+    .quick-filters {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 0.5px solid rgba(0,0,0,0.06);
+    }
+
     /* Export buttons */
     .export-buttons {
         display: flex;
         gap: 4px;
         flex-wrap: wrap;
+    }
+
+    /* Bulk toolbar */
+    .bulk-toolbar {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        padding: 10px 16px;
+        background: #eefaf0;
+        border-bottom: 0.5px solid rgba(0,0,0,0.06);
+    }
+
+    .bulk-toolbar.active { display: flex; }
+
+    .bulk-toolbar span.count {
+        font-size: 12px;
+        font-weight: 600;
+        color: #1c1c1e;
+        white-space: nowrap;
+    }
+
+    .bulk-toolbar input[type="text"] {
+        padding: 6px 10px;
+        border: 0.5px solid rgba(0,0,0,0.1);
+        border-radius: 6px;
+        font-size: 13px;
+        min-width: 200px;
+        flex: 1;
+        max-width: 320px;
     }
 
     /* Table */
@@ -221,7 +262,7 @@
     table {
         width: 100%;
         border-collapse: collapse;
-        min-width: 760px;
+        min-width: 880px;
         font-size: 13px;
     }
 
@@ -248,24 +289,15 @@
         font-size: 13px;
     }
 
-    tr:last-child td {
-        border-bottom: none;
-    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafc; }
 
-    tr:hover td {
-        background: #fafafc;
-    }
+    tr.conflict-row td { background: #fff8f6; }
+    tr.conflict-row:hover td { background: #fff1ec; }
 
-    .text-muted {
-        color: #8e8e93;
-        font-size: 11px;
-    }
+    .text-muted { color: #8e8e93; font-size: 11px; }
 
-    .entry-kit {
-        font-weight: 600;
-        color: #000;
-        font-size: 13px;
-    }
+    .entry-kit { font-weight: 600; color: #000; font-size: 13px; }
 
     .entry-meta {
         font-size: 11px;
@@ -274,7 +306,21 @@
         margin-top: 1px;
     }
 
+    .type-tag {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 600;
+        padding: 1px 6px;
+        border-radius: 8px;
+        margin-top: 2px;
+    }
+
+    .type-tag.registration { background: #e8f5e9; color: #2e7d32; }
+    .type-tag.venue { background: #ede7f6; color: #5e35b1; }
+
     /* Venue Input */
+    .venue-cell { min-width: 220px; }
+
     .venue-input {
         width: 100%;
         padding: 6px 10px;
@@ -294,13 +340,24 @@
         box-shadow: 0 0 0 3px rgba(144, 238, 144, 0.1);
     }
 
-    .venue-input:hover {
-        background: #f2f2f7;
+    .venue-input:hover { background: #f2f2f7; }
+    .venue-input.changed { border-color: #90EE90; background: #e8f5e9; }
+
+    .venue-history {
+        font-size: 10px;
+        color: #b0b0b6;
+        margin-top: 3px;
+        display: block;
     }
 
-    .venue-input.changed {
-        border-color: #90EE90;
-        background: #e8f5e9;
+    .conflict-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 10px;
+        font-weight: 600;
+        color: #c1440e;
+        margin-top: 3px;
     }
 
     .actions-cell {
@@ -323,20 +380,10 @@
         align-items: center;
     }
 
-    .summary-bar span {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-    }
-
-    .summary-bar .highlight {
-        font-weight: 700;
-        color: #000;
-    }
-
-    .summary-bar .sep {
-        color: #d1d1d6;
-    }
+    .summary-bar span { display: inline-flex; align-items: center; gap: 4px; }
+    .summary-bar .highlight { font-weight: 700; color: #000; }
+    .summary-bar .sep { color: #d1d1d6; }
+    .summary-bar .warn { color: #c1440e; font-weight: 700; }
 
     /* Pagination */
     .pagination {
@@ -348,8 +395,7 @@
         border-top: 0.5px solid rgba(0,0,0,0.06);
     }
 
-    .pagination a,
-    .pagination span {
+    .pagination a, .pagination span {
         padding: 6px 12px;
         border-radius: 6px;
         font-size: 13px;
@@ -361,15 +407,8 @@
         gap: 4px;
     }
 
-    .pagination a:hover {
-        background: #f2f2f7;
-    }
-
-    .pagination .current {
-        background: #90EE90;
-        color: #000;
-        font-weight: 600;
-    }
+    .pagination a:hover { background: #f2f2f7; }
+    .pagination .current { background: #90EE90; color: #000; font-weight: 600; }
 
     /* Status Badges */
     .status-badge {
@@ -421,12 +460,6 @@
         color: #8e8e93;
     }
 
-    .empty-state i {
-        font-size: 30px;
-        display: block;
-        margin-bottom: 8px;
-    }
-
     .empty-state h3 {
         font-size: 16px;
         font-weight: 600;
@@ -440,55 +473,70 @@
         margin-bottom: 16px;
     }
 
-    /* Spin animation */
-    .spin {
-        animation: spin 0.85s linear infinite;
-    }
-
-    @keyframes spin {
-        100% { transform: rotate(360deg); }
-    }
+    .spin { animation: spin 0.85s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
 
     /* Responsive */
     @media (max-width: 768px) {
-        .filters-grid {
-            grid-template-columns: 1fr 1fr;
-        }
-
-        .page-header {
-            flex-direction: column;
-            align-items: stretch;
-        }
-
-        .page-actions {
-            flex-wrap: wrap;
-        }
-
-        .summary-bar {
-            font-size: 11px;
-            gap: 10px;
-        }
+        .filters-grid { grid-template-columns: 1fr 1fr; }
+        .page-header { flex-direction: column; align-items: stretch; }
+        .page-actions { flex-wrap: wrap; }
+        .summary-bar { font-size: 11px; gap: 10px; }
+        .bulk-toolbar input[type="text"] { min-width: 140px; }
     }
 
     @media (max-width: 480px) {
-        .filters-grid {
-            grid-template-columns: 1fr;
-        }
+        .filters-grid { grid-template-columns: 1fr; }
     }
+    .preview-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+}
+.preview-overlay.hidden { display: none; }
 
-    .live-dot {
-        display: inline-block;
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: #34c759;
-        animation: pulse-dot 1.5s ease-in-out infinite;
-    }
+.preview-panel {
+    background: #fff;
+    border-radius: 14px;
+    width: 480px;
+    max-width: 92vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
 
-    @keyframes pulse-dot {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.5; transform: scale(0.8); }
-    }
+.preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 18px;
+    border-bottom: 0.5px solid rgba(0,0,0,0.06);
+}
+
+.preview-header h3 { font-size: 16px; font-weight: 700; }
+
+.preview-body { padding: 16px 18px; }
+
+.preview-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 7px 0;
+    border-bottom: 0.5px dashed rgba(0,0,0,0.06);
+    font-size: 13px;
+}
+
+.preview-row span:first-child { color: #8e8e93; }
+.preview-row span:last-child { font-weight: 600; text-align: right; }
+
+.preview-footer {
+    padding: 14px 18px;
+    border-top: 0.5px solid rgba(0,0,0,0.06);
+    text-align: right;
+}
 </style>
 {% endblock %}
 
@@ -529,6 +577,10 @@
 <div class="filters-bar">
     <form method="get" class="filters-grid" id="filterForm">
         <div class="filter-group">
+            <label for="id_search">Venue Search</label>
+            <input type="text" id="id_search" name="search" value="{{ search|default:'' }}" placeholder="e.g. Chief's Camp"/>
+        </div>
+        <div class="filter-group">
             <label for="id_ward">Ward</label>
             <select id="id_ward" name="ward">
                 <option value="">All Wards</option>
@@ -547,6 +599,22 @@
             </select>
         </div>
         <div class="filter-group">
+            <label for="id_entry_type">Entry Type</label>
+            <select id="id_entry_type" name="entry_type">
+                <option value="">All Types</option>
+                <option value="REGISTRATION" {% if entry_type == 'REGISTRATION' %}selected{% endif %}>Registration</option>
+                <option value="VENUE" {% if entry_type == 'VENUE' %}selected{% endif %}>Venue Mapping Only</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="id_venue_status">Venue Status</label>
+            <select id="id_venue_status" name="venue_status">
+                <option value="">Any</option>
+                <option value="set" {% if venue_status == 'set' %}selected{% endif %}>Has Venue</option>
+                <option value="missing" {% if venue_status == 'missing' %}selected{% endif %}>Missing Venue</option>
+            </select>
+        </div>
+        <div class="filter-group">
             <label for="id_date_from">From</label>
             <input type="date" id="id_date_from" name="date_from" value="{{ date_from|default:'' }}"/>
         </div>
@@ -561,6 +629,19 @@
             </div>
         </div>
     </form>
+
+    <div class="quick-filters">
+        <a class="btn-sm warning" href="?{% for key, value in request.GET.items %}{% if key != 'venue_status' and key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}venue_status=missing">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Missing Venues ({{ missing_count }})
+        </a>
+        {% if venue_status or search or entry_type or ward_selected or kit_selected or date_from or date_to %}
+        <a class="btn-sm" href="{% url 'superadmin:venue_management' %}">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Reset filters
+        </a>
+        {% endif %}
+    </div>
 </div>
 
 <!-- Table -->
@@ -568,16 +649,31 @@
     <div class="summary-bar" id="summaryBar">
         <span>
             <svg class="icon" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-            <span class="highlight" id="entryCount">{{ page_obj|length }}</span> entries
+            <span class="highlight" id="entryCount">{{ total_count }}</span> entries
         </span>
         <span class="sep">|</span>
         <span>Date Range: <span class="highlight">{{ date_from|default:'start' }} to {{ date_to|default:'end' }}</span></span>
+        {% if missing_count %}
+        <span class="sep">|</span>
+        <span class="warn">{{ missing_count }} missing venue{{ missing_count|pluralize }}</span>
+        {% endif %}
+    </div>
+
+    <div class="bulk-toolbar" id="bulkToolbar">
+        <span class="count"><span id="selectedCount">0</span> selected</span>
+        <input type="text" id="bulkVenueInput" placeholder="Type a venue to apply to selected rows"/>
+        <button class="btn-secondary" id="applyBulkBtn" type="button">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            Apply to Selected
+        </button>
+        <span class="text-muted">Review, then click "Save All Venues" to commit.</span>
     </div>
 
     <div class="table-wrapper" id="tableWrapper">
         <table>
             <thead>
                 <tr>
+                    <th style="width: 30px;"><input type="checkbox" id="selectAll"></th>
                     <th>Date</th>
                     <th>Kit</th>
                     <th>VRA</th>
@@ -589,7 +685,9 @@
             </thead>
             <tbody id="entriesBody">
                 {% for entry in page_obj %}
-                <tr data-entry-id="{{ entry.id }}" data-kit-id="{{ entry.kiems_kit.id }}">
+                <tr data-entry-id="{{ entry.id }}" data-kit-id="{{ entry.kiems_kit.id }}"
+                    class="{% if entry.id in conflict_ids %}conflict-row{% endif %}">
+                    <td><input type="checkbox" class="row-select" data-entry-id="{{ entry.id }}"></td>
                     <td>
                         <div class="entry-kit">{{ entry.entry_date|date:"M d, Y" }}</div>
                         <span class="entry-meta">{{ entry.phase.name }}</span>
@@ -597,16 +695,28 @@
                     <td>
                         <div class="entry-kit">{{ entry.kiems_kit.kit_name }}</div>
                         <span class="entry-meta">{{ entry.kiems_kit.serial_no }}</span>
+                        <span class="type-tag {% if entry.entry_type == 'REGISTRATION' %}registration{% else %}venue{% endif %}">
+                            {% if entry.entry_type == 'REGISTRATION' %}Registration{% else %}Venue Only{% endif %}
+                        </span>
                     </td>
                     <td>{{ entry.vra.name }}</td>
                     <td>{{ entry.ward.name }}</td>
-                    <td>
+                    <td class="venue-cell">
                         <input class="venue-input" type="text"
                                value="{{ entry.venue|default:'' }}"
                                placeholder="Enter venue"
                                data-entry-id="{{ entry.id }}"
                                data-kit-id="{{ entry.kiems_kit.id }}"
                                data-original="{{ entry.venue|default:'' }}">
+                        <span class="venue-history">
+                            Updated {{ entry.updated_at|date:"d M, H:i" }}{% if entry.office_updated_by %} by {{ entry.office_updated_by }}{% endif %}
+                        </span>
+                        {% if entry.id in conflict_ids %}
+                        <span class="conflict-badge">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                            Same venue/date used by another kit
+                        </span>
+                        {% endif %}
                     </td>
                     <td>
                         <span class="status-badge {% if entry.venue %}saved{% else %}pending{% endif %}">
@@ -620,26 +730,31 @@
                         </span>
                     </td>
                     <td>
-                        <div class="actions-cell">
-                            <button class="btn-danger delete-venue-btn" data-entry-id="{{ entry.id }}"
-                                    title="Clear venue for this entry"
-                                    {% if not entry.venue %}disabled{% endif %}>
-                                <svg class="icon icon-sm" viewBox="0 0 24 24">
-                                    <polyline points="3 6 5 6 21 6"/>
-                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                                    <path d="M10 11v6"/>
-                                    <path d="M14 11v6"/>
-                                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </td>
+    <div class="actions-cell">
+        <button class="btn-sm preview-entry-btn" data-entry-id="{{ entry.id }}" title="Preview entry">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <a class="btn-sm" href="{% url 'superadmin:entry_edit' entry.id %}" title="Edit entry">
+            <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </a>
+        <button class="btn-danger delete-venue-btn" data-entry-id="{{ entry.id }}"
+                title="Clear venue for this entry"
+                {% if not entry.venue %}disabled{% endif %}>
+            <svg class="icon icon-sm" viewBox="0 0 24 24">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                <path d="M10 11v6"/>
+                <path d="M14 11v6"/>
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+        </button>
+    </div>
+</td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7">
+                    <td colspan="8">
                         <div class="empty-state">
-                            <i class="ti ti-alert-circle"></i>
                             <h3>No Entries Found</h3>
                             <p>No entries match your criteria.</p>
                         </div>
@@ -676,32 +791,93 @@
     </div>
     {% endif %}
 </div>
+<div id="previewModal" class="preview-overlay hidden">
+    <div class="preview-panel">
+        <div class="preview-header">
+            <h3>Entry Details</h3>
+            <button id="closePreview" class="btn-sm" title="Close">
+                <svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="preview-body" id="previewBody">
+            <p class="text-muted">Loading…</p>
+        </div>
+        <div class="preview-footer">
+            <a id="previewEditLink" class="btn-primary" href="#">Edit This Entry</a>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const previewModal = document.getElementById('previewModal');
+const previewBody = document.getElementById('previewBody');
+const previewEditLink = document.getElementById('previewEditLink');
+const closePreview = document.getElementById('closePreview');
+
+function fieldRow(label, value) {
+    return `<div class="preview-row"><span>${label}</span><span>${value}</span></div>`;
+}
+
+document.querySelectorAll('.preview-entry-btn').forEach(btn => {
+    btn.addEventListener('click', async function () {
+        const entryId = this.dataset.entryId;
+        previewModal.classList.remove('hidden');
+        previewBody.innerHTML = '<p class="text-muted">Loading…</p>';
+        previewEditLink.href = `/superadmin/entries/${entryId}/edit/`; // adjust if your entry_edit URL differs
+
+        try {
+            const resp = await fetch(`/superadmin/api/entry/${entryId}/detail/`);
+            const d = await resp.json();
+
+            previewBody.innerHTML = [
+                fieldRow('Type', d.entry_type),
+                fieldRow('Date', d.date),
+                fieldRow('Kit', `${d.kit} (${d.serial_no})`),
+                fieldRow('Phase', d.phase),
+                fieldRow('Ward', d.ward),
+                fieldRow('VRA', d.vra),
+                fieldRow('Clerk', d.clerk),
+                fieldRow('Venue', d.venue),
+                fieldRow('Male', d.male),
+                fieldRow('Female', d.female),
+                fieldRow('Total Registered', d.total_registered),
+                fieldRow('Transferred', d.transferred),
+                fieldRow('Deleted', d.deleted),
+                fieldRow('Uploaded', d.uploaded ? 'Yes' : 'No'),
+                fieldRow('Edit Count', d.edit_count),
+                fieldRow('Created', d.created_at),
+                fieldRow('Last Updated', d.updated_at),
+                d.office_updated_by ? fieldRow('Updated By', d.office_updated_by) : '',
+            ].join('');
+        } catch (e) {
+            previewBody.innerHTML = '<p class="msg-error" style="display:block;">Could not load entry details.</p>';
+        }
+    });
+});
+
+closePreview.addEventListener('click', () => previewModal.classList.add('hidden'));
+previewModal.addEventListener('click', (e) => { if (e.target === previewModal) previewModal.classList.add('hidden'); });
     const saveBtn = document.getElementById('save-venues-btn');
     const saveMessage = document.getElementById('save-message');
     const saveErrors = document.getElementById('save-errors');
     const csrfToken = "{{ csrf_token }}";
     const deleteVenueUrl = "{% url 'superadmin:delete_venue' %}";
 
-    // Get kit_id from the first entry or from the filter
+    const selectAll = document.getElementById('selectAll');
+    const bulkToolbar = document.getElementById('bulkToolbar');
+    const selectedCountEl = document.getElementById('selectedCount');
+    const bulkVenueInput = document.getElementById('bulkVenueInput');
+    const applyBulkBtn = document.getElementById('applyBulkBtn');
+
     let kitId = null;
-
-    // Try to get from the first row
     const firstRow = document.querySelector('tr[data-kit-id]');
-    if (firstRow) {
-        kitId = firstRow.dataset.kitId;
-    }
-
-    // If not found, try to get from the filter dropdown
+    if (firstRow) kitId = firstRow.dataset.kitId;
     if (!kitId) {
         const kitSelect = document.getElementById('id_kit');
-        if (kitSelect && kitSelect.value) {
-            kitId = kitSelect.value;
-        }
+        if (kitSelect && kitSelect.value) kitId = kitSelect.value;
     }
 
     function flashMessage(el, text) {
@@ -710,16 +886,49 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => el.classList.add('hidden'), 4000);
     }
 
+    // ================= Row selection / bulk toolbar =================
+    function refreshBulkToolbar() {
+        const checked = document.querySelectorAll('.row-select:checked');
+        selectedCountEl.textContent = checked.length;
+        bulkToolbar.classList.toggle('active', checked.length > 0);
+    }
+
+    selectAll.addEventListener('change', function() {
+        document.querySelectorAll('.row-select').forEach(cb => { cb.checked = selectAll.checked; });
+        refreshBulkToolbar();
+    });
+
+    document.querySelectorAll('.row-select').forEach(cb => {
+        cb.addEventListener('change', refreshBulkToolbar);
+    });
+
+    applyBulkBtn.addEventListener('click', function() {
+        const venue = bulkVenueInput.value.trim();
+        if (!venue) {
+            flashMessage(saveErrors, 'Type a venue name first.');
+            return;
+        }
+        const checked = document.querySelectorAll('.row-select:checked');
+        if (checked.length === 0) {
+            flashMessage(saveErrors, 'Select at least one row first.');
+            return;
+        }
+        checked.forEach(cb => {
+            const row = document.querySelector(`tr[data-entry-id="${cb.dataset.entryId}"]`);
+            const input = row ? row.querySelector('.venue-input') : null;
+            if (input) {
+                input.value = venue;
+                input.classList.toggle('changed', venue !== (input.dataset.original || ''));
+            }
+        });
+        flashMessage(saveMessage, `Applied to ${checked.length} row(s). Click "Save All Venues" to commit.`);
+    });
+
     // Track changes on venue inputs
     document.querySelectorAll('.venue-input').forEach(input => {
         const original = input.dataset.original || '';
         input.addEventListener('input', function() {
-            const current = this.value.trim();
-            if (current !== original) {
-                this.classList.add('changed');
-            } else {
-                this.classList.remove('changed');
-            }
+            this.classList.toggle('changed', this.value.trim() !== original);
         });
     });
 
@@ -731,11 +940,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const input = row.querySelector('.venue-input');
             const currentVenue = input ? input.value.trim() : '';
 
-            if (!currentVenue) return; // nothing to clear
-
-            if (!confirm('Clear the venue for this entry? This does not delete the entry itself, only its venue.')) {
-                return;
-            }
+            if (!currentVenue) return;
+            if (!confirm('Clear the venue for this entry? This does not delete the entry itself, only its venue.')) return;
 
             this.disabled = true;
             const originalIcon = this.innerHTML;
@@ -744,13 +950,9 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 const resp = await fetch(deleteVenueUrl, {
                     method: 'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ entry_id: entryId })
                 });
-
                 const data = await resp.json();
 
                 if (data.ok) {
@@ -775,16 +977,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.disabled = false;
             } finally {
                 this.innerHTML = originalIcon;
-                // Keep disabled if venue is now empty
-                if (input && !input.value.trim()) {
-                    this.disabled = true;
-                } else {
-                    this.disabled = false;
-                }
+                this.disabled = !!(input && !input.value.trim()) ? true : false;
             }
         });
     });
 
+    // ================= Save all changed venues =================
     saveBtn.addEventListener('click', async () => {
         const inputs = document.querySelectorAll('.venue-input');
         const updates = [];
@@ -794,8 +992,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const entryId = input.closest('tr').dataset.entryId;
             const venue = input.value.trim();
             const original = input.dataset.original || '';
-
-            // Only include if changed
             if (venue !== original) {
                 hasChanges = true;
                 updates.push({ entry_id: entryId, venue: venue });
@@ -803,44 +999,27 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         if (!hasChanges) {
-            saveErrors.querySelector('span').textContent = 'No changes to save.';
-            saveErrors.classList.remove('hidden');
-            setTimeout(() => {
-                saveErrors.classList.add('hidden');
-            }, 3000);
+            flashMessage(saveErrors, 'No changes to save.');
             return;
         }
 
-        // Disable button
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<svg class="icon spin" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg> Saving...';
         saveMessage.classList.add('hidden');
         saveErrors.classList.add('hidden');
 
         try {
-            // Build request body
-            const requestBody = {
-                updates: updates
-            };
-
-            // Include kit_id if we have it
-            if (kitId) {
-                requestBody.kit_id = parseInt(kitId);
-            }
+            const requestBody = { updates: updates };
+            if (kitId) requestBody.kit_id = parseInt(kitId);
 
             const resp = await fetch('/save-clerk-venues/', {
                 method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken,
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody)
             });
-
             const data = await resp.json();
 
             if (data.ok) {
-                // Update displayed venues and remove changed class
                 updates.forEach(u => {
                     const row = document.querySelector(`tr[data-entry-id="${u.entry_id}"]`);
                     if (row) {
@@ -850,7 +1029,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             input.dataset.original = u.venue;
                             input.classList.remove('changed');
                         }
-                        // Update status badge
                         const badge = row.querySelector('.status-badge');
                         if (badge) {
                             if (u.venue) {
@@ -861,37 +1039,31 @@ document.addEventListener('DOMContentLoaded', function() {
                                 badge.className = 'status-badge pending';
                             }
                         }
-                        // Keep delete button state in sync
                         const delBtn = row.querySelector('.delete-venue-btn');
                         if (delBtn) delBtn.disabled = !u.venue;
                     }
                 });
 
-                saveMessage.querySelector('span').textContent = `Saved ${data.saved || updates.length} venue(s) successfully.`;
-                saveMessage.classList.remove('hidden');
-
-                setTimeout(() => {
-                    saveMessage.classList.add('hidden');
-                }, 4000);
+                flashMessage(saveMessage, `Saved ${data.saved || updates.length} venue(s) successfully.`);
+                selectAll.checked = false;
+                document.querySelectorAll('.row-select').forEach(cb => { cb.checked = false; });
+                refreshBulkToolbar();
+                bulkVenueInput.value = '';
             } else {
                 let errorMsg = data.error || 'Could not save venues.';
-                if (data.errors && data.errors.length) {
-                    errorMsg += ' ' + data.errors.join(', ');
-                }
-                saveErrors.querySelector('span').textContent = errorMsg;
-                saveErrors.classList.remove('hidden');
+                if (data.errors && data.errors.length) errorMsg += ' ' + data.errors.join(', ');
+                flashMessage(saveErrors, errorMsg);
             }
         } catch (e) {
             console.error('Save error:', e);
-            saveErrors.querySelector('span').textContent = 'Network error. Please try again.';
-            saveErrors.classList.remove('hidden');
+            flashMessage(saveErrors, 'Network error. Please try again.');
         } finally {
             saveBtn.disabled = false;
             saveBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save All Venues';
         }
     });
 
-    // Auto-refresh countdown display
+    // Auto-save countdown (unchanged behavior)
     let refreshCountdown = 30;
     const countdownDisplay = document.createElement('span');
     countdownDisplay.className = 'text-muted';
@@ -900,16 +1072,12 @@ document.addEventListener('DOMContentLoaded', function() {
     countdownDisplay.textContent = `Auto-save: ${refreshCountdown}s`;
     document.querySelector('.page-actions').appendChild(countdownDisplay);
 
-    // Countdown timer for auto-save indicator
     setInterval(() => {
         refreshCountdown--;
         if (refreshCountdown <= 0) {
             refreshCountdown = 30;
-            // Auto-save if there are changes
             const hasChanges = document.querySelectorAll('.venue-input.changed').length > 0;
-            if (hasChanges) {
-                saveBtn.click();
-            }
+            if (hasChanges) saveBtn.click();
         }
         countdownDisplay.textContent = `Auto-save: ${refreshCountdown}s`;
     }, 1000);

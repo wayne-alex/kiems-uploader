@@ -80,4 +80,6 @@ urlpatterns = [
     path('venue-management/', views.venue_management, name='venue_management'),
     path('venue/generate_report/', views.generate_venue_report_pdf, name='generate_venue_report'),
     path('delete-venue/', views.delete_venue, name='delete_venue'),
+    path('api/entry/<int:pk>/detail/', views.entry_detail_api, name='entry_detail_api'),
+    path('api/kit-details/', views.get_kit_details, name='get_kit_details'),
 ]
