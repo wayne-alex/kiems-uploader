@@ -35,7 +35,30 @@ def get_whatsapp_group_for_vra(vra):
         print(f"WhatsApp group error: {str(e)}")
     return None
 
-
+def get_whatsapp_settings():
+    """
+    Fetch the (single, admin-level) WhatsApp notification settings.
+    This is client-facing code with no logged-in admin user, so we look
+    up whichever superuser's settings have been configured in the panel.
+    """
+    try:
+        from django.contrib.auth.models import User
+        admin_user = User.objects.filter(is_superuser=True).first()
+        if not admin_user:
+            return None
+        setting, _ = WhatsAppSetting.objects.get_or_create(
+            user=admin_user,
+            defaults={
+                'notify_vra': True,
+                'notify_edit': True,
+                'notify_daily': True,
+                'notify_grand_total': True,
+            }
+        )
+        return setting
+    except Exception as e:
+        print(f"WhatsApp settings error: {str(e)}")
+        return None
 def send_whatsapp_message_from_vra(message, vra):
     """Send WhatsApp message from VRA submission"""
     try:
@@ -107,27 +130,27 @@ def format_grand_total_message(entries, total_wards):
 def check_and_send_daily_report_from_vra(vra):
     """Check if all wards submitted and send grand total - only for REGISTRATION entries with actual votes"""
     try:
+        settings_obj = get_whatsapp_settings()
+        if settings_obj and not settings_obj.notify_grand_total:
+            print("Grand total notifications disabled in settings - skipping")
+            return
+
         today = timezone.now().date()
         total_wards = Ward.objects.count()
         if total_wards == 0:
             return
 
-        # Only count wards that have REGISTRATION entries with actual registered voters
-        # (guards against mislabeled 0-count venue-mapping rows triggering this early)
         submitted_wards = DailyKIEMSEntry.objects.filter(
             entry_date=today,
             entry_type='REGISTRATION',
-            total_registered__gt=0,
         ).values('ward').distinct().count()
 
         if submitted_wards < total_wards:
             return
 
-        # Get all REGISTRATION entries for today with actual votes
         entries = DailyKIEMSEntry.objects.filter(
             entry_date=today,
             entry_type='REGISTRATION',
-            total_registered__gt=0,
         )
         if not entries.exists():
             return
@@ -867,12 +890,18 @@ def submit_daily_entries(request):
 
     # Send WhatsApp notifications ONLY for REGISTRATION entries
     try:
+        settings_obj = get_whatsapp_settings()
+        notify_vra = settings_obj.notify_vra if settings_obj else True
+        notify_edit = settings_obj.notify_edit if settings_obj else True
+
         if entries_created:
             for entry in entries_created:
                 is_update = getattr(entry, '_is_update_for_message', False)
-                message = format_vra_submission_message(entry, is_update)
-                if message:
-                    send_whatsapp_message_from_vra(message, vra)
+                should_send = notify_edit if is_update else notify_vra
+                if should_send:
+                    message = format_vra_submission_message(entry, is_update)
+                    if message:
+                        send_whatsapp_message_from_vra(message, vra)
 
             check_and_send_daily_report_from_vra(vra)
 
@@ -1289,6 +1318,10 @@ def save_clerk_venues(request):
 
         # Only notify WhatsApp when there's actual voter-count data (not plain venue edits)
         try:
+            settings_obj = get_whatsapp_settings()
+            notify_vra = settings_obj.notify_vra if settings_obj else True
+            notify_edit = settings_obj.notify_edit if settings_obj else True
+
             registration_entries = [e for e in updated_entries + created_entries
                                     if e.total_registered > 0]
             venue_only_entries = [e for e in updated_entries + created_entries
@@ -1298,13 +1331,15 @@ def save_clerk_venues(request):
                 for entry in registration_entries:
                     if entry.vra:
                         is_update = entry in updated_entries
-                        message = format_vra_submission_message(entry, is_update)
-                        if message:
-                            send_whatsapp_message_from_vra(message, entry.vra)
+                        should_send = notify_edit if is_update else notify_vra
+                        if should_send:
+                            message = format_vra_submission_message(entry, is_update)
+                            if message:
+                                send_whatsapp_message_from_vra(message, entry.vra)
                 check_and_send_daily_report_from_vra(vra)
 
             if venue_only_entries:
-                print(f"? Venue mappings saved: {len(venue_only_entries)} entries")
+                print(f"Venue mappings saved: {len(venue_only_entries)} entries")
 
         except Exception as e:
             print(f"[clerk-mapping] WhatsApp error: {str(e)}")
