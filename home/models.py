@@ -251,3 +251,16 @@ class DeviceBurnLog(models.Model):
 
     def __str__(self):
         return f"{self.device.fingerprint[:12]} - {self.action} by {self.performed_by}"
+
+class DailyReportLog(models.Model):
+    """Records that the all-wards grand-total report was already sent for a
+    given date, so repeated submissions that day don't re-trigger it."""
+    report_date = models.DateField(unique=True)
+    sent_at = models.DateTimeField(auto_now_add=True)
+    total_wards = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['-report_date']
+
+    def __str__(self):
+        return f"Daily report sent for {self.report_date} at {self.sent_at}"

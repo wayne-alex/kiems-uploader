@@ -37,7 +37,8 @@ except ImportError:
     REPORTLAB_AVAILABLE = False
 
 from home.models import (
-    Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry, WhatsAppSetting, WhatsAppGroup, Device, DeviceBurnLog
+    Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry, WhatsAppSetting, WhatsAppGroup, Device, DeviceBurnLog,
+    DailyReportLog
 )
 from .forms import (
     WardForm, VRAForm, ClerkForm, KIEMSKitForm, PhaseForm,
@@ -2559,49 +2560,51 @@ def format_grand_total_message(entries, total_wards):
 
 
 def check_and_send_daily_report(user=None):
-    """Check if all wards submitted and send daily report"""
+    """Check if all wards submitted and send daily report - only ONCE per day."""
     today = timezone.now().date()
 
-    # Get total wards
     total_wards = Ward.objects.count()
     if total_wards == 0:
         print("No wards found")
         return
 
-    # Count wards that have REGISTRATION entries (not just venue mappings)
     submitted_wards = DailyKIEMSEntry.objects.filter(
         entry_date=today,
-        entry_type='REGISTRATION'  # Only count actual registration entries
+        entry_type='REGISTRATION',
+    ).filter(
+        Q(total_registered__gt=0) | Q(total_transferred__gt=0)
     ).values('ward').distinct().count()
 
     print(f"Total wards: {total_wards}, Submitted: {submitted_wards}")
 
-    # If not all wards submitted, return
     if submitted_wards < total_wards:
         print("Not all wards submitted yet")
         return
 
-    print("All wards submitted! Sending grand total...")
-
-    # Get settings for the user
     settings = get_whatsapp_settings(user) if user else None
-
-    # Check if grand total notifications are enabled
     if settings and not settings.notify_grand_total:
         print("Grand total notifications disabled in settings")
         return
 
-    # Get all REGISTRATION entries for today
+    log, created = DailyReportLog.objects.get_or_create(
+        report_date=today,
+        defaults={'total_wards': total_wards}
+    )
+    if not created:
+        print(f"Grand total already sent for {today} - skipping duplicate")
+        return
+
     entries = DailyKIEMSEntry.objects.filter(
         entry_date=today,
-        entry_type='REGISTRATION'  # Only include registration entries
+        entry_type='REGISTRATION',
+    ).filter(
+        Q(total_registered__gt=0) | Q(total_transferred__gt=0)
     )
-
     if not entries.exists():
         print("No registration entries found")
         return
 
-    # Format and send message
+    print("All wards submitted! Sending grand total...")
     message = format_grand_total_message(entries, total_wards)
     send_whatsapp_message(message, user)
 

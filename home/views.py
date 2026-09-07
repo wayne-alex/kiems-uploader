@@ -12,7 +12,7 @@ from django.views.decorators.http import require_http_methods, require_GET, requ
 
 from .models import (
     Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry,
-    Device, WhatsAppSetting, WhatsAppGroup
+    Device, WhatsAppSetting, WhatsAppGroup, DailyReportLog
 )
 
 
@@ -127,8 +127,9 @@ def format_grand_total_message(entries, total_wards):
     return message
 
 
+
 def check_and_send_daily_report_from_vra(vra):
-    """Check if all wards submitted and send grand total - only for REGISTRATION entries with actual votes"""
+    """Check if all wards submitted and send grand total - only ONCE per day."""
     try:
         settings_obj = get_whatsapp_settings()
         if settings_obj and not settings_obj.notify_grand_total:
@@ -143,14 +144,29 @@ def check_and_send_daily_report_from_vra(vra):
         submitted_wards = DailyKIEMSEntry.objects.filter(
             entry_date=today,
             entry_type='REGISTRATION',
+        ).filter(
+            Q(total_registered__gt=0) | Q(total_transferred__gt=0)
         ).values('ward').distinct().count()
 
         if submitted_wards < total_wards:
             return
 
+        # Atomic "already sent today" guard. The unique constraint on
+        # report_date means only ONE caller can ever win this create, even
+        # if two submissions land at nearly the same instant.
+        log, created = DailyReportLog.objects.get_or_create(
+            report_date=today,
+            defaults={'total_wards': total_wards}
+        )
+        if not created:
+            print(f"Grand total already sent for {today} - skipping duplicate")
+            return
+
         entries = DailyKIEMSEntry.objects.filter(
             entry_date=today,
             entry_type='REGISTRATION',
+        ).filter(
+            Q(total_registered__gt=0) | Q(total_transferred__gt=0)
         )
         if not entries.exists():
             return
