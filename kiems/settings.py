@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'home',
     'superadmin',
+    'ict',
     'import_export',
     'django_filters',
     'crispy_forms',
@@ -76,6 +77,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                "ict.context_processors.report_alerts",
             ],
         },
     },
@@ -146,7 +148,7 @@ else:
     }
 
 CSRF_TRUSTED_ORIGINS = ['https://*.vercel.app']
-IEBC_LOGO_URL="https://cvr.iebc.or.ke/images/logoiebc.png"
+IEBC_LOGO_URL = "https://cvr.iebc.or.ke/images/logoiebc.png"
 
 PDF_CO_API_KEY = os.getenv('PDF_CO_API_KEY')
 PDF_CO_API_URL = os.getenv('PDF_CO_API_URL', 'https://api.pdf.co/v1')
@@ -154,4 +156,3 @@ WHATSAPP_BOT_URL = os.getenv('WHATSAPP_BOT_URL', 'http://localhost:3000')
 
 TIME_ZONE = 'Africa/Nairobi'
 USE_TZ = True
-

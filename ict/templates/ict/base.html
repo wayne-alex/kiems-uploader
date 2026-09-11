@@ -1,0 +1,1014 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{% block title %}ICT Portal{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            /* Teal brand ramp */
+            --teal-50:  #f0fdfa;
+            --teal-100: #ccfbf1;
+            --teal-200: #99f6e4;
+            --teal-300: #5eead4;
+            --teal-400: #2dd4bf;
+            --teal-500: #14b8a6;
+            --teal-600: #0d9488;
+            --teal-700: #0f766e;
+            --teal-800: #115e59;
+
+            --primary: var(--teal-600);
+            --primary-hover: var(--teal-700);
+            --primary-soft: rgba(13, 148, 136, 0.10);
+            --primary-soft-strong: rgba(13, 148, 136, 0.16);
+
+            --bg: #f4f7f7;
+            --surface: #ffffff;
+            --surface-alt: #f0f3f3;
+            --border: rgba(15, 23, 22, 0.08);
+            --border-strong: rgba(15, 23, 22, 0.14);
+
+            --text: #14201e;
+            --text-muted: #6b7674;
+            --text-faint: #9aa4a2;
+
+            --danger: #e5484d;
+            --danger-soft: #fdecec;
+            --success: #1f9d55;
+            --success-soft: #e7f7ee;
+            --warning: #b5750a;
+            --warning-soft: #fdf4e3;
+            --info: #2f6fc4;
+            --info-soft: #eaf2fc;
+            --purple: #8b5cf6;
+            --purple-soft: #f2edfe;
+
+            --radius-lg: 18px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+
+            --shadow-xs: 0 1px 2px rgba(15, 23, 22, 0.04);
+            --shadow-sm: 0 2px 8px rgba(15, 23, 22, 0.06);
+            --shadow-md: 0 8px 24px rgba(15, 23, 22, 0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, .brand-text h1, .stat-card .value, .mobile-brand {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+        }
+
+        a { color: inherit; }
+
+        .app-container {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 264px;
+            background-color: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-brand {
+            padding: 22px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-brand img {
+            height: 34px;
+            width: auto;
+            object-fit: contain;
+            border-radius: 8px;
+            background: var(--surface);
+        }
+
+        .brand-text h1 {
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .brand-text p {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 170px;
+            font-weight: 500;
+        }
+
+        .sidebar-menu {
+            flex: 1;
+            padding: 14px 10px;
+            overflow-y: auto;
+            list-style: none;
+        }
+
+        .menu-category {
+            font-size: 10.5px;
+            font-weight: 700;
+            color: var(--text-faint);
+            text-transform: uppercase;
+            padding: 16px 10px 6px 10px;
+            letter-spacing: 0.6px;
+        }
+
+        .menu-item a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            color: #384644;
+            text-decoration: none;
+            font-size: 14.5px;
+            font-weight: 500;
+            border-radius: var(--radius-sm);
+            transition: background 0.15s ease, color 0.15s ease;
+            margin-bottom: 2px;
+            position: relative;
+        }
+
+        .menu-item svg {
+            width: 19px;
+            height: 19px;
+            color: var(--text-faint);
+            transition: color 0.15s ease;
+            flex-shrink: 0;
+        }
+
+        .menu-item a:hover {
+            background-color: var(--primary-soft);
+            color: var(--text);
+        }
+
+        .menu-item a:hover svg {
+            color: var(--primary);
+        }
+
+        .menu-item.active a {
+            background-color: var(--primary);
+            color: #ffffff;
+            font-weight: 600;
+            box-shadow: 0 4px 10px rgba(13, 148, 136, 0.28);
+        }
+
+        .menu-item.active svg {
+            color: #ffffff;
+        }
+
+        .menu-item .badge-count {
+            margin-left: auto;
+            background: var(--danger);
+            color: #fff;
+            font-size: 10.5px;
+            font-weight: 700;
+            padding: 1px 7px;
+            border-radius: 10px;
+        }
+
+        .menu-item.active .badge-count {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .sidebar-footer {
+            padding: 16px;
+            border-top: 1px solid var(--border);
+            background-color: var(--surface-alt);
+        }
+
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--teal-500), var(--teal-700));
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .user-info p {
+            font-size: 13.5px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px;
+        }
+
+        .user-info span {
+            font-size: 11px;
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .btn-logout {
+            width: 100%;
+            padding: 8px;
+            background: transparent;
+            border: 1px solid rgba(229, 72, 77, 0.35);
+            color: var(--danger);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-logout:hover {
+            background: var(--danger-soft);
+        }
+
+        .main-wrapper {
+            flex: 1;
+            margin-left: 264px;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .desktop-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 26px;
+            background-color: var(--surface);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 90;
+        }
+
+        .constituency-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--primary-soft);
+            color: var(--primary-hover);
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 20px;
+        }
+
+        .constituency-pill svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .mobile-header {
+            display: none;
+            background-color: var(--surface);
+            height: 56px;
+            padding: 0 16px;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 90;
+        }
+
+        .menu-toggle {
+            background: var(--surface-alt);
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: var(--radius-sm);
+            display: flex;
+        }
+
+        .mobile-brand {
+            font-size: 15px;
+            font-weight: 700;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .mobile-brand small {
+            display: block;
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+        }
+
+        .content-body {
+            padding: 26px;
+            flex: 1;
+            max-width: 1280px;
+            width: 100%;
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 20, 18, 0.4);
+            backdrop-filter: blur(2px);
+            z-index: 95;
+        }
+
+        /* Toast/Messages */
+        .messages { margin-bottom: 20px; }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .alert-success { background: var(--success-soft); color: var(--success); border: 1px solid rgba(31,157,85,0.25); }
+        .alert-error   { background: var(--danger-soft);  color: var(--danger);  border: 1px solid rgba(229,72,77,0.25); }
+        .alert-warning { background: var(--warning-soft); color: var(--warning); border: 1px solid rgba(181,117,10,0.25); }
+        .alert-info    { background: var(--info-soft);    color: var(--info);    border: 1px solid rgba(47,111,196,0.25); }
+
+        @media (max-width: 991px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-md); }
+            .sidebar-overlay.show { display: block; }
+            .main-wrapper { margin-left: 0; }
+            .desktop-topbar { display: none; }
+            .mobile-header { display: flex; }
+            .content-body { padding: 16px; }
+        }
+
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 22px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .page-header h2 {
+            font-size: 23px;
+            font-weight: 700;
+            letter-spacing: -0.4px;
+        }
+        .page-header p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 3px;
+            font-weight: 500;
+        }
+        @media (max-width: 680px) {
+            .page-header { flex-direction: column; align-items: stretch; }
+            .page-header > a, .page-header > div[style*="display:flex"], .page-header > div[style*="display: flex"] {
+                width: 100%;
+            }
+            .page-header .btn { width: 100%; justify-content: center; }
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 4px 10px rgba(13,148,136,0.25); }
+        .btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+        .btn-outline { background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); }
+        .btn-outline:hover { background: var(--surface-alt); }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger:hover { background: #cf3d42; }
+        .btn-sm { padding: 6px 11px; font-size: 12px; border-radius: 8px; }
+        .btn-ghost { background: transparent; color: var(--primary); padding: 6px 8px; }
+        .btn-ghost:hover { background: var(--primary-soft); }
+
+        .card {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            box-shadow: var(--shadow-xs);
+            border: 1px solid var(--border);
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 560px) {
+            .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        }
+        .stat-card {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            padding: 18px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-xs);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            transition: box-shadow 0.15s ease, transform 0.15s ease;
+        }
+        .stat-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+        .stat-card .label {
+            font-size: 11.5px;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .stat-card .value {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .stat-card .icon {
+            width: 34px; height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary-soft);
+            color: var(--primary);
+            margin-bottom: 4px;
+            font-size: 16px;
+        }
+        .stat-card.green .icon  { background: var(--success-soft); color: var(--success); }
+        .stat-card.orange .icon { background: var(--warning-soft); color: var(--warning); }
+        .stat-card.red .icon    { background: var(--danger-soft);  color: var(--danger); }
+        .stat-card.purple .icon { background: var(--purple-soft);  color: var(--purple); }
+
+        .table-wrap {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-xs);
+        }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table thead { background: var(--surface-alt); }
+        .data-table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 10.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        .data-table td {
+            padding: 13px 16px;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+        .data-table tbody tr:last-child td { border-bottom: none; }
+        .data-table tbody tr:hover { background: var(--surface-alt); }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            border-radius: 20px;
+            letter-spacing: 0.2px;
+        }
+        .badge-green  { background: var(--success-soft); color: var(--success); }
+        .badge-red    { background: var(--danger-soft);  color: var(--danger); }
+        .badge-orange { background: var(--warning-soft); color: var(--warning); }
+        .badge-blue   { background: var(--info-soft);    color: var(--info); }
+        .badge-grey   { background: var(--surface-alt);  color: var(--text-muted); }
+
+        .form-card {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            padding: 26px;
+            max-width: 640px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-xs);
+        }
+        .form-card .form-row { margin-bottom: 16px; }
+        .form-card label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #384644;
+        }
+        .form-control {
+            width: 100%;
+            padding: 11px 13px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-strong);
+            font-size: 14px;
+            background: var(--surface);
+            transition: border 0.15s ease, box-shadow 0.15s ease;
+            font-family: inherit;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-soft-strong);
+        }
+        .form-actions { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+        @media (max-width: 480px) {
+            .form-actions .btn { flex: 1; justify-content: center; }
+        }
+        .errorlist { list-style: none; color: var(--danger); font-size: 12px; margin-top: 4px; }
+        .help-text { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+        .filters {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+            align-items: flex-end;
+            background: var(--surface);
+            padding: 14px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+        }
+        .filters .field { display: flex; flex-direction: column; gap: 4px; }
+        .filters label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
+        @media (max-width: 640px) {
+            .filters { flex-direction: column; align-items: stretch; }
+            .filters .field, .filters .btn, .filters select, .filters input { width: 100%; }
+        }
+
+        .empty-state { text-align: center; padding: 44px 20px; color: var(--text-muted); }
+        .empty-state svg, .empty-state i { font-size: 42px; margin-bottom: 12px; opacity: 0.35; display: inline-block; }
+        .empty-state p { font-size: 14px; margin-bottom: 14px; font-weight: 500; }
+
+        .action-btns { display: flex; gap: 6px; }
+        .action-btns a, .action-btns button {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 30px; height: 30px; border-radius: var(--radius-sm);
+            background: var(--surface-alt); color: #384644; border: none; cursor: pointer;
+            text-decoration: none; transition: all 0.15s ease;
+        }
+        .action-btns a:hover, .action-btns button:hover { background: var(--primary-soft); color: var(--primary-hover); }
+        .action-btns a svg, .action-btns button svg { width: 15px; height: 15px; }
+        .action-btns .danger { color: var(--danger); }
+        .action-btns .danger:hover { background: var(--danger-soft); }
+
+        .two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+        .list-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 18px; border-bottom: 1px solid var(--border);
+        }
+        .list-header h3 { font-size: 15px; font-weight: 700; }
+        .list-header .link { font-size: 13px; color: var(--primary); font-weight: 600; text-decoration: none; }
+
+        /* ---------- Responsive swipe-card table view (mobile) ---------- */
+        .swipe-list { display: none; flex-direction: column; gap: 10px; }
+        @media (max-width: 680px) {
+            table.data-table { display: none; }
+            .table-wrap {
+                background: transparent; border: none; box-shadow: none;
+                border-radius: 0; overflow: visible;
+            }
+            .swipe-list { display: flex; }
+        }
+        .swipe-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: var(--radius-md);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-xs);
+        }
+        .swipe-actions {
+            position: absolute;
+            top: 0; right: 0; bottom: 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 14px;
+            background: var(--surface-alt);
+        }
+        .swipe-actions .action-btns a,
+        .swipe-actions .action-btns button {
+            background: var(--surface);
+        }
+        .swipe-body {
+            position: relative;
+            background: var(--surface);
+            padding: 13px 38px 13px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            touch-action: pan-y;
+            transform: translateX(0);
+            transition: transform 0.2s ease;
+            will-change: transform;
+        }
+        .swipe-field {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 13px;
+        }
+        .swipe-field.primary {
+            font-size: 15px;
+            font-weight: 700;
+            justify-content: flex-start;
+            margin-bottom: 2px;
+        }
+        .swipe-label {
+            color: var(--text-faint);
+            font-size: 10.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            flex-shrink: 0;
+        }
+        .swipe-value { text-align: right; color: var(--text); font-weight: 500; }
+        .swipe-field.primary .swipe-value { text-align: left; font-weight: 700; }
+        .swipe-handle {
+            position: absolute;
+            top: 10px; right: 8px;
+            width: 26px; height: 26px;
+            border-radius: 50%;
+            border: none;
+            background: var(--surface-alt);
+            color: var(--text-muted);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+        }
+        .swipe-handle svg { width: 14px; height: 14px; }
+        .swipe-card.no-actions .swipe-body { padding-right: 16px; }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <img src="{% static 'logo.png' %}" alt="IEBC Logo">
+            <div class="brand-text">
+                <h1>ICT Portal</h1>
+                <p>{{ constituency.name|default:"Constituency" }}</p>
+            </div>
+        </div>
+
+        <nav class="sidebar-menu">
+            <div class="menu-category">Overview</div>
+            <li class="menu-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                <a href="{% url 'ict:dashboard' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                        <polyline points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                    Dashboard
+                </a>
+            </li>
+
+            <div class="menu-category">Management</div>
+            <li class="menu-item {% if 'ward' in request.path %}active{% endif %}">
+                <a href="{% url 'ict:ward_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+                        <line x1="8" y1="2" x2="8" y2="18"/>
+                        <line x1="16" y1="6" x2="16" y2="22"/>
+                    </svg>
+                    Wards
+                </a>
+            </li>
+            <li class="menu-item {% if 'staff' in request.path %}active{% endif %}">
+                <a href="{% url 'ict:staff_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    Staff
+                </a>
+            </li>
+            <li class="menu-item {% if 'kit' in request.path %}active{% endif %}">
+                <a href="{% url 'ict:kit_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/>
+                        <line x1="12" y1="18" x2="12.01" y2="18"/>
+                    </svg>
+                    KIEMS Kits
+                </a>
+            </li>
+            <li class="menu-item {% if 'device' in request.path %}active{% endif %}">
+                <a href="{% url 'ict:device_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                        <line x1="8" y1="21" x2="16" y2="21"/>
+                        <line x1="12" y1="17" x2="12" y2="21"/>
+                    </svg>
+                    Devices
+                </a>
+            </li>
+
+            <div class="menu-category">Activity</div>
+            <li class="menu-item {% if 'entr' in request.path %}active{% endif %}">
+                <a href="{% url 'ict:entry_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                    Daily Entries
+                </a>
+            </li>
+            <li class="menu-item {% if 'notification' in request.path %}active{% endif %}">
+                <a href="{% url 'ict:notification_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    Notifications
+                    {% if unread_notification_count %}<span class="badge-count">{{ unread_notification_count }}</span>{% endif %}
+                </a>
+            </li>
+            <li class="menu-item {% if 'audit' in request.path %}active{% endif %}">
+                <a href="{% url 'ict:audit_log_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    Audit Logs
+                </a>
+            </li>
+            <li class="menu-item {% if 'status' in request.path %}active{% endif %}">
+    <a href="{% url 'ict:system_status' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+        System Status
+        {% if report_alert_count %}<span class="badge-count">{{ report_alert_count }}</span>{% endif %}
+    </a>
+</li>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-badge">
+                <div class="user-avatar">
+                    {{ request.user.username|slice:":1"|upper|default:"I" }}
+                </div>
+                <div class="user-info">
+                    <p>{{ request.user.get_full_name|default:request.user.username }}</p>
+                    <span>ICT Officer</span>
+                </div>
+            </div>
+            <form method="post" action="{% url 'ict:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-logout">Log Out</button>
+            </form>
+        </div>
+    </aside>
+
+    <div class="main-wrapper">
+        <div class="desktop-topbar">
+            <div class="constituency-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                </svg>
+                {{ constituency.name|default:"Constituency" }}
+            </div>
+            <div style="font-size:13px; color:var(--text-muted);">{% block topbar_right %}{% endblock %}</div>
+        </div>
+
+        <header class="mobile-header">
+            <button class="menu-toggle" id="menuToggle" aria-label="Open Navigation Menu">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+            <div class="mobile-brand">
+                ICT Portal
+                <small>{{ constituency.name|default:"Constituency" }}</small>
+            </div>
+            <div style="width: 32px;"></div>
+        </header>
+
+        <main class="content-body">
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    {% if message.tags == 'success' %}<i class="bi bi-check-circle-fill"></i>{% endif %}
+                    {% if message.tags == 'error' %}<i class="bi bi-exclamation-circle-fill"></i>{% endif %}
+                    {% if message.tags == 'warning' %}<i class="bi bi-exclamation-triangle-fill"></i>{% endif %}
+                    {% if message.tags == 'info' %}<i class="bi bi-info-circle-fill"></i>{% endif %}
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+
+<script>
+    // ---- Sidebar toggle (mobile) ----
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    function toggleSidebar() {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('show');
+    }
+
+    if (menuToggle && sidebar && overlay) {
+        menuToggle.addEventListener('click', toggleSidebar);
+        overlay.addEventListener('click', toggleSidebar);
+    }
+
+    // ---- Responsive Swipe-Card Table Transformer ----
+    document.addEventListener("DOMContentLoaded", function () {
+        const tables = document.querySelectorAll("table.data-table");
+
+        tables.forEach((table) => {
+            const tableWrap = table.closest(".table-wrap");
+            if (!tableWrap) return;
+
+            const headers = Array.from(table.querySelectorAll("thead th")).map((th) => th.textContent.trim());
+            const rows = table.querySelectorAll("tbody tr");
+
+            if (rows.length === 0 || (rows.length === 1 && rows[0].querySelector('.empty-state'))) return;
+
+            const swipeList = document.createElement("div");
+            swipeList.className = "swipe-list";
+
+            rows.forEach((row) => {
+                const cells = row.querySelectorAll("td");
+                if (cells.length === 0) return;
+
+                const card = document.createElement("div");
+                card.className = "swipe-card";
+
+                let actionHTML = "";
+                let fieldsHTML = "";
+
+                cells.forEach((cell, index) => {
+                    const label = headers[index] || "";
+                    const actionContainer = cell.querySelector(".action-btns");
+
+                    if (actionContainer || label.toUpperCase() === "ACTIONS") {
+                        actionHTML = `<div class="swipe-actions">${cell.innerHTML}</div>`;
+                    } else {
+                        const isPrimary = index === 0;
+                        fieldsHTML += `
+                            <div class="swipe-field ${isPrimary ? 'primary' : ''}">
+                                ${!isPrimary ? `<span class="swipe-label">${label}</span>` : ''}
+                                <span class="swipe-value">${cell.innerHTML}</span>
+                            </div>
+                        `;
+                    }
+                });
+
+                let handleHTML = actionHTML ? `
+                    <button class="swipe-handle" aria-label="Toggle Actions">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="1"/>
+                            <circle cx="12" cy="5" r="1"/>
+                            <circle cx="12" cy="19" r="1"/>
+                        </svg>
+                    </button>
+                ` : '';
+
+                if (!actionHTML) card.classList.add("no-actions");
+
+                card.innerHTML = `
+                    ${actionHTML}
+                    <div class="swipe-body">
+                        ${handleHTML}
+                        ${fieldsHTML}
+                    </div>
+                `;
+
+                // Swipe Gesture & Actions Toggle logic
+                const swipeBody = card.querySelector(".swipe-body");
+                const handleBtn = card.querySelector(".swipe-handle");
+                let startX = 0, currentX = 0, isOpen = false;
+
+                function setTranslate(x) {
+                    swipeBody.style.transform = `translateX(${x}px)`;
+                }
+
+                function openActions() {
+                    setTranslate(-70);
+                    isOpen = true;
+                }
+
+                function closeActions() {
+                    setTranslate(0);
+                    isOpen = false;
+                }
+
+                if (handleBtn) {
+                    handleBtn.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        isOpen ? closeActions() : openActions();
+                    });
+                }
+
+                swipeBody.addEventListener("touchstart", (e) => {
+                    startX = e.touches[0].clientX;
+                }, { passive: true });
+
+                swipeBody.addEventListener("touchmove", (e) => {
+                    currentX = e.touches[0].clientX;
+                    let diff = currentX - startX;
+                    if (isOpen) diff -= 70;
+                    if (diff < 0 && diff > -100) {
+                        setTranslate(diff);
+                    }
+                }, { passive: true });
+
+                swipeBody.addEventListener("touchend", () => {
+                    let diff = currentX - startX;
+                    if (diff < -35) {
+                        openActions();
+                    } else {
+                        closeActions();
+                    }
+                });
+
+                swipeList.appendChild(card);
+            });
+
+            tableWrap.appendChild(swipeList);
+        });
+    });
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

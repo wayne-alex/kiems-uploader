@@ -1,5 +1,4 @@
 {% load static %}
-<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -74,6 +73,7 @@
     .row:last-child { border-bottom: none; }
     .row label { font-size: 10px; color: var(--ink-2); display: block; margin-bottom: 1px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
     .row select { border: none; outline: none; font-size: 14.5px; color: var(--ink); background: transparent; width: 100%; -webkit-appearance: none; appearance: none; font-family: inherit; cursor: pointer; padding: 1px 0; font-weight: 500; }
+    .row select:disabled { color: var(--ink-3); cursor: not-allowed; }
     .row.select-row::after { content: ""; position: absolute; right: 14px; top: 50%; width: 7px; height: 7px; border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3); transform: translateY(-60%) rotate(45deg); pointer-events: none; }
     .btn-primary {
       width: 100%; padding: 12px; border: none; border-radius: 11px;
@@ -111,6 +111,10 @@
 
     .kit-card { background: var(--surface); border-radius: var(--r); border: 1px solid var(--border); box-shadow: var(--shadow-sm); padding: 12px 14px; margin-bottom: 8px; transition: box-shadow .2s var(--ease); }
     .kit-card.flash { animation: rowFlash 1.5s var(--ease); }
+    @keyframes rowFlash {
+      0% { background: var(--green-tint); box-shadow: 0 0 0 4px var(--green-tint); }
+      100% { background: var(--surface); box-shadow: var(--shadow-sm); }
+    }
     .kit-card.readonly { opacity: 0.85; background: var(--surface-2); }
     .kit-card.readonly .input-row { background: var(--surface) !important; }
     .kit-card.readonly input { cursor: default; opacity: 0.7; }
@@ -268,14 +272,16 @@
 <body>
 <div class="navbar">
   <div class="brand-row">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/9/92/IEBC_Emblem.png" alt="IEBC">
-    <span>IEBC <i class="ti ti-point-filled" style="font-size:5px;"></i> Turbo Constituency</span>
+    <img src="{% static 'logo.png' %}" alt="IEBC">
+    <span>IEBC <i class="ti ti-point-filled" style="font-size:5px;"></i>
+      {% if bound_constituency %}{{ bound_constituency.name }}{% else %}Kenya{% endif %} Constituency
+    </span>
   </div>
   <div class="title">KIEMS Entry</div>
   <div class="date-selector">
     <label class="date-label" for="date-picker"><i class="ti ti-calendar"></i> Date:</label>
     <input type="date" id="date-picker" class="date-input">
-    <span class="shortcut-hint">⌘S to save</span>
+    <span class="shortcut-hint">?S to save</span>
   </div>
 </div>
 <div class="content">
@@ -296,22 +302,44 @@
   <div class="phase-pill" style="background:#FBE8E6;color:#B23A32;"><i class="ti ti-alert-circle"></i> No active phase</div>
   {% endif %}
 
+  <!-- ============= IDENTIFY CARD (Constituency + Ward) ============= -->
   <div id="identify-card">
+
+    <!-- Constituency selector -->
     <div class="group">
       <div class="row select-row">
-        <label>Ward</label>
-        <select id="ward-select">
-          <option value="">Select ward</option>
-          {% for ward in wards %}
-          <option value="{{ ward.id }}">{{ ward.name }}</option>
+        <label>Constituency</label>
+        <select id="constituency-select" {% if bound_constituency %}disabled{% endif %}>
+          <option value="">Select constituency</option>
+          {% for c in constituencies %}
+          <option value="{{ c.id }}"
+                  {% if bound_constituency and bound_constituency.id == c.id %}selected{% endif %}>
+            {{ c.name }}
+          </option>
           {% endfor %}
         </select>
       </div>
     </div>
+
+    <!-- Ward selector (populated after constituency is chosen) -->
+    <div class="group">
+      <div class="row select-row">
+        <label>Ward</label>
+        <select id="ward-select" {% if not bound_constituency %}disabled{% endif %}>
+          {% if bound_constituency %}
+            <option value="">Select ward</option>
+          {% else %}
+            <option value="">Select constituency first</option>
+          {% endif %}
+        </select>
+      </div>
+    </div>
+
     <button id="bind-btn" class="btn-primary" disabled>Continue</button>
     <div id="bind-error" class="msg-error hidden"><i class="ti ti-alert-circle"></i><span></span></div>
   </div>
 
+  <!-- ============= ENTRY CARD ============= -->
   <div id="entry-card" class="hidden">
     <div class="who">
       <span class="avatar" id="vra-initials"></span>
@@ -341,7 +369,8 @@
   </div>
 
   <p class="footer-note">
-    <i class="ti ti-shield-check" style="font-size:10px;"></i> IEBC Turbo Constituency
+    <i class="ti ti-shield-check" style="font-size:10px;"></i> IEBC
+    {% if bound_constituency %}{{ bound_constituency.name }}{% else %}Kenya{% endif %}
     <i class="ti ti-point-filled" style="font-size:5px;"></i> KIEMS Field Reporting
     <span class="last-updated" style="margin-left:8px;">
       <i class="ti ti-clock"></i>
@@ -350,6 +379,7 @@
   </p>
 </div>
 
+<!-- Success modal -->
 <div id="success-modal" class="modal-overlay hidden">
   <div class="modal-sheet">
     <div class="grabber"></div>
@@ -370,7 +400,7 @@
 
 <script>
 // ============================================================
-// DEVICE FINGERPRINTING SYSTEM
+// DEVICE FINGERPRINTING SYSTEM (unchanged)
 // ============================================================
 
 class DeviceFingerprint {
@@ -558,16 +588,22 @@ class DeviceFingerprint {
 }
 
 // ============================================================
-// MAIN APPLICATION
+// MAIN APP STATE
 // ============================================================
 
 const CSRF = "{{ csrf_token }}";
+const BOUND_CONSTITUENCY_ID = "{{ bound_constituency.id|default:'' }}";
+
 let deviceFingerprint = null;
 let currentVRA = null;
 let kitsData = [];
 let isDeviceAuthorized = false;
 let lastSubmittedKitIds = [];
 let isLoadingKits = false;
+
+// ============================================================
+// HELPERS
+// ============================================================
 
 function getDeviceToken() {
   let t = localStorage.getItem('vra_device_token');
@@ -674,12 +710,20 @@ async function registerDevice() {
         }
         hideDeviceMessage();
         if (data.vra_id) {
-            deviceFingerprint.setBurnData({ vra_id: data.vra_id, vra_name: data.vra_name, ward_id: data.ward_id, ward_name: data.ward_name });
+            deviceFingerprint.setBurnData({
+                vra_id: data.vra_id, vra_name: data.vra_name,
+                ward_id: data.ward_id, ward_name: data.ward_name
+            });
             updateDeviceInfoBar(true, data.vra_name, data.ward_name);
             await autoBindToVRA(data.vra_id);
         } else {
             updateDeviceInfoBar(true);
             document.getElementById('identify-card').style.display = 'block';
+            // If the backend already knows the constituency (bound VRA path),
+            // load the ward list for it even before user interaction.
+            if (BOUND_CONSTITUENCY_ID) {
+                await loadWardsForConstituency(BOUND_CONSTITUENCY_ID);
+            }
         }
         return true;
     } catch (error) {
@@ -701,7 +745,10 @@ async function autoBindToVRA(vraId) {
         if (data.ok) {
             currentVRA = data;
             if (deviceFingerprint) {
-              deviceFingerprint.setBurnData({ vra_id: data.vra_id, vra_name: data.vra_name, ward_id: data.ward_id, ward_name: data.ward_name });
+              deviceFingerprint.setBurnData({
+                vra_id: data.vra_id, vra_name: data.vra_name,
+                ward_id: data.ward_id, ward_name: data.ward_name
+              });
             }
             await enterForm();
         } else {
@@ -712,10 +759,6 @@ async function autoBindToVRA(vraId) {
         showDeviceMessage('Failed to bind to VRA: ' + error.message + '. Please contact your ICT officer.', 'error', true);
     }
 }
-
-// ============================================================
-// APPLICATION FUNCTIONS
-// ============================================================
 
 async function resolveVRA() {
     try {
@@ -750,45 +793,98 @@ function dateRelation(dateStr) {
 }
 
 // ============================================================
-// WARD BINDING
+// CONSTITUENCY + WARD BINDING
 // ============================================================
 
-document.getElementById('ward-select').addEventListener('change', (e) => {
-  document.getElementById('bind-btn').disabled = !e.target.value;
+const constituencySelect = document.getElementById('constituency-select');
+const wardSelect = document.getElementById('ward-select');
+const bindBtn = document.getElementById('bind-btn');
+
+async function loadWardsForConstituency(constituencyId, preselectId = null) {
+  wardSelect.disabled = true;
+  wardSelect.innerHTML = '<option value="">Loading wards…</option>';
+  bindBtn.disabled = true;
+
+  if (!constituencyId) {
+    wardSelect.innerHTML = '<option value="">Select constituency first</option>';
+    return;
+  }
+  try {
+    const res = await fetch(`/api/wards-by-constituency/?constituency_id=${constituencyId}`);
+    const data = await res.json();
+    if (!data.ok || !data.wards.length) {
+      wardSelect.innerHTML = '<option value="">No wards found</option>';
+      return;
+    }
+    wardSelect.innerHTML = '<option value="">Select ward</option>' +
+      data.wards.map(w =>
+        `<option value="${w.id}" ${preselectId && String(w.id) === String(preselectId) ? 'selected' : ''}>${w.name}</option>`
+      ).join('');
+    wardSelect.disabled = false;
+    bindBtn.disabled = !wardSelect.value;
+  } catch (e) {
+    console.error('Failed to load wards:', e);
+    wardSelect.innerHTML = '<option value="">Error loading wards</option>';
+  }
+}
+
+constituencySelect.addEventListener('change', (e) => {
+  loadWardsForConstituency(e.target.value);
 });
 
-document.getElementById('bind-btn').addEventListener('click', async () => {
-  const wardId = document.getElementById('ward-select').value;
-  const btn = document.getElementById('bind-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<i class="ti ti-loader spin"></i> Loading...';
+wardSelect.addEventListener('change', (e) => {
+  bindBtn.disabled = !e.target.value;
+});
+
+bindBtn.addEventListener('click', async () => {
+  const wardId = wardSelect.value;
+  const constituencyId = constituencySelect.value;
+  if (!wardId) return;
+
+  bindBtn.disabled = true;
+  bindBtn.innerHTML = '<i class="ti ti-loader spin"></i> Loading...';
+
   try {
     const deviceInfo = await deviceFingerprint.getDeviceInfo();
+    const body = new URLSearchParams();
+    body.append('token', getDeviceToken());
+    body.append('ward_id', wardId);
+    body.append('constituency_id', constituencyId);
+    if (deviceInfo && deviceInfo.fingerprint) body.append('fingerprint', deviceInfo.fingerprint);
+
     const res = await fetch('/kiems/bind-ward/', {
       method: 'POST',
       headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `token=${getDeviceToken()}&ward_id=${wardId}&fingerprint=${deviceInfo.fingerprint}`
+      body
     });
     const data = await res.json();
     const errBox = document.getElementById('bind-error');
     if (!data.ok) {
       setMsgBox(errBox, data.error);
-      btn.disabled = false;
-      btn.innerHTML = 'Continue';
+      bindBtn.disabled = false;
+      bindBtn.innerHTML = 'Continue';
       return;
     }
     errBox.classList.add('hidden');
     currentVRA = data;
     if (deviceFingerprint) {
-      deviceFingerprint.setBurnData({ vra_id: data.vra_id, vra_name: data.vra_name, ward_id: data.ward_id, ward_name: data.ward_name });
+      deviceFingerprint.setBurnData({
+        vra_id: data.vra_id, vra_name: data.vra_name,
+        ward_id: data.ward_id, ward_name: data.ward_name
+      });
     }
     await enterForm();
   } catch (e) {
+    console.error(e);
     setMsgBox(document.getElementById('bind-error'), 'Network error. Please try again.');
-    btn.disabled = false;
-    btn.innerHTML = 'Continue';
+    bindBtn.disabled = false;
+    bindBtn.innerHTML = 'Continue';
   }
 });
+
+// ============================================================
+// ENTRY FORM ENTRY
+// ============================================================
 
 async function enterForm() {
   document.getElementById('identify-card').classList.add('hidden');
@@ -847,7 +943,7 @@ async function loadKits() {
 }
 
 // ============================================================
-// KIEMS ENTRY TAB
+// RENDER ENTRY TAB
 // ============================================================
 
 function renderEntryTab() {
@@ -860,7 +956,6 @@ function renderEntryTab() {
   // ---------------- FUTURE DATES ----------------
   if (relation === 'future') {
     document.getElementById('summary-bar').classList.add('hidden');
-
     const hasVenues = kitsData.some(k => k.venue && k.venue.trim());
 
     if (hasVenues) {
@@ -871,7 +966,6 @@ function renderEntryTab() {
         </div>
         <div class="section-label">Pre-mapped venues <span class="count">${kitsData.filter(k => k.venue && k.venue.trim()).length}</span></div>
       `;
-
       kitsData.forEach(kit => {
         if (kit.venue && kit.venue.trim()) {
           html += `
@@ -893,7 +987,6 @@ function renderEntryTab() {
           `;
         }
       });
-
       container.innerHTML = html;
     } else {
       container.innerHTML = `
@@ -999,16 +1092,12 @@ function renderEntryTab() {
         const f = parseInt(femaleInput.value) || 0;
         totalSpan.textContent = m + f;
 
-        const kit = kitsData.find(k => k.kit_id == kitId);
         const origMale = parseInt(maleInput.dataset.original || 0);
         const origFemale = parseInt(femaleInput.dataset.original || 0);
         const isDirty = m !== origMale || f !== origFemale;
 
         card.classList.toggle('dirty', isDirty);
-
-        if (saveBtn) {
-          saveBtn.disabled = !isDirty;
-        }
+        if (saveBtn) saveBtn.disabled = !isDirty;
         updateSummary();
         refreshSubmitButtonState();
       }
@@ -1060,7 +1149,6 @@ function renderEntryTab() {
           const data = await res.json();
           if (data.ok) {
             lastSubmittedKitIds = [parseInt(kitId)];
-
             const kit = kitsData.find(k => k.kit_id == kitId);
             if (kit) {
               kit.registered_male = male;
@@ -1070,7 +1158,6 @@ function renderEntryTab() {
               kit.is_venue_mapping = !kit.has_registration && !!venue;
               kit.has_entry = true;
             }
-
             updateKitCountBadge();
             renderEntryTab();
             updateLastUpdated();
@@ -1145,7 +1232,7 @@ function formCardToday(kit) {
              value="${venue}"
              placeholder="Venue (read-only)"
              style="font-size:13px;"
-             readonly>
+            >
     </div>
     <div class="input-grid">
       <div class="input-row">
@@ -1171,8 +1258,7 @@ function formCardToday(kit) {
 }
 
 // ============================================================
-// SUBMIT-ALL BUTTON STATE (dirty tracking - prevents resending
-// data that hasn't changed)
+// SUBMIT BUTTON STATE
 // ============================================================
 
 function refreshSubmitButtonState() {
@@ -1261,7 +1347,7 @@ function updateSummary() {
 }
 
 // ============================================================
-// BULK SUBMIT (only sends kits that actually changed)
+// BULK SUBMIT
 // ============================================================
 
 document.getElementById('submit-btn').addEventListener('click', async () => {
@@ -1272,8 +1358,7 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
   if (deviceInfo && deviceInfo.fingerprint) body.append('fingerprint', deviceInfo.fingerprint);
   else body.append('token', getDeviceToken());
 
-  const datePicker = document.getElementById('date-picker');
-  body.append('date', datePicker.value);
+  body.append('date', document.getElementById('date-picker').value);
 
   let valid = true;
   let firstError = null;
@@ -1283,7 +1368,7 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
     const kitId = card.dataset.kit;
     if (!kitId) return;
     const kit = kitsData.find(k => k.kit_id == kitId);
-    if (kit && kit.has_registration) return; // already registered - skip
+    if (kit && kit.has_registration) return;
 
     const maleInput = card.querySelector('.male-input');
     const femaleInput = card.querySelector('.female-input');
@@ -1293,20 +1378,19 @@ document.getElementById('submit-btn').addEventListener('click', async () => {
     const origMale = parseInt(maleInput?.dataset.original || 0);
     const origFemale = parseInt(femaleInput?.dataset.original || 0);
 
-    // Skip untouched pending cards entirely - don't error, don't submit
     if (male === origMale && female === origFemale) return;
 
     if (!venue) {
       valid = false;
       const errEl = document.getElementById(`err-${kitId}`);
-      if (errEl) { setMsgBox(errEl, 'Venue required.'); }
+      if (errEl) setMsgBox(errEl, 'Venue required.');
       if (!firstError) firstError = 'Venue required for all changed kits.';
       return;
     }
     if (male === 0 && female === 0) {
       valid = false;
       const errEl = document.getElementById(`err-${kitId}`);
-      if (errEl) { setMsgBox(errEl, 'Enter at least one voter.'); }
+      if (errEl) setMsgBox(errEl, 'Enter at least one voter.');
       if (!firstError) firstError = 'Each changed kit needs at least one registered voter.';
       return;
     }
@@ -1407,13 +1491,13 @@ document.getElementById('success-modal').addEventListener('click', (e) => {
 // ============================================================
 
 document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        const submitBtn = document.getElementById('submit-btn');
-        if (!submitBtn.classList.contains('hidden') && !submitBtn.disabled) {
-            submitBtn.click();
-        }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    const submitBtn = document.getElementById('submit-btn');
+    if (!submitBtn.classList.contains('hidden') && !submitBtn.disabled) {
+      submitBtn.click();
     }
+  }
 });
 
 // ============================================================
@@ -1421,11 +1505,11 @@ document.addEventListener('keydown', function(e) {
 // ============================================================
 
 async function initializeApp() {
-    const deviceOk = await registerDevice();
-    if (deviceOk) {
-        initDatePicker();
-        resolveVRA();
-    }
+  const deviceOk = await registerDevice();
+  if (deviceOk) {
+    initDatePicker();
+    resolveVRA();
+  }
 }
 
 initializeApp();

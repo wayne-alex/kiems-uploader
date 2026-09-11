@@ -1,0 +1,231 @@
+{% extends "ict/base.html" %}
+
+{% block title %}{{ kit.kit_name }} &mdash; Detail{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kit-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    /* Top Action Bar */
+    .kit-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .kit-title-group h2 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    .kit-title-group p {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+        margin-top: 2px;
+    }
+
+    .code-tag {
+        font-family: monospace;
+        font-size: 11px;
+        background: var(--surface-alt);
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        color: var(--text);
+    }
+
+    /* Panel Card Wrap */
+    .panel-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        overflow: hidden;
+    }
+
+    .panel-card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+    }
+
+    .panel-card-title {
+        font-size: 13.5px;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .panel-card-title i {
+        color: var(--text-muted);
+        font-size: 14px;
+    }
+
+    .clerk-pills-wrap {
+        padding: 14px 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .clerk-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--primary-soft);
+        color: var(--primary);
+        padding: 4px 10px;
+        border-radius: 14px;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid var(--border);
+    }
+
+    /* Table Styling */
+    .table-custom {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+    }
+
+    .table-custom th {
+        text-align: left;
+        padding: 9px 14px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        background: var(--surface-alt);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .table-custom td {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text);
+        vertical-align: middle;
+    }
+
+    .table-custom tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .table-custom tbody tr:hover td {
+        background: var(--primary-soft);
+    }
+
+    .empty-dense {
+        text-align: center;
+        padding: 24px 12px;
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+
+    .empty-dense i {
+        font-size: 22px;
+        display: block;
+        margin-bottom: 4px;
+        opacity: 0.4;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="kit-container">
+    <!-- Header -->
+    <div class="kit-header">
+        <div class="kit-title-group">
+            <h2>{{ kit.kit_name }}</h2>
+            <p>
+                Serial: <span class="code-tag">{{ kit.serial_no }}</span> &bull; {{ kit.ward.name }}
+            </p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <a href="{% url 'ict:kit_edit' kit.pk %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-pencil"></i> Edit Kit
+            </a>
+            <a href="{% url 'ict:kit_list' %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Assigned Clerks Section -->
+    <div class="panel-card">
+        <div class="panel-card-head">
+            <div class="panel-card-title">
+                <i class="bi bi-people"></i> Assigned Clerks
+            </div>
+        </div>
+        <div class="clerk-pills-wrap">
+            {% for c in kit.assigned_clerks.all %}
+                <span class="clerk-pill">
+                    <i class="bi bi-person-check"></i> {{ c.name }}
+                </span>
+            {% empty %}
+                <span style="color: var(--text-muted); font-size: 12.5px; font-style: italic;">No clerks assigned to this kit</span>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Recent Entries Section -->
+    <div class="panel-card">
+        <div class="panel-card-head">
+            <div class="panel-card-title">
+                <i class="bi bi-clock-history"></i> Recent Entries
+            </div>
+        </div>
+        <div class="table-wrap">
+            {% if entries %}
+            <table class="data-table table-custom">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>VRA</th>
+                        <th>Clerk</th>
+                        <th style="text-align: right;">Male</th>
+                        <th style="text-align: right;">Female</th>
+                        <th style="text-align: right;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in entries %}
+                    <tr>
+                        <td>{{ e.entry_date }}</td>
+                        <td><strong>{{ e.vra.name }}</strong></td>
+                        <td>{{ e.clerk.name|default:"&mdash;" }}</td>
+                        <td style="text-align: right;">{{ e.registered_male }}</td>
+                        <td style="text-align: right;">{{ e.registered_female }}</td>
+                        <td style="text-align: right; font-weight: 700; color: var(--primary);">
+                            {{ e.total_registered }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-dense">
+                <i class="bi bi-inbox"></i>
+                No voter registration entries recorded for this kit
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

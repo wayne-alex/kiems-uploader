@@ -1,0 +1,162 @@
+{% extends "ict/base.html" %}
+
+{% block title %}{% if mode == 'edit' %}Edit VRA{% else %}Add VRA{% endif %} — {{ constituency.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 600px;
+    }
+
+    .form-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .form-title h2 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    .form-title p {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+        margin-top: 2px;
+    }
+
+    .form-panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        padding: 24px;
+    }
+
+    .form-row {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 18px;
+    }
+
+    .form-row:last-of-type {
+        margin-bottom: 0;
+    }
+
+    .form-row label {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    .form-row input[type="text"],
+    .form-row input[type="number"],
+    .form-row input[type="email"],
+    .form-row select,
+    .form-row textarea {
+        width: 100%;
+        padding: 9px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-strong);
+        font-size: 13.5px;
+        background: var(--surface);
+        color: var(--text);
+        outline: none;
+        font-family: inherit;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .form-row input:focus,
+    .form-row select:focus,
+    .form-row textarea:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px var(--primary-soft-strong);
+    }
+
+    .help-text {
+        font-size: 11.5px;
+        color: var(--text-muted);
+        margin-top: 2px;
+    }
+
+    .errorlist {
+        list-style: none;
+        padding: 0;
+        margin: 4px 0 0 0;
+        font-size: 12px;
+        color: var(--danger);
+        font-weight: 500;
+    }
+
+    .form-actions-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 24px;
+        padding-top: 18px;
+        border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 480px) {
+        .form-actions-bar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .form-actions-bar .btn {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="form-header">
+        <div class="form-title">
+            <h2>{% if mode == 'edit' %}Edit VRA{% else %}Add VRA{% endif %}</h2>
+            <p>{{ constituency.name }} Constituency</p>
+        </div>
+        <a href="{% url 'ict:staff_list' %}" class="btn btn-outline btn-sm">
+            <i class="bi bi-arrow-left"></i> Back to Staff
+        </a>
+    </div>
+
+    <div class="form-panel">
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            {% for field in form %}
+            <div class="form-row">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                    <div class="help-text">{{ field.help_text }}</div>
+                {% endif %}
+                {% if field.errors %}
+                    {{ field.errors }}
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            <div class="form-actions-bar">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-check-lg"></i> {% if mode == 'edit' %}Save Changes{% else %}Create VRA{% endif %}
+                </button>
+                <a href="{% url 'ict:staff_list' %}" class="btn btn-outline btn-sm">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,280 @@
+{% extends "ict/base.html" %}
+
+{% block title %}Audit Logs &mdash; {{ constituency.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .audit-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    /* Page Header */
+    .page-header-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .page-title h2 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    .page-title p {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+        margin-top: 2px;
+    }
+
+    .action-group-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    /* Advanced Filter Bar */
+    .filter-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 14px 16px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    }
+
+    .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+        align-items: flex-end;
+    }
+
+    .filter-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .filter-field label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .filter-control {
+        padding: 6px 10px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-strong);
+        font-size: 12.5px;
+        background: var(--surface);
+        color: var(--text);
+        outline: none;
+        width: 100%;
+    }
+
+    .filter-control:focus {
+        border-color: var(--primary);
+    }
+
+    /* Data Table Panel */
+    .panel-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        overflow: hidden;
+    }
+
+    .table-custom {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+    }
+
+    .table-custom th {
+        text-align: left;
+        padding: 10px 14px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        background: var(--surface-alt);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .table-custom td {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text);
+        vertical-align: middle;
+    }
+
+    .table-custom tbody tr:hover td {
+        background: var(--primary-soft);
+    }
+
+    /* Monospace Badges & Code tags */
+    .code-tag {
+        font-family: monospace;
+        font-size: 11px;
+        background: var(--surface-alt);
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+    }
+
+    /* Status Badges */
+    .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        font-size: 10.5px;
+        font-weight: 700;
+        border-radius: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-red { background: #fee2e2; color: #b91c1c; }
+    .badge-orange { background: #ffedd5; color: #c2410c; }
+    .badge-blue { background: #dbeafe; color: #1d4ed8; }
+    .badge-purple { background: #f3e8ff; color: #6b21a8; }
+    .badge-gray { background: #f3f4f6; color: #4b5563; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="audit-container">
+
+    <!-- Top Action Bar -->
+    <div class="page-header-actions">
+        <div class="page-title">
+            <h2>Audit Logs</h2>
+            <p>System activities and security audit history in {{ constituency.name }}</p>
+        </div>
+        <div class="action-group-top">
+            <a href="?{{ request.GET.urlencode }}&export=excel" class="btn btn-outline btn-sm">
+                <i class="bi bi-file-earmark-excel"></i> Export Excel
+            </a>
+            <a href="?{{ request.GET.urlencode }}&export=pdf" class="btn btn-primary btn-sm">
+                <i class="bi bi-download"></i> Export PDF Report
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-card">
+        <form method="get" action="">
+            <div class="filter-grid">
+                <!-- Action Filter -->
+                <div class="filter-field">
+                    <label>Action Type</label>
+                    <select name="action" class="filter-control">
+                        <option value="">All Actions</option>
+                        {% for code, label in actions %}
+                            <option value="{{ code }}" {% if selected_action == code %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Model Filter -->
+                <div class="filter-field">
+                    <label>Target Model</label>
+                    <select name="model" class="filter-control">
+                        <option value="">All Models</option>
+                        {% for m in model_names %}
+                            {% if m %}
+                                <option value="{{ m }}" {% if selected_model == m %}selected{% endif %}>{{ m }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Filter Controls -->
+                <div style="display: flex; gap: 6px;">
+                    <button type="submit" class="btn btn-primary btn-sm" style="flex: 1;">
+                        <i class="bi bi-funnel"></i> Filter
+                    </button>
+                    <a href="{% url 'ict:audit_log_list' %}" class="btn btn-outline btn-sm" title="Clear Filters">
+                        <i class="bi bi-x-lg"></i> Clear
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Audit Logs Data Table -->
+    <div class="panel-card">
+        <div class="table-wrap">
+            {% if logs %}
+            <table class="table-custom">
+                <thead>
+                    <tr>
+                        <th style="width: 140px;">Timestamp</th>
+                        <th style="width: 120px;">Actor</th>
+                        <th style="width: 100px;">Action</th>
+                        <th style="width: 130px;">Model</th>
+                        <th>Object Target</th>
+                        <th>Description</th>
+                        <th style="width: 110px;">IP Address</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for l in logs %}
+                    <tr>
+                        <td style="font-size: 11.5px; color: var(--text-muted); white-space: nowrap;">
+                            {{ l.created_at|date:"M d, Y" }} <span style="font-weight: 600;">{{ l.created_at|date:"H:i:s" }}</span>
+                        </td>
+                        <td>
+                            <strong>{{ l.actor.username|default:"system" }}</strong>
+                        </td>
+                        <td>
+                            <span class="badge
+                                {% if l.action == 'CREATE' %}badge-green
+                                {% elif l.action == 'DELETE' %}badge-red
+                                {% elif l.action == 'UPDATE' or l.action == 'EDIT' %}badge-orange
+                                {% elif l.action == 'BURN' %}badge-purple
+                                {% elif l.action == 'UNBURN' %}badge-blue
+                                {% else %}badge-gray{% endif %}">
+                                {{ l.get_action_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="code-tag">{{ l.model_name|default:"&mdash;" }}</span>
+                        </td>
+                        <td style="font-weight: 500;">
+                            {{ l.object_repr|truncatechars:35|default:"&mdash;" }}
+                        </td>
+                        <td style="color: var(--text-muted);">
+                            {{ l.description|truncatechars:65|default:"&mdash;" }}
+                        </td>
+                        <td>
+                            <span class="code-tag">{{ l.ip_address|default:"&mdash;" }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="text-align: center; padding: 48px 16px; color: var(--text-muted);">
+                <i class="bi bi-shield-check" style="font-size: 32px; opacity: 0.5;"></i>
+                <p style="margin-top: 8px; font-size: 13px; font-weight: 500;">No audit records found matching your filter criteria.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

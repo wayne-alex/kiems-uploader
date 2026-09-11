@@ -21,6 +21,15 @@
                 <label style="display:block; font-size:13px; font-weight:600; color:#3a3a3c; margin-bottom:4px;">Code</label>
                 {{ form.code }}
             </div>
+            <div style="margin-bottom:16px;">
+    <label style="display:block; font-size:13px; font-weight:600; color:#3a3a3c; margin-bottom:4px;">
+        Constituency
+    </label>
+    {{ form.constituency }}
+    {% if form.constituency.errors %}
+        <div style="color:#c62828; font-size:12px; margin-top:4px;">{{ form.constituency.errors }}</div>
+    {% endif %}
+</div>
             
             <button type="submit" style="width:100%; padding:14px; background:#90EE90; border:none; border-radius:12px; font-size:17px; font-weight:600; cursor:pointer;">
                 {% if form.instance.pk %}Update{% else %}Create{% endif %} Ward

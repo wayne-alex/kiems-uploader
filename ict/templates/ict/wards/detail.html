@@ -1,0 +1,386 @@
+{% extends "ict/base.html" %}
+
+{% block title %}{{ ward.name }} &mdash; Ward Detail{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ward-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    /* Header */
+    .ward-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .ward-title-group h2 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    .ward-title-group p {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+        margin-top: 2px;
+    }
+
+    .code-tag {
+        font-family: monospace;
+        background: var(--surface-alt);
+        padding: 1px 5px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        font-size: 11px;
+    }
+
+    /* Micro KPI Stats Bar */
+    .kpi-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 12px;
+    }
+
+    .kpi-mini {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .kpi-mini::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 3px;
+        height: 100%;
+    }
+
+    .kpi-mini.green::before  { background: var(--success); }
+    .kpi-mini.purple::before { background: var(--purple); }
+    .kpi-mini.amber::before  { background: var(--warning); }
+
+    .kpi-mini .lbl {
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        color: var(--text-muted);
+    }
+
+    .kpi-mini .val {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text);
+        line-height: 1;
+    }
+
+    /* Panel Card Wrap */
+    .panel-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        overflow: hidden;
+    }
+
+    .panel-card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+    }
+
+    .panel-card-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .panel-card-title i {
+        color: var(--text-muted);
+        font-size: 14px;
+    }
+
+    /* Dense Table Styling */
+    .table-dense {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+    }
+
+    .table-dense th {
+        text-align: left;
+        padding: 8px 14px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        background: var(--surface-alt);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .table-dense td {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text);
+    }
+
+    .table-dense tr:last-child td {
+        border-bottom: none;
+    }
+
+    .table-dense tbody tr:hover td {
+        background: var(--primary-soft);
+    }
+
+    /* Compact Status Badges */
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .status-pill.active {
+        background: var(--success-soft);
+        color: var(--success);
+    }
+
+    .status-pill.inactive {
+        background: var(--surface-alt);
+        color: var(--text-muted);
+        border: 1px solid var(--border);
+    }
+
+    .status-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    /* Two Column Layout for Staff Tables */
+    .two-col-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    @media (max-width: 840px) {
+        .two-col-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .empty-dense {
+        text-align: center;
+        padding: 20px 12px;
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+
+    .empty-dense i {
+        font-size: 20px;
+        display: block;
+        margin-bottom: 4px;
+        opacity: 0.4;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ward-container">
+    <!-- Header Bar -->
+    <div class="ward-header">
+        <div class="ward-title-group">
+            <h2>{{ ward.name }}</h2>
+            <p>
+                {% if ward.code %}
+                    Code: <span class="code-tag">{{ ward.code }}</span> &bull;
+                {% endif %}
+                Ward Detail Overview
+            </p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <a href="{% url 'ict:ward_edit' ward.pk %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-pencil"></i> Edit Ward
+            </a>
+            <a href="{% url 'ict:ward_list' %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Micro KPI Cards -->
+    <div class="kpi-row">
+        <div class="kpi-mini green">
+            <span class="lbl">VRAs</span>
+            <span class="val">{{ vras.count|default:0 }}</span>
+        </div>
+        <div class="kpi-mini purple">
+            <span class="lbl">Clerks</span>
+            <span class="val">{{ clerks.count|default:0 }}</span>
+        </div>
+        <div class="kpi-mini amber">
+            <span class="lbl">KIEMS Kits</span>
+            <span class="val">{{ kits.count|default:0 }}</span>
+        </div>
+    </div>
+
+    <!-- Side-by-Side Personnel Tables -->
+    <div class="two-col-grid">
+        <!-- VRAs Panel -->
+        <div class="panel-card">
+            <div class="panel-card-head">
+                <div class="panel-card-title">
+                    <i class="bi bi-person-badge"></i> Assigned VRAs
+                </div>
+            </div>
+            {% if vras %}
+            <div class="table-wrap">
+                <table class="table-dense">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>Device Token</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for v in vras %}
+                        <tr>
+                            <td><strong>{{ v.name }}</strong></td>
+                            <td>
+                                {% if v.active %}
+                                    <span class="status-pill active"><span class="status-dot"></span> Active</span>
+                                {% else %}
+                                    <span class="status-pill inactive"><span class="status-dot"></span> Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if v.device_token %}
+                                    <span class="code-tag">{{ v.device_token }}</span>
+                                {% else %}
+                                    <span style="color: var(--text-faint);">&mdash;</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-dense">
+                <i class="bi bi-person-badge"></i>
+                No VRAs assigned to this ward
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Clerks Panel -->
+        <div class="panel-card">
+            <div class="panel-card-head">
+                <div class="panel-card-title">
+                    <i class="bi bi-people"></i> Assigned Clerks
+                </div>
+            </div>
+            {% if clerks %}
+            <div class="table-wrap">
+                <table class="table-dense">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in clerks %}
+                        <tr>
+                            <td><strong>{{ c.name }}</strong></td>
+                            <td>
+                                {% if c.active %}
+                                    <span class="status-pill active"><span class="status-dot"></span> Active</span>
+                                {% else %}
+                                    <span class="status-pill inactive"><span class="status-dot"></span> Inactive</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-dense">
+                <i class="bi bi-people"></i>
+                No clerks assigned to this ward
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Recent Registrations Activity -->
+    <div class="panel-card">
+        <div class="panel-card-head">
+            <div class="panel-card-title">
+                <i class="bi bi-clock-history"></i> Recent Entries
+            </div>
+        </div>
+        {% if entries %}
+        <div class="table-wrap">
+            <table class="table-dense">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Kit</th>
+                        <th>VRA</th>
+                        <th style="text-align: right;">Total Registered</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in entries %}
+                    <tr>
+                        <td>{{ e.entry_date }}</td>
+                        <td><strong>{{ e.kiems_kit.kit_name }}</strong></td>
+                        <td>{{ e.vra.name }}</td>
+                        <td style="text-align: right; font-weight: 700; color: var(--primary);">
+                            {{ e.total_registered }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-dense">
+            <i class="bi bi-inbox"></i>
+            No registration entries recorded for this ward
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

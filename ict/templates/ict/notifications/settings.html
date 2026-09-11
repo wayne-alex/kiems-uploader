@@ -1,0 +1,266 @@
+{% extends "ict/base.html" %}
+{% block title %}Notification Settings &mdash; {{ constituency.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .settings-wrapper {
+        max-width: 600px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .settings-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md, 12px);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        padding: 24px;
+    }
+
+    .settings-header {
+        margin-bottom: 16px;
+    }
+
+    .settings-header h3 {
+        font-size: 15px;
+        font-weight: 700;
+        margin: 0;
+        color: var(--text);
+    }
+
+    .settings-header p {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 2px;
+    }
+
+    /* Selected Active Group Highlight Card */
+    .active-group-card {
+        background: linear-gradient(135deg, rgba(13, 148, 136, 0.08), rgba(2, 132, 199, 0.08));
+        border: 1px solid rgba(13, 148, 136, 0.25);
+        border-radius: 10px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .active-group-info {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .active-group-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: #0d9488;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        flex-shrink: 0;
+    }
+
+    .active-group-details h4 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .active-group-details p {
+        margin: 3px 0 0 0;
+        font-size: 12px;
+        color: var(--text-muted);
+        font-family: monospace;
+    }
+
+    .status-badge {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 4px 10px;
+        border-radius: 12px;
+        background: #dcfce7;
+        color: #15803d;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    /* iOS Style Toggle Switch */
+    .toggle-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .toggle-item:last-child {
+        border-bottom: none;
+    }
+
+    .toggle-title {
+        font-size: 13.5px;
+        font-weight: 600;
+        color: var(--text);
+    }
+
+    .toggle-desc {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 2px;
+    }
+
+    .switch-toggle {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+        flex-shrink: 0;
+    }
+
+    .switch-toggle input[type="checkbox"] {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .slider-round {
+        position: absolute;
+        cursor: pointer;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-color: #cbd5e1;
+        transition: .25s ease;
+        border-radius: 24px;
+    }
+
+    .slider-round:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .25s ease;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    input:checked + .slider-round {
+        background-color: #0d9488;
+    }
+
+    input:checked + .slider-round:before {
+        transform: translateX(20px);
+    }
+
+    .actions-bar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 24px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-wrapper">
+
+    <!-- Header Navigation -->
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div>
+            <h2 style="font-size: 20px; font-weight: 700;">Notification Preferences</h2>
+            <p style="font-size: 12px; color: var(--text-muted);">Manage automated alerts for {{ constituency.name }}</p>
+        </div>
+        <a href="{% url 'ict:notification_list' %}" class="btn btn-outline btn-sm">
+            <i class="bi bi-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <!-- Active Target Group Display -->
+    <div class="settings-card" style="padding: 18px 24px;">
+        <div class="settings-header" style="margin-bottom: 12px;">
+            <h3>Active Target Group</h3>
+        </div>
+
+        {% if selected_group %}
+            <div class="active-group-card">
+                <div class="active-group-info">
+                    <div class="active-group-icon">
+                        <i class="bi bi-whatsapp"></i>
+                    </div>
+                    <div class="active-group-details">
+                        <h4>{{ selected_group.name }}</h4>
+                        <p>ID: {{ selected_group.group_id }}</p>
+                    </div>
+                </div>
+                <div>
+                    <span class="status-badge"><i class="bi bi-check-circle-fill"></i> Selected</span>
+                </div>
+            </div>
+        {% else %}
+            <div class="active-group-card" style="background: #fef2f2; border-color: #fca5a5;">
+                <div class="active-group-info">
+                    <div class="active-group-icon" style="background: #ef4444;">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                    </div>
+                    <div class="active-group-details">
+                        <h4 style="color: #991b1b;">No Group Assigned</h4>
+                        <p style="color: #b91c1c; font-family: sans-serif;">Contact system administrator to assign a group JID.</p>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Preferences Toggles Form -->
+    <form method="post" class="settings-card">
+        {% csrf_token %}
+
+        <div class="settings-header">
+            <h3>Notification Subscriptions</h3>
+            <p>Toggle individual automated WhatsApp alert categories</p>
+        </div>
+
+        <div>
+            {% for field in form %}
+                {# Completely hide default_group field dropdown #}
+                {% if field.name != 'default_group' %}
+                <div class="toggle-item">
+                    <div style="padding-right: 16px;">
+                        <div class="toggle-title">{{ field.label }}</div>
+                        {% if field.help_text %}
+                            <div class="toggle-desc">{{ field.help_text }}</div>
+                        {% endif %}
+                    </div>
+                    <label class="switch-toggle">
+                        {{ field }}
+                        <span class="slider-round"></span>
+                    </label>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <div class="actions-bar">
+            <a href="{% url 'ict:notification_list' %}" class="btn btn-outline">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-lg"></i> Save Preferences
+            </button>
+        </div>
+    </form>
+
+</div>
+{% endblock %}

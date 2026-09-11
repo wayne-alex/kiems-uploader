@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{% load static %}
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -335,7 +335,7 @@
     <div class="login-wrapper">
         <!-- Logo -->
         <div class="logo-section">
-            <img src="https://cvr.iebc.or.ke/images/logoiebc.png" alt="IEBC Logo">
+            <img src="{% static 'logo.png' %}"  alt="IEBC Logo">
             <div class="brand-name">KIEMS Portal</div>
             <div class="brand-sub">SuperAdmin Control Panel</div>
         </div>
@@ -462,10 +462,7 @@
             }
         });
 
-        // Pre-fill demo credentials (for development only - remove in production)
-        // Uncomment to auto-fill for testing
-        // document.getElementById('email').value = 'admin@iebc.or.ke';
-        // document.getElementById('password').value = 'admin123';
+
     </script>
 </body>
 </html>

@@ -1,0 +1,120 @@
+{% extends "superadmin/base.html" %}
+{% block title %}Constituencies | KIEMS Admin{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+    <div>
+        <h2 style="font-size:24px; font-weight:700;">Constituencies</h2>
+        <p style="color:#8e8e93; font-size:14px;">
+            {{ total_count }} total · manage all constituencies
+        </p>
+    </div>
+    <a href="{% url 'superadmin:constituency_create' %}"
+       style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
+        <span style="font-size:20px; line-height:1;">+</span> Add Constituency
+    </a>
+</div>
+
+<form method="get"
+      style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:flex-end;">
+    <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Search</label>
+        <input type="text" name="q" value="{{ q }}" placeholder="Name or code…"
+               style="padding:9px 12px; border:0.5px solid rgba(0,0,0,0.1); border-radius:8px; font-size:14px; min-width:220px; background:#fff;">
+    </div>
+    <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Status</label>
+        <select name="status"
+                style="padding:9px 12px; border:0.5px solid rgba(0,0,0,0.1); border-radius:8px; font-size:14px; background:#fff;">
+            <option value="">All</option>
+            <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
+        </select>
+    </div>
+    <button type="submit"
+            style="background:#90EE90; border:none; padding:10px 18px; border-radius:8px; font-weight:600; cursor:pointer;">
+        Filter
+    </button>
+    <a href="{% url 'superadmin:constituency_list' %}"
+       style="background:#fff; border:0.5px solid rgba(0,0,0,0.1); padding:10px 18px; border-radius:8px; font-weight:600; text-decoration:none; color:#3a3a3c;">
+        Clear
+    </a>
+</form>
+
+<div style="background:#fff; border-radius:12px; border:0.5px solid rgba(0,0,0,0.08); overflow:hidden;">
+    <table style="width:100%; border-collapse:collapse;">
+        <thead style="background:#f9f9fb;">
+            <tr>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Name</th>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Code</th>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Wards</th>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">ICT Officers</th>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Status</th>
+                <th style="padding:14px 20px; text-align:right; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in constituencies %}
+            <tr style="border-bottom:0.5px solid rgba(0,0,0,0.06);">
+                <td style="padding:14px 20px; font-weight:600;">{{ c.name }}</td>
+                <td style="padding:14px 20px; color:#8e8e93; font-family:monospace; font-size:13px;">
+                    {{ c.code|default:"—" }}
+                </td>
+                <td style="padding:14px 20px;">
+                    <span style="background:#e3f2fd; color:#1565c0; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">
+                        {{ c.ward_count }}
+                    </span>
+                </td>
+                <td style="padding:14px 20px;">
+                    <span style="background:#f5e8ff; color:#7b2cbf; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">
+                        {{ c.officer_count }}
+                    </span>
+                </td>
+                <td style="padding:14px 20px;">
+                    {% if c.active %}
+                        <span style="background:#e8f5e9; color:#2e7d32; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">Active</span>
+                    {% else %}
+                        <span style="background:#f0f0f2; color:#6b6b70; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">Inactive</span>
+                    {% endif %}
+                </td>
+                <td style="padding:14px 20px; text-align:right;">
+                    <a href="{% url 'superadmin:constituency_edit' c.id %}"
+                       style="color:#5856d6; text-decoration:none; margin-right:12px;">Edit</a>
+
+                    <form method="post" action="{% url 'superadmin:constituency_toggle' c.id %}"
+                          style="display:inline; margin-right:12px;">
+                        {% csrf_token %}
+                        <button type="submit"
+                                style="background:none; border:none; cursor:pointer; color:#ff9500; padding:0; font-size:14px;">
+                            {% if c.active %}Deactivate{% else %}Activate{% endif %}
+                        </button>
+                    </form>
+
+                    <form method="post" action="{% url 'superadmin:constituency_delete' c.id %}"
+                          style="display:inline;"
+                          onsubmit="return confirm('Delete constituency {{ c.name|escapejs }}? This cannot be undone.');">
+                        {% csrf_token %}
+                        <button type="submit"
+                                style="background:none; border:none; color:#ff3b30; cursor:pointer; padding:0; font-size:14px;">
+                            Delete
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="padding:60px 20px; text-align:center; color:#8e8e93;">
+                    <div style="font-size:48px; margin-bottom:16px;">🏛️</div>
+                    <h3 style="color:#000; margin-bottom:8px;">No Constituencies Found</h3>
+                    <p style="margin-bottom:16px;">Get started by adding your first constituency.</p>
+                    <a href="{% url 'superadmin:constituency_create' %}"
+                       style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600;">
+                        + Add Constituency
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

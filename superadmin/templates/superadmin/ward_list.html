@@ -5,12 +5,46 @@
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
     <div>
         <h2 style="font-size:24px; font-weight:700;">Wards</h2>
-        <p style="color:#8e8e93; font-size:14px;">Manage all wards</p>
+        <p style="color:#8e8e93; font-size:14px;">
+            {{ total_count }} total
+            {% if filtered_count != total_count %} · {{ filtered_count }} shown{% endif %}
+        </p>
     </div>
-    <a href="{% url 'superadmin:ward_create' %}" style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
+    <a href="{% url 'superadmin:ward_create' %}"
+       style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
         <span style="font-size:20px; line-height:1;">+</span> Add Ward
     </a>
 </div>
+
+<form method="get"
+      style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:flex-end;">
+    <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Search</label>
+        <input type="text" name="q" value="{{ q }}" placeholder="Ward name or code…"
+               style="padding:9px 12px; border:0.5px solid rgba(0,0,0,0.1); border-radius:8px; font-size:14px; min-width:220px; background:#fff;">
+    </div>
+    <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Constituency</label>
+        <select name="constituency"
+                style="padding:9px 12px; border:0.5px solid rgba(0,0,0,0.1); border-radius:8px; font-size:14px; min-width:220px; background:#fff;">
+            <option value="">All constituencies</option>
+            {% for c in constituencies %}
+                <option value="{{ c.pk }}"
+                    {% if selected_constituency == c.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ c.name }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit"
+            style="background:#90EE90; border:none; padding:10px 18px; border-radius:8px; font-weight:600; cursor:pointer;">
+        Filter
+    </button>
+    <a href="{% url 'superadmin:ward_list' %}"
+       style="background:#fff; border:0.5px solid rgba(0,0,0,0.1); padding:10px 18px; border-radius:8px; font-weight:600; text-decoration:none; color:#3a3a3c;">
+        Clear
+    </a>
+</form>
 
 <div style="background:#fff; border-radius:12px; border:0.5px solid rgba(0,0,0,0.08); overflow:hidden;">
     <table style="width:100%; border-collapse:collapse;">
@@ -18,28 +52,83 @@
             <tr>
                 <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Name</th>
                 <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Code</th>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Constituency</th>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">VRAs</th>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Clerks</th>
+                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Kits</th>
                 <th style="padding:14px 20px; text-align:right; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Actions</th>
             </tr>
         </thead>
         <tbody>
             {% for ward in wards %}
             <tr style="border-bottom:0.5px solid rgba(0,0,0,0.06);">
-                <td style="padding:14px 20px; font-weight:500;">{{ ward.name }}</td>
-                <td style="padding:14px 20px; color:#8e8e93;">{{ ward.code|default:"—" }}</td>
-                <td style="padding:14px 20px; text-align:right;">
-                    <a href="{% url 'superadmin:ward_edit' ward.id %}" style="color:#5856d6; text-decoration:none; margin-right:12px;">Edit</a>
-                    <form method="post" action="{% url 'superadmin:ward_delete' ward.id %}" style="display:inline;" onsubmit="return confirm('Delete this ward?')">
+                <td style="padding:14px 20px; font-weight:600;">{{ ward.name }}</td>
+                <td style="padding:14px 20px; color:#8e8e93; font-family:monospace; font-size:13px;">
+                    {{ ward.code|default:"—" }}
+                </td>
+                <td style="padding:14px 20px;">
+                    {% if ward.constituency %}
+                        <span style="background:#e3f2fd; color:#1565c0; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">
+                            {{ ward.constituency.name }}
+                        </span>
+                    {% else %}
+                        <span style="color:#8e8e93;">—</span>
+                    {% endif %}
+                </td>
+                <td style="padding:14px 20px;">
+                    <span style="background:#e8f5e9; color:#2e7d32; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">
+                        {{ ward.vra_count }}
+                    </span>
+                </td>
+                <td style="padding:14px 20px;">
+                    <span style="background:#f5e8ff; color:#7b2cbf; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">
+                        {{ ward.clerk_count }}
+                    </span>
+                </td>
+                <td style="padding:14px 20px;">
+                    <span style="background:#fff8e1; color:#f57f17; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">
+                        {{ ward.kit_count }}
+                    </span>
+                </td>
+                <td style="padding:14px 20px; text-align:right; white-space:nowrap;">
+                    <a href="{% url 'superadmin:ward_edit' ward.id %}"
+                       style="color:#5856d6; text-decoration:none; margin-right:12px;">Edit</a>
+                    <form method="post" action="{% url 'superadmin:ward_delete' ward.id %}"
+                          style="display:inline;"
+                          onsubmit="return confirm('Delete ward {{ ward.name|escapejs }}? This cannot be undone.');">
                         {% csrf_token %}
-                        <button type="submit" style="background:none; border:none; color:#ff3b30; cursor:pointer;">Delete</button>
+                        <button type="submit"
+                                style="background:none; border:none; color:#ff3b30; cursor:pointer; padding:0; font-size:14px;">
+                            Delete
+                        </button>
                     </form>
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="3" style="padding:60px 20px; text-align:center; color:#8e8e93;">
-                    <div style="font-size:48px; margin-bottom:16px;">🏛️</div>
-                    <h3 style="color:#000; margin-bottom:8px;">No Wards Found</h3>
-                    <a href="{% url 'superadmin:ward_create' %}" style="color:#90EE90; text-decoration:none; font-weight:600;">Create your first ward</a>
+                <td colspan="7" style="padding:60px 20px; text-align:center; color:#8e8e93;">
+                    <div style="font-size:48px; margin-bottom:16px;">🗺️</div>
+                    <h3 style="color:#000; margin-bottom:8px;">
+                        {% if q or selected_constituency %}No Wards Match Your Filters{% else %}No Wards Found{% endif %}
+                    </h3>
+                    <p style="margin-bottom:16px;">
+                        {% if q or selected_constituency %}
+                            Try adjusting your search or clearing filters.
+                        {% else %}
+                            Get started by adding your first ward.
+                        {% endif %}
+                    </p>
+                    {% if q or selected_constituency %}
+                        <a href="{% url 'superadmin:ward_list' %}"
+                           style="background:#fff; border:0.5px solid rgba(0,0,0,0.1); padding:10px 20px; border-radius:8px; text-decoration:none; color:#3a3a3c; font-weight:600;">
+                            Clear Filters
+                        </a>
+                    {% else %}
+                        <a href="{% url 'superadmin:ward_create' %}"
+                           style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600;">
+                            + Add Ward
+                        </a>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}

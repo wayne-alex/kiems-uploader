@@ -12,7 +12,7 @@ from django.views.decorators.http import require_http_methods, require_GET, requ
 
 from .models import (
     Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry,
-    Device, WhatsAppSetting, WhatsAppGroup, DailyReportLog
+    Device, WhatsAppSetting, WhatsAppGroup, Constituency
 )
 
 
@@ -34,6 +34,7 @@ def get_whatsapp_group_for_vra(vra):
     except Exception as e:
         print(f"WhatsApp group error: {str(e)}")
     return None
+
 
 def get_whatsapp_settings():
     """
@@ -59,6 +60,8 @@ def get_whatsapp_settings():
     except Exception as e:
         print(f"WhatsApp settings error: {str(e)}")
         return None
+
+
 def send_whatsapp_message_from_vra(message, vra):
     """Send WhatsApp message from VRA submission"""
     try:
@@ -77,6 +80,7 @@ def send_whatsapp_message_from_vra(message, vra):
     except Exception as e:
         print(f"WhatsApp error: {str(e)}")
         return False
+
 
 def format_vra_submission_message(entry, is_update=False):
     """Format VRA submission message - only for REGISTRATION entries"""
@@ -125,56 +129,6 @@ def format_grand_total_message(entries, total_wards):
         message += f" | Transferred: {total_transferred}"
 
     return message
-
-
-
-def check_and_send_daily_report_from_vra(vra):
-    """Check if all wards submitted and send grand total - only ONCE per day."""
-    try:
-        settings_obj = get_whatsapp_settings()
-        if settings_obj and not settings_obj.notify_grand_total:
-            print("Grand total notifications disabled in settings - skipping")
-            return
-
-        today = timezone.now().date()
-        total_wards = Ward.objects.count()
-        if total_wards == 0:
-            return
-
-        submitted_wards = DailyKIEMSEntry.objects.filter(
-            entry_date=today,
-            entry_type='REGISTRATION',
-        ).filter(
-            Q(total_registered__gt=0) | Q(total_transferred__gt=0)
-        ).values('ward').distinct().count()
-
-        if submitted_wards < total_wards:
-            return
-
-        # Atomic "already sent today" guard. The unique constraint on
-        # report_date means only ONE caller can ever win this create, even
-        # if two submissions land at nearly the same instant.
-        log, created = DailyReportLog.objects.get_or_create(
-            report_date=today,
-            defaults={'total_wards': total_wards}
-        )
-        if not created:
-            print(f"Grand total already sent for {today} - skipping duplicate")
-            return
-
-        entries = DailyKIEMSEntry.objects.filter(
-            entry_date=today,
-            entry_type='REGISTRATION',
-        ).filter(
-            Q(total_registered__gt=0) | Q(total_transferred__gt=0)
-        )
-        if not entries.exists():
-            return
-
-        message = format_grand_total_message(entries, total_wards)
-        send_whatsapp_message_from_vra(message, vra)
-    except Exception as e:
-        print(f"Error checking daily report: {str(e)}")
 
 
 # ==================== DEVICE AUTHENTICATION HELPERS ====================
@@ -244,10 +198,44 @@ def get_device_from_fingerprint(fingerprint):
 # ==================== CLIENT-SIDE VIEWS ====================
 
 def kiems_entry_view(request):
-    """Main entry view for VRA"""
-    wards = Ward.objects.all()
+    """Main entry view for VRA."""
+    constituencies = Constituency.objects.filter(active=True).order_by("name")
+
+    # If the VRA is already bound (fingerprint / token), lock them to
+    # their ward's constituency and skip the dropdown entirely.
+    bound_constituency = None
+    vra = get_vra_from_request(request)
+    if vra and vra.ward and getattr(vra.ward, "constituency_id", None):
+        bound_constituency = vra.ward.constituency
+
+    wards = Ward.objects.select_related("constituency").order_by(
+        "constituency__name", "name"
+    )
+
     active_phase = Phase.objects.filter(active=True).first()
-    return render(request, "home.html", {"wards": wards, "active_phase": active_phase})
+
+    return render(request, "home.html", {
+        "constituencies": constituencies,
+        "wards": wards,
+        "bound_constituency": bound_constituency,
+        "active_phase": active_phase,
+    })
+
+
+@require_GET
+def wards_by_constituency(request):
+    """Return active wards for a given constituency."""
+    constituency_id = request.GET.get("constituency_id")
+    if not constituency_id:
+        return JsonResponse({"ok": False, "wards": []}, status=400)
+
+    wards = (
+        Ward.objects
+        .filter(constituency_id=constituency_id)
+        .order_by("name")
+        .values("id", "name", "code")
+    )
+    return JsonResponse({"ok": True, "wards": list(wards)})
 
 
 @csrf_exempt
@@ -466,57 +454,195 @@ def resolve_clerk(request):
 @csrf_exempt
 @require_POST
 def bind_ward(request):
-    """Bind a VRA to a device using ward selection (legacy method)"""
+    """
+    Bind a VRA to a device using constituency + ward selection.
+
+    Priority order:
+      1. fingerprint → look up Device, verify authorized, bind to a VRA in the ward
+      2. token       → legacy token-based path
+
+    Validation:
+      - ward must exist
+      - if constituency_id was sent, ward.constituency must match it
+      - if the VRA already has a different device_token, reject (ward is
+        already bound to another device)
+    """
     token = request.POST.get("token")
     ward_id = request.POST.get("ward_id")
     fingerprint = request.POST.get("fingerprint")
+    constituency_id = request.POST.get("constituency_id")
 
-    # Try fingerprint first
+    # ------------------------------------------------------------------
+    # 1. Ward must exist
+    # ------------------------------------------------------------------
+    if not ward_id:
+        return JsonResponse(
+            {"ok": False, "error": "Ward is required."},
+            status=400,
+        )
+
+    ward = Ward.objects.select_related("constituency").filter(id=ward_id).first()
+    if not ward:
+        return JsonResponse(
+            {"ok": False, "error": "Selected ward was not found."},
+            status=404,
+        )
+
+    # ------------------------------------------------------------------
+    # 2. Constituency ↔ Ward consistency
+    # ------------------------------------------------------------------
+    if constituency_id:
+        # Ward belongs to a different constituency than the one selected
+        if str(ward.constituency_id) != str(constituency_id):
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": (
+                        f"Ward '{ward.name}' does not belong to the "
+                        f"selected constituency. Please pick a matching ward."
+                    ),
+                },
+                status=400,
+            )
+    # If the client didn't send a constituency, require the ward to have one
+    elif not ward.constituency_id:
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": (
+                    "This ward has no constituency assigned. "
+                    "Please contact your ICT officer."
+                ),
+            },
+            status=400,
+        )
+
+    # ------------------------------------------------------------------
+    # 3. Fingerprint path (modern)
+    # ------------------------------------------------------------------
     if fingerprint:
         try:
-            device = Device.objects.get(fingerprint=fingerprint, is_burned=True, is_active=True)
-            vra = VRA.objects.filter(ward_id=ward_id, active=True).first()
-            if vra:
-                device.vra = vra
-                device.save(update_fields=['vra'])
-                vra.device_fingerprint = fingerprint
-                vra.save(update_fields=['device_fingerprint'])
-
-                # Also set the device token for legacy support
-                if not vra.device_token:
-                    vra.device_token = fingerprint
-                    vra.save(update_fields=['device_token'])
-
-                return JsonResponse({
-                    "ok": True,
-                    "vra_id": vra.id,
-                    "vra_name": vra.name,
-                    "ward_id": vra.ward_id,
-                    "ward_name": vra.ward.name,
-                    "device_id": device.id
-                })
+            device = Device.objects.get(
+                fingerprint=fingerprint,
+                is_burned=True,  # burned-in = authorized
+                is_active=True,
+            )
         except Device.DoesNotExist:
-            pass
+            # Device isn't registered or is unauthorized - fall through to
+            # token path only if a token was provided, otherwise error out.
+            if not token:
+                return JsonResponse(
+                    {
+                        "ok": False,
+                        "error": (
+                            "This device is not authorized. "
+                            "Please contact your ICT officer."
+                        ),
+                    },
+                    status=403,
+                )
 
-    # Fallback to token-based (legacy)
+        else:
+            # Device is authorized: find a VRA for the selected ward
+            vra = VRA.objects.filter(
+                ward=ward,
+                active=True,
+            ).order_by("id").first()
+
+            if not vra:
+                return JsonResponse(
+                    {
+                        "ok": False,
+                        "error": (
+                            f"No active VRA is registered for ward "
+                            f"'{ward.name}'. Please contact your ICT officer."
+                        ),
+                    },
+                    status=404,
+                )
+
+            # Ward-level exclusivity: one VRA = one device
+            if vra.device_token and vra.device_token != fingerprint:
+                return JsonResponse(
+                    {
+                        "ok": False,
+                        "error": (
+                            f"Ward '{ward.name}' is already registered on "
+                            f"another device. Please contact your ICT officer."
+                        ),
+                    },
+                    status=409,
+                )
+
+            # Link Device ↔ VRA in both directions
+            if device.vra_id != vra.id:
+                device.vra = vra
+                device.save(update_fields=["vra"])
+
+            update_fields = []
+            if vra.device_fingerprint != fingerprint:
+                vra.device_fingerprint = fingerprint
+                update_fields.append("device_fingerprint")
+            if not vra.device_token:
+                vra.device_token = fingerprint
+                update_fields.append("device_token")
+            if update_fields:
+                vra.save(update_fields=update_fields)
+
+            return JsonResponse({
+                "ok": True,
+                "vra_id": vra.id,
+                "vra_name": vra.name,
+                "ward_id": vra.ward_id,
+                "ward_name": vra.ward.name,
+                "constituency_id": vra.ward.constituency_id,
+                "constituency_name": (
+                    vra.ward.constituency.name if vra.ward.constituency else None
+                ),
+                "device_id": device.id,
+            })
+
+    # ------------------------------------------------------------------
+    # 4. Token path (legacy fallback)
+    # ------------------------------------------------------------------
     if not token:
-        return JsonResponse({
-            "ok": False,
-            "error": "No authentication provided"
-        }, status=400)
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "No authentication provided.",
+            },
+            status=400,
+        )
 
-    vra = VRA.objects.filter(ward_id=ward_id, active=True).first()
+    vra = VRA.objects.filter(
+        ward=ward,
+        active=True,
+    ).order_by("id").first()
+
     if not vra:
-        return JsonResponse({
-            "ok": False,
-            "error": "No VRA is registered for this ward. Contact your ICT officer."
-        }, status=404)
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": (
+                    f"No active VRA is registered for ward "
+                    f"'{ward.name}'. Please contact your ICT officer."
+                ),
+            },
+            status=404,
+        )
 
+    # Ward-level exclusivity for token path too
     if vra.device_token and vra.device_token != token:
-        return JsonResponse({
-            "ok": False,
-            "error": "This ward is already registered on another device. Contact your ICT officer."
-        }, status=409)
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": (
+                    f"Ward '{ward.name}' is already registered on "
+                    f"another device. Please contact your ICT officer."
+                ),
+            },
+            status=409,
+        )
 
     if not vra.device_token:
         vra.device_token = token
@@ -527,7 +653,11 @@ def bind_ward(request):
         "vra_id": vra.id,
         "vra_name": vra.name,
         "ward_id": vra.ward_id,
-        "ward_name": vra.ward.name
+        "ward_name": vra.ward.name,
+        "constituency_id": vra.ward.constituency_id,
+        "constituency_name": (
+            vra.ward.constituency.name if vra.ward.constituency else None
+        ),
     })
 
 
@@ -801,72 +931,127 @@ def kits_with_entries(request):
         "device_authorized": True
     })
 
+
 @csrf_exempt
 @require_POST
 def submit_daily_entries(request):
-    """Submit entries - distinguishes between venue mappings and registrations"""
-    fingerprint = request.POST.get('fingerprint')
+    """
+    Submit daily entries for a VRA's ward.
 
+    Semantics:
+      - Every kit the VRA submits is saved with entry_type='REGISTRATION'.
+        A 0/0/0 submission is still valid — it's the VRA saying
+        "I checked this kit today; nothing happened here".
+      - VENUE-type rows are only produced by the clerk pre-mapping tool,
+        never by this endpoint.
+      - This view NEVER sends the grand-total report. It only updates
+        the constituency's DailyReportState; the reconciler worker sends.
+    """
+    # ---------- Auth ----------
+    fingerprint = request.POST.get("fingerprint")
     if fingerprint:
         try:
-            device = Device.objects.select_related('vra').get(
+            device = Device.objects.select_related("vra").get(
                 fingerprint=fingerprint,
-                is_burned=True,
-                is_active=True
+                is_burned=True,  # is_burned=True ⇒ authorized
+                is_active=True,
             )
             vra = device.vra
         except Device.DoesNotExist:
-            return JsonResponse({"ok": False, "error": "Device not authorized"}, status=401)
+            return JsonResponse(
+                {"ok": False, "error": "Device not authorized"}, status=401
+            )
     else:
         token = request.POST.get("token")
         if not token:
-            return JsonResponse({"ok": False, "error": "No authentication provided"}, status=400)
+            return JsonResponse(
+                {"ok": False, "error": "No authentication provided"}, status=400
+            )
         vra = get_object_or_404(VRA, device_token=token, active=True)
 
     if not vra:
-        return JsonResponse({"ok": False, "error": "No VRA associated with this device"}, status=404)
+        return JsonResponse(
+            {"ok": False, "error": "No VRA associated with this device"},
+            status=404,
+        )
+    if not vra.ward:
+        return JsonResponse(
+            {"ok": False, "error": "VRA is not assigned to a ward"}, status=400
+        )
+
+    # ---------- Phase + date ----------
+    active_phase = Phase.objects.filter(active=True).first()
+    if not active_phase:
+        return JsonResponse(
+            {"ok": False, "error": "No active phase found"}, status=404
+        )
 
     date_str = request.POST.get("date")
-    active_phase = Phase.objects.filter(active=True).first()
-
-    if not active_phase:
-        return JsonResponse({"ok": False, "error": "No active phase found"}, status=404)
-
     try:
-        if date_str:
-            entry_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        else:
-            entry_date = timezone.localdate()
-    except ValueError:
+        entry_date = (
+            datetime.strptime(date_str, "%Y-%m-%d").date()
+            if date_str else timezone.localdate()
+        )
+    except (ValueError, TypeError):
         entry_date = timezone.localdate()
 
     if entry_date < timezone.localdate():
-        return JsonResponse({"ok": False, "error": "Cannot submit entries for past dates"}, status=403)
+        return JsonResponse(
+            {"ok": False, "error": "Cannot submit entries for past dates"},
+            status=403,
+        )
 
+    # ---------- Parse arrays ----------
     kit_ids = request.POST.getlist("kit_id[]")
     venues = request.POST.getlist("venue[]")
     male_vals = request.POST.getlist("registered_male[]")
     female_vals = request.POST.getlist("registered_female[]")
 
+    if not kit_ids:
+        return JsonResponse(
+            {"ok": False, "error": "No entries provided"}, status=400
+        )
+
     errors = {}
     saved = 0
-    entries_created = []
-    venue_mappings_created = []
+    registrations_created = []  # entries that carry actual numbers (or zero-final)
+    updated_entries = []  # entries that already existed and were edited
 
+    # ---------- Loop ----------
     for i, kit_id in enumerate(kit_ids):
-        venue = venues[i].strip() if i < len(venues) else ""
-        male_count = int(male_vals[i]) if i < len(male_vals) and male_vals[i] and male_vals[i].isdigit() else 0
-        female_count = int(female_vals[i]) if i < len(female_vals) and female_vals[i] and female_vals[
-            i].isdigit() else 0
+        venue = (venues[i] if i < len(venues) else "").strip()
+
+        try:
+            male_count = int(male_vals[i]) if i < len(male_vals) and male_vals[i] else 0
+        except (ValueError, TypeError):
+            male_count = 0
+        try:
+            female_count = int(female_vals[i]) if i < len(female_vals) and female_vals[i] else 0
+        except (ValueError, TypeError):
+            female_count = 0
+
+        if male_count < 0:
+            male_count = 0
+        if female_count < 0:
+            female_count = 0
 
         if not venue:
             errors[kit_id] = "Venue is required."
             continue
 
-        has_registrations = male_count > 0 or female_count > 0
-        kit = get_object_or_404(KIEMSKit, id=kit_id, ward=vra.ward)
+        # Scope kit lookup to this VRA's ward so cross-ward submissions fail loudly
+        try:
+            kit = KIEMSKit.objects.get(id=kit_id, ward=vra.ward, status=True)
+        except KIEMSKit.DoesNotExist:
+            errors[kit_id] = "Kit not found in your ward."
+            continue
+
         total_count = male_count + female_count
-        entry_type = 'REGISTRATION' if has_registrations else 'VENUE'
+
+        # --- CRITICAL: a VRA submission is always REGISTRATION ---
+        # Even at 0/0/0 it means "I have finished this kit for today".
+        # VENUE-type rows are exclusively produced by the clerk pre-map tool.
+        entry_type = "REGISTRATION"
 
         entry, created = DailyKIEMSEntry.objects.get_or_create(
             kiems_kit=kit,
@@ -883,10 +1068,8 @@ def submit_daily_entries(request):
             },
         )
 
-        # The row may already exist purely because a venue was pre-mapped -
-        # that is NOT a prior "registration". Only treat this as an UPDATE
-        # if it already had actual registered voters on it before this save.
-        is_update = (not created) and entry.total_registered > 0
+        # Was there a real registration on this row *before* this save?
+        was_registration_before = (not created) and (entry.total_registered > 0)
 
         if not created:
             entry.venue = venue
@@ -896,48 +1079,60 @@ def submit_daily_entries(request):
             entry.edit_count += 1
             entry.save()
 
-        if has_registrations:
-            entries_created.append(entry)
-            entry._is_update_for_message = is_update
+        # Bucket for notifications/logging
+        if created:
+            registrations_created.append(entry)
         else:
-            venue_mappings_created.append(entry)
+            entry._was_registration_before = was_registration_before
+            updated_entries.append(entry)
 
         saved += 1
 
-    # Send WhatsApp notifications ONLY for REGISTRATION entries
+    # ---------- WhatsApp notifications (per-entry) ----------
     try:
         settings_obj = get_whatsapp_settings()
         notify_vra = settings_obj.notify_vra if settings_obj else True
         notify_edit = settings_obj.notify_edit if settings_obj else True
 
-        if entries_created:
-            for entry in entries_created:
-                is_update = getattr(entry, '_is_update_for_message', False)
-                should_send = notify_edit if is_update else notify_vra
-                if should_send:
-                    message = format_vra_submission_message(entry, is_update)
-                    if message:
-                        send_whatsapp_message_from_vra(message, vra)
+        # Only fire messages when there is something to say (non-zero totals).
+        for entry in registrations_created:
+            if notify_vra:
+                message = format_vra_submission_message(entry, is_update=False)
+                if message:
+                    send_whatsapp_message_from_vra(message, vra)
 
-            check_and_send_daily_report_from_vra(vra)
-
-        if venue_mappings_created:
-            print(f"Venue mappings created: {len(venue_mappings_created)} entries")
-            for vm in venue_mappings_created:
-                print(f"  - {vm.ward.name}: {vm.venue} on {vm.entry_date}")
-
+        for entry in updated_entries:
+            if notify_edit:
+                is_update = getattr(entry, "_was_registration_before", False)
+                message = format_vra_submission_message(entry, is_update=is_update)
+                if message:
+                    send_whatsapp_message_from_vra(message, vra)
     except Exception as e:
-        print(f"WhatsApp error: {str(e)}")
+        print(f"WhatsApp per-entry error: {str(e)}")
 
+    # ---------- Re-evaluate the constituency report state ----------
+    # This is the ONLY trigger. It updates DailyReportState but never sends.
+    # A separate worker (cron / tick) will pick up READY states and send.
+    try:
+        from home.services.daily_report import reevaluate_constituency_report
+        reevaluate_constituency_report(vra.ward.constituency, entry_date)
+    except Exception as e:
+        # Don't fail the submission because state recomputation hiccupped;
+        # the next submission or the periodic tick will catch up.
+        print(f"State re-evaluation error: {str(e)}")
+
+    # ---------- Response ----------
     if errors:
-        return JsonResponse({"ok": False, "errors": errors, "saved": saved}, status=400)
+        return JsonResponse(
+            {"ok": False, "errors": errors, "saved": saved}, status=400
+        )
 
     return JsonResponse({
         "ok": True,
         "saved": saved,
-        "registrations": len(entries_created),
-        "venue_mappings": len(venue_mappings_created),
-        "message": f"{saved} entries submitted successfully!"
+        "registrations": len(registrations_created),
+        "updates": len(updated_entries),
+        "message": f"{saved} entr{'y' if saved == 1 else 'ies'} submitted successfully!",
     })
 
 
@@ -1082,6 +1277,7 @@ def clerk_records(request):
         'count': len(records),
         'clerk': clerk_data,
     })
+
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -1352,7 +1548,6 @@ def save_clerk_venues(request):
                             message = format_vra_submission_message(entry, is_update)
                             if message:
                                 send_whatsapp_message_from_vra(message, entry.vra)
-                check_and_send_daily_report_from_vra(vra)
 
             if venue_only_entries:
                 print(f"Venue mappings saved: {len(venue_only_entries)} entries")

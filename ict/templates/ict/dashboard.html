@@ -1,0 +1,561 @@
+{% extends "ict/base.html" %}
+
+{% block title %}Dashboard — {{ constituency.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Dashboard Modernization Overlay */
+    .dashboard-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    /* Page Header Cleanups */
+    .dashboard-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .dashboard-title-group h2 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    .dashboard-title-group p {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+        margin-top: 2px;
+    }
+
+    /* KPI Grid - Modern Compact Grid */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+    }
+
+    .kpi-card {
+        background: var(--surface);
+        border-radius: var(--radius-md);
+        padding: 14px 16px;
+        border: 1px solid var(--border);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-sm);
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 3px;
+        height: 100%;
+        background: var(--border-strong);
+    }
+
+    .kpi-card.teal::before   { background: var(--teal-500); }
+    .kpi-card.green::before  { background: var(--success); }
+    .kpi-card.purple::before { background: var(--purple); }
+    .kpi-card.amber::before  { background: var(--warning); }
+    .kpi-card.red::before     { background: var(--danger); }
+
+    .kpi-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+
+    .kpi-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+
+    .kpi-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        background: var(--surface-alt);
+        color: var(--text-muted);
+    }
+
+    .kpi-card.teal .kpi-icon   { background: var(--teal-50); color: var(--teal-600); }
+    .kpi-card.green .kpi-icon  { background: var(--success-soft); color: var(--success); }
+    .kpi-card.purple .kpi-icon { background: var(--purple-soft); color: var(--purple); }
+    .kpi-card.amber .kpi-icon  { background: var(--warning-soft); color: var(--warning); }
+    .kpi-card.red .kpi-icon     { background: var(--danger-soft); color: var(--danger); }
+
+    .kpi-value {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        color: var(--text);
+        line-height: 1;
+    }
+
+    /* Main Grid Layout */
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 2.2fr 1fr;
+        gap: 16px;
+    }
+
+    @media (max-width: 960px) {
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Slick Panels */
+    .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+    }
+
+    .panel-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .panel-title i {
+        color: var(--text-muted);
+        font-size: 14px;
+    }
+
+    .panel-body {
+        padding: 16px;
+    }
+
+    /* Micro-Table Design */
+    .table-slim {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+    }
+
+    .table-slim th {
+        text-align: left;
+        padding: 8px 12px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        background: var(--surface-alt);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .table-slim td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text);
+    }
+
+    .table-slim tr:last-child td {
+        border-bottom: none;
+    }
+
+    .table-slim tr:hover td {
+        background: var(--primary-soft);
+    }
+
+    /* Cumulative Gender Summary Chips */
+    .totals-box {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .total-chip {
+        background: var(--surface-alt);
+        padding: 10px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+    }
+
+    .total-chip-label {
+        font-size: 10.5px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    .total-chip-val {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--text);
+        margin-top: 2px;
+    }
+
+    .total-grand-chip {
+        background: var(--teal-50);
+        border: 1px solid var(--teal-200);
+        padding: 12px;
+        border-radius: var(--radius-sm);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .total-grand-chip .lbl {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--teal-800);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+
+    .total-grand-chip .val {
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--teal-700);
+    }
+
+    /* Activity Feed List */
+    .activity-feed {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .activity-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .activity-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--teal-500);
+        margin-top: 5px;
+        flex-shrink: 0;
+    }
+
+    .activity-content {
+        flex: 1;
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
+    .activity-content strong {
+        color: var(--text);
+        font-weight: 600;
+    }
+
+    .activity-meta {
+        font-size: 10.5px;
+        color: var(--text-faint);
+        margin-top: 2px;
+    }
+
+    /* Dense Empty States */
+    .empty-dense {
+        text-align: center;
+        padding: 24px 12px;
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+
+    .empty-dense i {
+        font-size: 24px;
+        display: block;
+        margin-bottom: 4px;
+        opacity: 0.4;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Compact Top Bar -->
+    <div class="dashboard-header">
+        <div class="dashboard-title-group">
+            <h2>Dashboard Overview</h2>
+            <p>{{ constituency.name }} Constituency Operations</p>
+        </div>
+        <a href="{% url 'ict:entry_list' %}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg"></i> View Entries
+        </a>
+    </div>
+
+    <!-- Tight KPI Bar -->
+    <div class="kpi-grid">
+        <div class="kpi-card teal">
+            <div class="kpi-head">
+                <span class="kpi-label">Wards</span>
+                <div class="kpi-icon"><i class="bi bi-geo-alt"></i></div>
+            </div>
+            <div class="kpi-value">{{ ward_count|default:0 }}</div>
+        </div>
+
+        <div class="kpi-card green">
+            <div class="kpi-head">
+                <span class="kpi-label">Active VRAs</span>
+                <div class="kpi-icon"><i class="bi bi-person-badge"></i></div>
+            </div>
+            <div class="kpi-value">{{ vra_count|default:0 }}</div>
+        </div>
+
+        <div class="kpi-card purple">
+            <div class="kpi-head">
+                <span class="kpi-label">Active Clerks</span>
+                <div class="kpi-icon"><i class="bi bi-people"></i></div>
+            </div>
+            <div class="kpi-value">{{ clerk_count|default:0 }}</div>
+        </div>
+
+        <div class="kpi-card amber">
+            <div class="kpi-head">
+                <span class="kpi-label">KIEMS Kits</span>
+                <div class="kpi-icon"><i class="bi bi-tablet"></i></div>
+            </div>
+            <div class="kpi-value">{{ kit_count|default:0 }}</div>
+        </div>
+
+        <div class="kpi-card teal">
+            <div class="kpi-head">
+                <span class="kpi-label">Devices</span>
+                <div class="kpi-icon"><i class="bi bi-phone"></i></div>
+            </div>
+            <div class="kpi-value">{{ device_count|default:0 }}</div>
+        </div>
+
+        <div class="kpi-card red">
+            <div class="kpi-head">
+                <span class="kpi-label">Burned</span>
+                <div class="kpi-icon"><i class="bi bi-shield-x"></i></div>
+            </div>
+            <div class="kpi-value">{{ burned_device_count|default:0 }}</div>
+        </div>
+    </div>
+
+    <!-- Main Workspace Grid -->
+    <div class="dashboard-grid">
+
+        <!-- Left Column (Data Visualization & Tables) -->
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+
+            <!-- Ward Registration Chart -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="bi bi-bar-chart-line"></i> Top Wards (Cumulative)
+                    </div>
+                </div>
+                <div class="panel-body">
+                    {% if by_ward %}
+                        <div style="position: relative; width: 100%; height: 210px;">
+                            <canvas id="wardChart"></canvas>
+                        </div>
+                    {% else %}
+                        <div class="empty-dense">
+                            <i class="bi bi-bar-chart"></i>
+                            No ward data available
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Today's Live Entries Table -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="bi bi-clock-history"></i> Today's Submissions
+                    </div>
+                    <a href="{% url 'ict:entry_list' %}" class="btn btn-ghost btn-sm">View All</a>
+                </div>
+
+                {% if recent_entries %}
+                <div class="table-wrap">
+                    <table class="table-slim">
+                        <thead>
+                            <tr>
+                                <th>Kit</th>
+                                <th>Ward</th>
+                                <th>VRA</th>
+                                <th style="text-align: right;">Registrations</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for e in recent_entries %}
+                            <tr>
+                                <td><strong>{{ e.kiems_kit.kit_name }}</strong></td>
+                                <td>{{ e.ward.name }}</td>
+                                <td>{{ e.vra.name }}</td>
+                                <td style="text-align: right; font-weight: 700; color: var(--primary);">
+                                    {{ e.total_registered }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-dense">
+                    <i class="bi bi-inbox"></i>
+                    No entries logged today
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right Column (Summaries & Logs) -->
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+
+            <!-- Registration Metrics Summary -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="bi bi-pie-chart"></i> Cumulative Breakdown
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="totals-box">
+                        <div class="total-chip">
+                            <div class="total-chip-label">Male</div>
+                            <div class="total-chip-val">{{ totals.male|default:0 }}</div>
+                        </div>
+                        <div class="total-chip">
+                            <div class="total-chip-label">Female</div>
+                            <div class="total-chip-val">{{ totals.female|default:0 }}</div>
+                        </div>
+                    </div>
+                    <div class="total-grand-chip">
+                        <span class="lbl">Grand Total</span>
+                        <span class="val">{{ totals.total|default:0 }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Realtime Activity Stream -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="bi bi-activity"></i> Recent Activity
+                    </div>
+                </div>
+                <div class="panel-body" style="padding-top: 8px; padding-bottom: 12px;">
+                    <div class="activity-feed">
+                        {% for log in recent_audit %}
+                        <div class="activity-item">
+                            <div class="activity-dot"></div>
+                            <div class="activity-content">
+                                <div><strong>{{ log.get_action_display }}</strong> &bull; {{ log.model_name }}</div>
+                                <div class="activity-meta">
+                                    {{ log.created_at|date:"M d, H:i" }}
+                                    {% if log.actor %}by {{ log.actor.username }}{% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="empty-dense">
+                            No recent activity
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const ctx = document.getElementById('wardChart');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: [{% for w in by_ward %}"{{ w.ward__name|escapejs }}",{% endfor %}],
+                datasets: [{
+                    label: 'Registered',
+                    data: [{% for w in by_ward %}{{ w.total }},{% endfor %}],
+                    backgroundColor: '#0d9488',
+                    hoverBackgroundColor: '#0f766e',
+                    borderRadius: 4,
+                    barThickness: 24,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        padding: 8,
+                        cornerRadius: 6,
+                        backgroundColor: '#14201e'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(15, 23, 22, 0.05)' },
+                        ticks: { font: { family: 'Inter', size: 10 } }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { family: 'Inter', size: 10 } }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

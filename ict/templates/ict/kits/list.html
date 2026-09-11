@@ -1,0 +1,263 @@
+{% extends "ict/base.html" %}
+
+{% block title %}KIEMS Kits &mdash; {{ constituency.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .kit-list-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    /* Top Action Bar */
+    .kit-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .kit-title h2 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    .kit-title p {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+        margin-top: 2px;
+    }
+
+    /* Panel Card Wrap */
+    .panel-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        overflow: hidden;
+    }
+
+    /* Table Styling */
+    .table-custom {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+    }
+
+    .table-custom th {
+        text-align: left;
+        padding: 9px 14px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        background: var(--surface-alt);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .table-custom td {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text);
+        vertical-align: middle;
+    }
+
+    .table-custom tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .table-custom tbody tr:hover td {
+        background: var(--primary-soft);
+    }
+
+    .code-tag {
+        font-family: monospace;
+        font-size: 11px;
+        background: var(--surface-alt);
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+    }
+
+    /* Status Pill Badges */
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .status-pill.active {
+        background: var(--success-soft);
+        color: var(--success);
+    }
+
+    .status-pill.down {
+        background: var(--danger-soft);
+        color: var(--danger);
+    }
+
+    .status-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    .clerk-badge {
+        display: inline-block;
+        background: var(--primary-soft);
+        color: var(--primary);
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 6px;
+        border-radius: 10px;
+        margin-right: 2px;
+    }
+
+    .clerk-more {
+        display: inline-block;
+        background: var(--surface-alt);
+        color: var(--text-muted);
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 5px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+    }
+
+    /* Action Buttons */
+    .action-group {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        justify-content: flex-end;
+    }
+
+    .action-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: var(--radius-sm);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        color: var(--text-muted);
+        text-decoration: none;
+        transition: all 0.15s ease;
+    }
+
+    .action-btn:hover {
+        background: var(--primary-soft);
+        color: var(--primary);
+    }
+
+    .empty-dense {
+        text-align: center;
+        padding: 32px 16px;
+        color: var(--text-muted);
+        font-size: 12.5px;
+    }
+
+    .empty-dense i {
+        font-size: 28px;
+        display: block;
+        margin-bottom: 8px;
+        opacity: 0.4;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="kit-list-container">
+    <!-- Header -->
+    <div class="kit-header">
+        <div class="kit-title">
+            <h2>KIEMS Kits</h2>
+            <p>All kits registered in {{ constituency.name }} Constituency</p>
+        </div>
+        <a href="{% url 'ict:kit_create' %}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg"></i> Add Kit
+        </a>
+    </div>
+
+    <!-- Table Container -->
+    <div class="panel-card">
+        <div class="table-wrap">
+            {% if kits %}
+            <table class="data-table table-custom">
+                <thead>
+                    <tr>
+                        <th>Kit Name</th>
+                        <th>Serial No</th>
+                        <th>Ward</th>
+                        <th>Status</th>
+                        <th>Assigned Clerks</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for k in kits %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'ict:kit_detail' k.pk %}" style="font-weight: 600; color: var(--primary); text-decoration: none;">
+                                {{ k.kit_name }}
+                            </a>
+                        </td>
+                        <td><span class="code-tag">{{ k.serial_no }}</span></td>
+                        <td>{{ k.ward.name }}</td>
+                        <td>
+                            {% if k.status %}
+                                <span class="status-pill active"><span class="status-dot"></span> Active</span>
+                            {% else %}
+                                <span class="status-pill down"><span class="status-dot"></span> Down</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% for c in k.assigned_clerks.all|slice:":3" %}
+                                <span class="clerk-badge">{{ c.name }}</span>
+                            {% empty %}
+                                <span style="color: var(--text-faint);">&mdash;</span>
+                            {% endfor %}
+                            {% if k.assigned_clerks.count > 3 %}
+                                <span class="clerk-more">+{{ k.assigned_clerks.count|add:"-3" }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right;">
+                            <div class="action-btns action-group">
+                                <a href="{% url 'ict:kit_detail' k.pk %}" class="action-btn" title="View Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{% url 'ict:kit_edit' k.pk %}" class="action-btn" title="Edit Kit">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-dense">
+                <i class="bi bi-tablet"></i>
+                <p>No KIEMS kits created yet</p>
+                <a href="{% url 'ict:kit_create' %}" class="btn btn-primary btn-sm" style="margin-top: 10px; inline-size: fit-content;">
+                    Create first kit
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

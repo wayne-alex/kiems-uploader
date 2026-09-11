@@ -82,4 +82,18 @@ urlpatterns = [
     path('delete-venue/', views.delete_venue, name='delete_venue'),
     path('api/entry/<int:pk>/detail/', views.entry_detail_api, name='entry_detail_api'),
     path('api/kit-details/', views.get_kit_details, name='get_kit_details'),
+
+# Constituencies
+    path("constituencies/", views.constituency_list, name="constituency_list"),
+    path("constituencies/add/", views.constituency_create, name="constituency_create"),
+    path("constituencies/<int:pk>/edit/", views.constituency_edit, name="constituency_edit"),
+    path("constituencies/<int:pk>/toggle/", views.constituency_toggle, name="constituency_toggle"),
+    path("constituencies/<int:pk>/delete/", views.constituency_delete, name="constituency_delete"),
+
+    # ICT Officers
+    path("ict-officers/", views.ict_officer_list, name="ict_officer_list"),
+    path("ict-officers/add/", views.ict_officer_create, name="ict_officer_create"),
+    path("ict-officers/<int:pk>/edit/", views.ict_officer_edit, name="ict_officer_edit"),
+    path("ict-officers/<int:pk>/toggle/", views.ict_officer_toggle, name="ict_officer_toggle"),
+    path("ict-officers/<int:pk>/delete/", views.ict_officer_delete, name="ict_officer_delete"),
 ]

@@ -1,9 +1,11 @@
 from django.urls import path
+
 from . import views
 
 urlpatterns = [
     # Main entry view
     path("kiems/", views.kiems_entry_view, name="kiems_entry"),
+    path("api/wards-by-constituency/", views.wards_by_constituency, name="wards_by_constituency"),
 
     # Device registration & authentication
     path('kiems/register-device/', views.register_device, name='register_device'),

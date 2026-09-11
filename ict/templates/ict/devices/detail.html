@@ -1,0 +1,349 @@
+{% extends "ict/base.html" %}
+
+{% block title %}Device Detail &mdash; {{ device.fingerprint|truncatechars:12 }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .device-detail-container { display: flex; flex-direction: column; gap: 16px; }
+
+    .device-header {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; flex-wrap: wrap;
+    }
+    .device-title-group h2 {
+        font-size: 20px; font-weight: 700; letter-spacing: -0.3px;
+        color: var(--text); line-height: 1.2;
+    }
+
+    .code-tag {
+        font-family: monospace; font-size: 11px;
+        background: var(--surface-alt); padding: 2px 6px;
+        border-radius: 4px; border: 1px solid var(--border);
+        color: var(--text); word-break: break-all;
+    }
+
+    .detail-grid {
+        display: grid; grid-template-columns: 2fr 1fr; gap: 16px;
+    }
+    @media (max-width: 840px) { .detail-grid { grid-template-columns: 1fr; } }
+
+    .panel-card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius-md); box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        overflow: hidden; margin-bottom: 16px;
+    }
+    .panel-card:last-child { margin-bottom: 0; }
+
+    .panel-card-head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 16px; border-bottom: 1px solid var(--border);
+        background: var(--surface);
+    }
+    .panel-card-title {
+        font-size: 13.5px; font-weight: 700; color: var(--text);
+        display: flex; align-items: center; gap: 8px;
+    }
+    .panel-card-title i { color: var(--text-muted); font-size: 14px; }
+
+    .meta-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .meta-table tr { border-bottom: 1px solid var(--border); }
+    .meta-table tr:last-child { border-bottom: none; }
+    .meta-table td { padding: 10px 16px; }
+    .meta-table td.lbl { color: var(--text-muted); font-weight: 500; width: 35%; }
+    .meta-table td.val { color: var(--text); font-weight: 600; }
+
+    /* Assigned pill */
+    .assigned-pill {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 12.5px; font-weight: 600;
+    }
+    .assigned-pill .role-tag {
+        font-size: 10px; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.4px; padding: 2px 7px; border-radius: 4px;
+    }
+    .assigned-pill.vra .role-tag { background: rgba(59,130,246,0.12); color: #2563eb; }
+    .assigned-pill.clerk .role-tag { background: rgba(139,92,246,0.12); color: #7c3aed; }
+
+    /* Status box */
+    .status-action-box {
+        padding: 16px; display: flex; flex-direction: column; gap: 14px;
+    }
+    .status-pill {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 12px; border-radius: 14px;
+        font-size: 12px; font-weight: 700;
+    }
+    .status-pill.authorized { background: var(--success-soft, #ecfdf5); color: var(--success, #059669); }
+    .status-pill.unauthorized {
+        background: var(--surface-alt); color: var(--text-muted);
+        border: 1px solid var(--border);
+    }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    .burn-notes-area {
+        width: 100%; padding: 8px 10px;
+        border-radius: var(--radius-sm); border: 1px solid var(--border-strong);
+        font-size: 12.5px; background: var(--surface); color: var(--text);
+        outline: none; resize: vertical; font-family: inherit;
+    }
+    .burn-notes-area:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+
+    .table-custom { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .table-custom th {
+        text-align: left; padding: 8px 14px; font-size: 10px;
+        font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+        color: var(--text-muted); background: var(--surface-alt);
+        border-bottom: 1px solid var(--border);
+    }
+    .table-custom td { padding: 9px 14px; border-bottom: 1px solid var(--border); color: var(--text); }
+    .table-custom tbody tr:last-child td { border-bottom: none; }
+
+    .log-action {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 2px 8px; border-radius: 10px;
+        font-size: 10.5px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .log-action.authorize { background: var(--success-soft, #ecfdf5); color: var(--success, #059669); }
+    .log-action.revoke    { background: var(--danger-soft, #fef2f2);  color: var(--danger, #dc2626); }
+    .log-action.legacy    {
+        background: var(--surface-alt); color: var(--text-muted);
+        border: 1px solid var(--border);
+    }
+
+    .empty-dense { padding: 20px 16px; color: var(--text-muted); font-size: 12px; text-align: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="device-detail-container">
+
+    <!-- Header -->
+    <div class="device-header">
+        <div class="device-title-group">
+            <h2>Device Overview</h2>
+            <div style="margin-top: 4px;">
+                <span class="code-tag">{{ device.fingerprint }}</span>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <a href="{% url 'ict:device_list' %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-arrow-left"></i> Back to Devices
+            </a>
+
+            <form method="post"
+                  action="{% url 'ict:device_delete' device.pk %}"
+                  style="display:inline;"
+                  onsubmit="return confirm('Permanently delete device {{ device.fingerprint|slice:':12'|escapejs }}…? This cannot be undone.');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">
+                    <i class="bi bi-trash"></i> Delete Device
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="detail-grid">
+        <!-- Left: Details & Logs -->
+        <div>
+            <!-- Metadata -->
+            <div class="panel-card">
+                <div class="panel-card-head">
+                    <div class="panel-card-title">
+                        <i class="bi bi-cpu"></i> Hardware & System Metadata
+                    </div>
+                </div>
+                <table class="meta-table">
+                    <tr>
+                        <td class="lbl">Assigned To</td>
+                        <td class="val">
+                            {% if device.vra %}
+                                <span class="assigned-pill vra">
+                                    <span class="role-tag">VRA</span>
+                                    {{ device.vra.name }}
+                                    {% if device.vra.ward %}
+                                        <span style="color: var(--text-muted); font-weight: 500;">
+                                            &bull; {{ device.vra.ward.name }}
+                                        </span>
+                                    {% endif %}
+                                </span>
+                            {% elif device.clerk %}
+                                <span class="assigned-pill clerk">
+                                    <span class="role-tag">Clerk</span>
+                                    {{ device.clerk.name }}
+                                    {% if device.clerk.ward %}
+                                        <span style="color: var(--text-muted); font-weight: 500;">
+                                            &bull; {{ device.clerk.ward.name }}
+                                        </span>
+                                    {% endif %}
+                                </span>
+                            {% else %}
+                                <span style="color: var(--text-muted); font-weight: 500;">Unassigned</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Platform</td>
+                        <td class="val">{{ device.platform|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">User Agent</td>
+                        <td class="val" style="font-family: monospace; font-size: 11.5px; font-weight: normal;">
+                            {{ device.user_agent|default:"—" }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">IP Address</td>
+                        <td class="val"><span class="code-tag">{{ device.ip_address|default:"—" }}</span></td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Screen Resolution</td>
+                        <td class="val">{{ device.screen_resolution|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Language / Timezone</td>
+                        <td class="val">
+                            {{ device.language|default:"—" }} &bull; {{ device.timezone|default:"—" }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">First Seen</td>
+                        <td class="val">{{ device.first_seen|date:"M d, Y H:i" }}</td>
+                    </tr>
+                    <tr>
+                        <td class="lbl">Last Activity</td>
+                        <td class="val">{{ device.last_seen|date:"M d, Y H:i" }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Logs -->
+            <div class="panel-card">
+                <div class="panel-card-head">
+                    <div class="panel-card-title">
+                        <i class="bi bi-shield-shaded"></i> Authorization & Action Logs
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    {% if logs %}
+                    <table class="data-table table-custom">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Action</th>
+                                <th>Performed By</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for l in logs %}
+                            <tr>
+                                <td>{{ l.created_at|date:"M d, H:i" }}</td>
+                                <td>
+                                    {% if l.action == 'AUTHORIZE' or l.action == 'BURN' or l.action == 'RESTORE' %}
+                                        <span class="log-action authorize">
+                                            <i class="bi bi-shield-check"></i>
+                                            {{ l.get_action_display }}
+                                        </span>
+                                    {% elif l.action == 'REVOKE' or l.action == 'UNBURN' or l.action == 'REVOKE_ACCESS' %}
+                                        <span class="log-action revoke">
+                                            <i class="bi bi-shield-x"></i>
+                                            {{ l.get_action_display }}
+                                        </span>
+                                    {% else %}
+                                        <span class="log-action legacy">{{ l.get_action_display }}</span>
+                                    {% endif %}
+                                </td>
+                                <td><strong>{{ l.performed_by.username|default:"System" }}</strong></td>
+                                <td style="color: var(--text-muted);">{{ l.notes|default:"—" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="empty-dense">
+                        No authorization actions logged for this device
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Status & Actions -->
+        <div>
+            <div class="panel-card">
+                <div class="panel-card-head">
+                    <div class="panel-card-title">
+                        <i class="bi bi-shield-check"></i> Authorization Status
+                    </div>
+                </div>
+                <div class="status-action-box">
+                    <div>
+                        {% if device.is_burned %}
+                            <span class="status-pill authorized">
+                                <span class="status-dot"></span> Authorized
+                            </span>
+                        {% else %}
+                            <span class="status-pill unauthorized">
+                                <span class="status-dot"></span> Not Authorized
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    {% if device.is_burned %}
+                        {# Authorized → offer revoke #}
+                        <p style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+                            This device is authorized to use KIEMS services.
+                            Revoking will immediately invalidate its access token
+                            and require re-authorization before it can submit data again.
+                        </p>
+
+                        {% if device.burn_date %}
+                        <div style="font-size: 11.5px; color: var(--text-muted);">
+                            <i class="bi bi-clock-history"></i>
+                            Authorized on {{ device.burn_date|date:"M d, Y H:i" }}
+                        </div>
+                        {% endif %}
+
+                        <form method="post" action="{% url 'ict:device_revoke' device.pk %}">
+                            {% csrf_token %}
+                            <textarea name="notes"
+                                      class="burn-notes-area"
+                                      placeholder="Reason for revoking (reassigned, lost, decommissioned)…"
+                                      rows="3"></textarea>
+                            <button type="submit"
+                                    class="btn btn-danger btn-sm"
+                                    style="width: 100%; justify-content: center; margin-top: 10px;"
+                                    onclick="return confirm('Revoke authorization for this device?');">
+                                <i class="bi bi-shield-x"></i> Revoke Authorization
+                            </button>
+                        </form>
+                    {% else %}
+                        {# Not authorized → offer authorize #}
+                        <p style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+                            This device has not been provisioned. Authorizing burns in
+                            its token and grants it access to submit KIEMS data.
+                        </p>
+
+                        <form method="post" action="{% url 'ict:device_authorize' device.pk %}">
+                            {% csrf_token %}
+                            <textarea name="notes"
+                                      class="burn-notes-area"
+                                      placeholder="Notes (e.g. assigned to VRA John, Kit K001)…"
+                                      rows="3"></textarea>
+                            <button type="submit"
+                                    class="btn btn-primary btn-sm"
+                                    style="width: 100%; justify-content: center; margin-top: 10px;"
+                                    onclick="return confirm('Authorize this device?');">
+                                <i class="bi bi-shield-check"></i> Authorize Device
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

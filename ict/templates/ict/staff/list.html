@@ -1,0 +1,341 @@
+{% extends "ict/base.html" %}
+
+{% block title %}Staff Directory — {{ constituency.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .staff-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    /* Top Action Bar */
+    .staff-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .staff-title h2 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    .staff-title p {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+        margin-top: 2px;
+    }
+
+    /* Panel Card Wrap */
+    .panel-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        overflow: hidden;
+    }
+
+    .panel-card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+    }
+
+    .panel-card-title {
+        font-size: 13.5px;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .panel-card-title i {
+        color: var(--text-muted);
+        font-size: 14px;
+    }
+
+    .count-chip {
+        font-size: 11px;
+        font-weight: 700;
+        background: var(--surface-alt);
+        color: var(--text-muted);
+        padding: 2px 7px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+    }
+
+    /* Custom Table Styling */
+    .table-custom {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+    }
+
+    .table-custom th {
+        text-align: left;
+        padding: 9px 14px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        background: var(--surface-alt);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .table-custom td {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text);
+        vertical-align: middle;
+    }
+
+    .table-custom tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .table-custom tbody tr:hover td {
+        background: var(--primary-soft);
+    }
+
+    .code-tag {
+        font-family: monospace;
+        font-size: 11px;
+        background: var(--surface-alt);
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+    }
+
+    /* Compact Status Badges */
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .status-pill.active {
+        background: var(--success-soft);
+        color: var(--success);
+    }
+
+    .status-pill.inactive {
+        background: var(--surface-alt);
+        color: var(--text-muted);
+        border: 1px solid var(--border);
+    }
+
+    .status-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    /* Action Buttons */
+    .action-group {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        justify-content: flex-end;
+    }
+
+    .action-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: var(--radius-sm);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        color: var(--text-muted);
+        text-decoration: none;
+        transition: all 0.15s ease;
+        border: none;
+        cursor: pointer;
+    }
+
+    .action-btn:hover {
+        background: var(--primary-soft);
+        color: var(--primary);
+    }
+
+    .action-btn.toggle-danger:hover {
+        background: var(--danger-soft);
+        color: var(--danger);
+    }
+
+    .empty-dense {
+        text-align: center;
+        padding: 28px 12px;
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+
+    .empty-dense i {
+        font-size: 22px;
+        display: block;
+        margin-bottom: 4px;
+        opacity: 0.4;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="staff-container">
+    <!-- Header -->
+    <div class="staff-header">
+        <div class="staff-title">
+            <h2>Staff Directory</h2>
+            <p>Voter Registration Assistants (VRAs) and Clerks in {{ constituency.name }}</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <a href="{% url 'ict:vra_create' %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-lg"></i> Add VRA
+            </a>
+            <a href="{% url 'ict:clerk_create' %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-plus-lg"></i> Add Clerk
+            </a>
+        </div>
+    </div>
+
+    <!-- VRAs Section -->
+    <div class="panel-card">
+        <div class="panel-card-head">
+            <div class="panel-card-title">
+                <i class="bi bi-person-badge"></i> Voter Registration Assistants (VRAs)
+                <span class="count-chip">{{ vras.count }}</span>
+            </div>
+        </div>
+        <div class="table-wrap">
+            {% if vras %}
+            <table class="data-table table-custom">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Ward</th>
+                        <th>Status</th>
+                        <th>Token</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in vras %}
+                    <tr>
+                        <td><strong>{{ v.name }}</strong></td>
+                        <td>{{ v.ward.name }}</td>
+                        <td>
+                            {% if v.active %}
+                                <span class="status-pill active"><span class="status-dot"></span> Active</span>
+                            {% else %}
+                                <span class="status-pill inactive"><span class="status-dot"></span> Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if v.device_token %}
+                                <span class="code-tag">{{ v.device_token|truncatechars:16 }}</span>
+                            {% else %}
+                                <span style="color: var(--text-faint);">&mdash;</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right;">
+                            <div class="action-btns action-group">
+                                <a href="{% url 'ict:vra_edit' v.pk %}" class="action-btn" title="Edit VRA">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="post" action="{% url 'ict:vra_toggle' v.pk %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="action-btn {% if v.active %}toggle-danger{% endif %}" title="Toggle Active Status">
+                                        <i class="bi bi-power"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-dense">
+                <i class="bi bi-person-badge"></i>
+                No VRAs found in this constituency
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Clerks Section -->
+    <div class="panel-card">
+        <div class="panel-card-head">
+            <div class="panel-card-title">
+                <i class="bi bi-people"></i> Clerks
+                <span class="count-chip">{{ clerks.count }}</span>
+            </div>
+        </div>
+        <div class="table-wrap">
+            {% if clerks %}
+            <table class="data-table table-custom">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Ward</th>
+                        <th>Status</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in clerks %}
+                    <tr>
+                        <td><strong>{{ c.name }}</strong></td>
+                        <td>{{ c.ward.name }}</td>
+                        <td>
+                            {% if c.active %}
+                                <span class="status-pill active"><span class="status-dot"></span> Active</span>
+                            {% else %}
+                                <span class="status-pill inactive"><span class="status-dot"></span> Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right;">
+                            <div class="action-btns action-group">
+                                <a href="{% url 'ict:clerk_edit' c.pk %}" class="action-btn" title="Edit Clerk">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="post" action="{% url 'ict:clerk_toggle' c.pk %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="action-btn {% if c.active %}toggle-danger{% endif %}" title="Toggle Active Status">
+                                        <i class="bi bi-power"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-dense">
+                <i class="bi bi-people"></i>
+                No clerks found in this constituency
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

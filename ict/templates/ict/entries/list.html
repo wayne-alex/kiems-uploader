@@ -1,0 +1,347 @@
+{% extends "ict/base.html" %}
+
+{% block title %}Daily Entries &mdash; {{ constituency.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .entries-container { display: flex; flex-direction: column; gap: 16px; }
+
+    .page-header-actions {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; flex-wrap: wrap;
+    }
+    .page-title h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    .page-title p { font-size: 12px; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
+
+    .action-group-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    /* Filter bar */
+    .filter-card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius-md); padding: 14px 16px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px; align-items: flex-end;
+    }
+    .filter-field { display: flex; flex-direction: column; gap: 4px; }
+    .filter-field label {
+        font-size: 11px; font-weight: 600; color: var(--text-muted);
+        text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .filter-control {
+        padding: 7px 10px; border-radius: var(--radius-sm);
+        border: 1px solid var(--border-strong); font-size: 12.5px;
+        background: var(--surface); color: var(--text); outline: none; width: 100%;
+    }
+    .filter-control:focus { border-color: var(--primary); }
+
+    /* Stats */
+    .stat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+    }
+    .stat-card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius-md); padding: 12px 14px;
+        display: flex; flex-direction: column; gap: 4px;
+    }
+    .stat-card .label {
+        font-size: 11px; color: var(--text-muted); font-weight: 600;
+        text-transform: uppercase;
+    }
+    .stat-card .value { font-size: 18px; font-weight: 700; color: var(--text); }
+    .stat-card.green .value { color: #10b981; }
+    .stat-card.orange .value { color: #f59e0b; }
+    .stat-card.purple .value { color: #8b5cf6; }
+
+    /* Table */
+    .panel-card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius-md); overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    .table-custom { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .table-custom th {
+        text-align: left; padding: 9px 12px;
+        font-size: 10px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.5px; color: var(--text-muted);
+        background: var(--surface-alt); border-bottom: 1px solid var(--border);
+    }
+    .table-custom td {
+        padding: 9px 12px; border-bottom: 1px solid var(--border);
+        color: var(--text); vertical-align: middle;
+    }
+    .table-custom tbody tr:hover td { background: var(--primary-soft); }
+    .code-tag {
+        font-family: monospace; font-size: 11px;
+        background: var(--surface-alt); padding: 2px 6px;
+        border-radius: 4px; border: 1px solid var(--border);
+    }
+    .type-pill {
+        display: inline-block; font-size: 10px; font-weight: 700;
+        padding: 2px 8px; border-radius: 20px; text-transform: uppercase;
+    }
+    .type-registration { background: #dcfce7; color: #15803d; }
+    .type-venue { background: #dbeafe; color: #1d4ed8; }
+
+    /* Modal */
+    .modal-backdrop {
+        display: none; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.4); z-index: 1000;
+        align-items: center; justify-content: center;
+        backdrop-filter: blur(2px);
+    }
+    .modal-backdrop.active { display: flex; }
+    .modal-box {
+        background: var(--surface); border-radius: var(--radius-md);
+        border: 1px solid var(--border); width: 100%; max-width: 440px;
+        padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+    .modal-header {
+        display: flex; justify-content: space-between;
+        align-items: center; margin-bottom: 14px;
+    }
+    .modal-title { font-size: 15px; font-weight: 700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="entries-container">
+
+    <!-- Header + actions -->
+    <div class="page-header-actions">
+        <div class="page-title">
+            <h2>Daily Entries</h2>
+            <p>Registration records and statistics for {{ constituency.name }}</p>
+        </div>
+        <div class="action-group-top">
+            <button type="button" class="btn btn-outline btn-sm" onclick="toggleModal('importModal')">
+                <i class="bi bi-file-earmark-arrow-up"></i> Import CSV
+            </button>
+            <a href="{% url 'ict:entry_export_excel' %}?{{ request.GET.urlencode }}"
+               class="btn btn-outline btn-sm">
+                <i class="bi bi-file-earmark-excel"></i> Export Excel
+            </a>
+            <a href="{% url 'ict:entry_export_csv' %}?{{ request.GET.urlencode }}"
+               class="btn btn-outline btn-sm">
+                <i class="bi bi-file-earmark-text"></i> Export CSV
+            </a>
+            <a href="{% url 'ict:entry_download_report' %}?{{ request.GET.urlencode }}"
+               class="btn btn-primary btn-sm">
+                <i class="bi bi-download"></i> Generate Report (PDF)
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-card">
+        <form method="get" action="">
+            <div class="filter-grid">
+                <div class="filter-field">
+                    <label>From Date</label>
+                    <input type="date" name="date_from" value="{{ date_from }}" class="filter-control">
+                </div>
+                <div class="filter-field">
+                    <label>To Date</label>
+                    <input type="date" name="date_to" value="{{ date_to }}" class="filter-control">
+                </div>
+                <div class="filter-field">
+                    <label>Ward</label>
+                    <select name="ward" class="filter-control">
+                        <option value="">All Wards</option>
+                        {% for w in wards %}
+                        <option value="{{ w.pk }}" {% if ward_id == w.pk|stringformat:"s" %}selected{% endif %}>{{ w.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-field">
+                    <label>KIEMS Kit</label>
+                    <select name="kit" class="filter-control">
+                        <option value="">All Kits</option>
+                        {% for k in kits %}
+                        <option value="{{ k.pk }}" {% if kit_id == k.pk|stringformat:"s" %}selected{% endif %}>{{ k.kit_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-field">
+                    <label>VRA</label>
+                    <select name="vra" class="filter-control">
+                        <option value="">All VRAs</option>
+                        {% for v in vras %}
+                        <option value="{{ v.pk }}" {% if vra_id == v.pk|stringformat:"s" %}selected{% endif %}>{{ v.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-field">
+                    <label>Entry Type</label>
+                    <select name="entry_type" class="filter-control">
+                        <option value="">All Types</option>
+                        <option value="REGISTRATION" {% if entry_type == "REGISTRATION" %}selected{% endif %}>Registration</option>
+                        <option value="VENUE" {% if entry_type == "VENUE" %}selected{% endif %}>Venue Mapping</option>
+                    </select>
+                </div>
+                <div style="display:flex; gap:6px;">
+                    <button type="submit" class="btn btn-primary btn-sm" style="flex:1;">
+                        <i class="bi bi-funnel"></i> Filter
+                    </button>
+                    <a href="{% url 'ict:entry_list' %}" class="btn btn-outline btn-sm" title="Clear">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Today's snapshot -->
+    <div class="stat-grid">
+        <div class="stat-card">
+            <span class="label">Today Entries</span>
+            <span class="value">{{ today_stats.total_entries|default:0 }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="label">Active Kits Today</span>
+            <span class="value">{{ today_stats.unique_kits|default:0 }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="label">Male Today</span>
+            <span class="value">{{ today_stats.registered_male|default:0 }}</span>
+        </div>
+        <div class="stat-card green">
+            <span class="label">Female Today</span>
+            <span class="value">{{ today_stats.registered_female|default:0 }}</span>
+        </div>
+        <div class="stat-card orange">
+            <span class="label">Total Today</span>
+            <span class="value">{{ today_stats.total_registered|default:0 }}</span>
+        </div>
+    </div>
+
+    <!-- Filtered totals -->
+    {% if is_filtered %}
+    <div class="stat-grid">
+        <div class="stat-card">
+            <span class="label">Filtered Male</span>
+            <span class="value">{{ totals.male|default:0 }}</span>
+        </div>
+        <div class="stat-card green">
+            <span class="label">Filtered Female</span>
+            <span class="value">{{ totals.female|default:0 }}</span>
+        </div>
+        <div class="stat-card orange">
+            <span class="label">Filtered Total</span>
+            <span class="value">{{ totals.total|default:0 }}</span>
+        </div>
+        <div class="stat-card purple">
+            <span class="label">Transferred</span>
+            <span class="value">{{ totals.transferred|default:0 }}</span>
+        </div>
+        <div class="stat-card">
+            <span class="label">Updated</span>
+            <span class="value">{{ totals.updated|default:0 }}</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Table -->
+    <div class="panel-card">
+        <div class="table-wrap">
+            {% if entries %}
+            <table class="data-table table-custom">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Ward</th>
+                        <th>Kit</th>
+                        <th>VRA</th>
+                        <th>Clerk</th>
+                        <th>Venue</th>
+                        <th>Type</th>
+                        <th style="text-align:right;">M</th>
+                        <th style="text-align:right;">F</th>
+                        <th style="text-align:right;">Total</th>
+                        <th style="text-align:right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in entries %}
+                    <tr>
+                        <td><strong>{{ e.entry_date|date:"Y-m-d" }}</strong></td>
+                        <td>{{ e.ward.name }}</td>
+                        <td><span class="code-tag">{{ e.kiems_kit.kit_name }}</span></td>
+                        <td>{{ e.vra.name }}</td>
+                        <td>{{ e.clerk.name|default:"—" }}</td>
+                        <td style="color:var(--text-muted);">{{ e.venue|truncatechars:22|default:"—" }}</td>
+                        <td>
+                            {% if e.entry_type == "VENUE" %}
+                                <span class="type-pill type-venue">Venue</span>
+                            {% else %}
+                                <span class="type-pill type-registration">Reg</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align:right;">{{ e.registered_male }}</td>
+                        <td style="text-align:right;">{{ e.registered_female }}</td>
+                        <td style="text-align:right; font-weight:700; color:var(--primary);">{{ e.total_registered }}</td>
+                        <td style="text-align:right;">
+                            <div class="action-btns" style="justify-content:flex-end; gap:4px;">
+                                <a href="{% url 'ict:entry_edit' e.pk %}" class="btn btn-outline btn-sm" title="Office Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="text-align:center; padding:36px 16px; color:var(--text-muted);">
+                <i class="bi bi-journal-text" style="font-size:28px; opacity:0.4;"></i>
+                <p style="margin-top:6px; font-size:13px;">No daily entries found for the selected criteria.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- CSV Import Modal -->
+<div id="importModal" class="modal-backdrop">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 class="modal-title">Import Entries from CSV</h3>
+            <button type="button" class="btn btn-outline btn-sm"
+                    onclick="toggleModal('importModal')" style="padding:2px 8px;">&times;</button>
+        </div>
+        <form method="post" action="{% url 'ict:entry_import_csv' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div style="margin-bottom:14px;">
+                <label style="font-size:12px; font-weight:600; display:block; margin-bottom:6px;">
+                    Select CSV File
+                </label>
+                <input type="file" name="csv_file" accept=".csv" class="filter-control" required>
+            </div>
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:16px;">
+                Required columns:
+                <code>date, ward_id, kit_id, vra_id, male, female</code>.<br>
+                Optional:
+                <code>transferred, updated, venue, entry_type</code>.
+            </p>
+            <div style="display:flex; gap:8px; justify-content:flex-end;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="toggleModal('importModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-upload"></i> Import CSV
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('active');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,600 @@
+{% extends "ict/base.html" %}
+
+{% block title %}System Status &mdash; {{ constituency.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-container { display: flex; flex-direction: column; gap: 18px; }
+
+    /* ---------- Header ---------- */
+    .status-header {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; flex-wrap: wrap;
+    }
+    .status-title h2 {
+        font-size: 20px; font-weight: 700; letter-spacing: -0.3px;
+    }
+    .status-title p {
+        font-size: 12px; color: var(--text-muted);
+        font-weight: 500; margin-top: 2px;
+    }
+
+    .header-actions {
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+
+    .health-pill {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 6px 12px; border-radius: 20px;
+        font-size: 12px; font-weight: 700;
+        background: var(--surface); border: 1px solid var(--border);
+    }
+    .health-pill.online {
+        color: var(--success);
+        border-color: rgba(31,157,85,0.3);
+        background: var(--success-soft);
+    }
+    .health-pill.offline {
+        color: var(--danger);
+        border-color: rgba(229,72,77,0.3);
+        background: var(--danger-soft);
+    }
+    .health-dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: currentColor;
+    }
+    .health-pill.online .health-dot {
+        animation: pulse-green 1.8s infinite;
+    }
+    @keyframes pulse-green {
+        0%   { box-shadow: 0 0 0 0 rgba(31,157,85,0.7); }
+        70%  { box-shadow: 0 0 0 6px rgba(31,157,85,0); }
+        100% { box-shadow: 0 0 0 0 rgba(31,157,85,0); }
+    }
+
+    /* ---------- Summary counters ---------- */
+    .status-counts {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+    }
+    .count-card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius-md); padding: 12px 14px;
+        display: flex; flex-direction: column; gap: 2px;
+    }
+    .count-card .label {
+        font-size: 10.5px; color: var(--text-muted);
+        font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .count-card .value {
+        font-family: 'Space Grotesk', 'Inter', sans-serif;
+        font-size: 22px; font-weight: 700; letter-spacing: -0.3px;
+    }
+    .count-card.pending .value { color: var(--warning); }
+    .count-card.ready   .value { color: var(--info); }
+    .count-card.sending .value { color: var(--purple); }
+    .count-card.sent    .value { color: var(--success); }
+    .count-card.failed  .value { color: var(--danger); }
+
+    /* ---------- Panels ---------- */
+    .panel-card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius-md); box-shadow: var(--shadow-xs);
+        overflow: hidden;
+    }
+    .panel-card-head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 16px; border-bottom: 1px solid var(--border);
+        flex-wrap: wrap; gap: 8px;
+    }
+    .panel-card-title {
+        font-size: 13.5px; font-weight: 700;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .panel-card-title i { color: var(--text-muted); font-size: 14px; }
+    .panel-card-title .sub {
+        font-size: 11px; color: var(--text-muted); font-weight: 500;
+    }
+
+    .panel-body-scroll { overflow-x: auto; }
+
+    /* ---------- Table ---------- */
+    .table-custom { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .table-custom th {
+        text-align: left; padding: 9px 14px;
+        font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.5px; color: var(--text-muted);
+        background: var(--surface-alt); border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+    }
+    .table-custom td {
+        padding: 11px 14px; border-bottom: 1px solid var(--border);
+        color: var(--text); vertical-align: middle;
+    }
+    .table-custom tbody tr:last-child td { border-bottom: none; }
+    .table-custom tbody tr:hover td { background: var(--surface-alt); }
+
+    /* ---------- Status pill ---------- */
+    .status-pill {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 10px; border-radius: 12px;
+        font-size: 10.5px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.3px;
+        white-space: nowrap;
+    }
+    .status-pill.PENDING { background: var(--warning-soft); color: var(--warning); }
+    .status-pill.READY   { background: var(--info-soft);    color: var(--info); }
+    .status-pill.SENDING { background: var(--purple-soft);  color: var(--purple); }
+    .status-pill.SENT    { background: var(--success-soft); color: var(--success); }
+    .status-pill.FAILED  { background: var(--danger-soft);  color: var(--danger); }
+    .status-pill.none    { background: var(--surface-alt);  color: var(--text-muted); }
+
+    .status-dot {
+        width: 5px; height: 5px; border-radius: 50%;
+        background: currentColor;
+    }
+    .status-pill.SENDING .status-dot { animation: pulse-green 1.5s infinite; }
+
+    /* ---------- Progress bars ---------- */
+    .progress-wrap {
+        display: flex; flex-direction: column; gap: 3px;
+        min-width: 150px;
+    }
+    .progress-row {
+        display: flex; align-items: center; gap: 8px;
+    }
+    .progress-track {
+        flex: 1; height: 6px; background: var(--surface-alt);
+        border-radius: 4px; overflow: hidden;
+        min-width: 90px;
+    }
+    .progress-bar {
+        height: 100%; background: var(--primary);
+        border-radius: 4px;
+        transition: width 0.35s ease;
+    }
+    .progress-bar.warn { background: var(--warning); }
+    .progress-bar.ok   { background: var(--success); }
+    .progress-label {
+        font-size: 11px; color: var(--text-muted);
+        font-weight: 600; white-space: nowrap;
+    }
+    .progress-label strong { color: var(--text); font-weight: 700; }
+
+    /* ---------- Misc ---------- */
+    .code-tag {
+        font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+        background: var(--surface-alt); padding: 2px 6px;
+        border-radius: 4px; border: 1px solid var(--border);
+        color: var(--text-muted);
+    }
+    .const-name {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-weight: 700; color: var(--text);
+    }
+
+    .error-snippet {
+        font-size: 11.5px; color: var(--text-muted);
+        max-width: 340px;
+        display: inline-block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    .empty-dense {
+        padding: 32px 16px; color: var(--text-muted);
+        font-size: 12.5px; text-align: center;
+    }
+    .empty-dense i {
+        font-size: 26px; display: block; margin-bottom: 6px; opacity: 0.4;
+    }
+
+    /* ---------- Row action buttons ---------- */
+    .row-actions {
+        display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap;
+    }
+    .btn-tiny {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 5px 10px; border-radius: 6px;
+        font-size: 11.5px; font-weight: 600;
+        text-decoration: none; border: none; cursor: pointer;
+        background: var(--surface-alt); color: var(--text);
+        transition: all 0.15s ease;
+        white-space: nowrap;
+    }
+    .btn-tiny:hover { background: var(--primary-soft); color: var(--primary-hover); }
+    .btn-tiny.primary {
+        background: var(--primary); color: #fff;
+    }
+    .btn-tiny.primary:hover { background: var(--primary-hover); color: #fff; }
+    .btn-tiny.danger {
+        background: var(--danger-soft); color: var(--danger);
+    }
+    .btn-tiny.danger:hover { background: var(--danger); color: #fff; }
+
+    /* ---------- Refresh indicator ---------- */
+    .auto-refresh-pill {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 11px; color: var(--text-muted);
+        background: var(--surface-alt); padding: 3px 10px;
+        border-radius: 20px; font-weight: 600;
+    }
+    .auto-refresh-pill .dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: var(--info);
+        animation: pulse-green 1.8s infinite;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="status-container">
+
+    <!-- ============================= HEADER ============================= -->
+    <div class="status-header">
+        <div class="status-title">
+            <h2>System Status</h2>
+            <p>Daily report pipeline &mdash; {{ today|date:"l, d M Y" }}</p>
+        </div>
+
+        <div class="header-actions">
+            <span class="auto-refresh-pill" id="autoRefreshPill" title="Auto-refresh every 30s">
+                <span class="dot"></span>
+                Auto-refresh 30s
+            </span>
+
+            <span class="health-pill {% if bot_online %}online{% else %}offline{% endif %}">
+                <span class="health-dot"></span>
+                Bot {% if bot_online %}Online{% else %}Offline{% endif %}
+            </span>
+            <a href="{% url 'ict:system_health_report_preview' %}"
+   target="_blank"
+   class="btn btn-outline btn-sm"
+   title="Preview in new tab">
+    <i class="bi bi-eye"></i> Preview
+</a>
+
+            <a href="{% url 'ict:system_health_report_download' %}"
+   class="btn btn-outline btn-sm">
+    <i class="bi bi-file-earmark-pdf"></i> Health Report
+</a>
+
+            <form method="post" action="{% url 'ict:system_status_run_tick' %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit"
+                        class="btn btn-primary btn-sm"
+                        onclick="return confirm('Run the report tick now?');">
+                    <i class="bi bi-arrow-clockwise"></i> Run Tick
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================= COUNTS ============================= -->
+    <div class="status-counts">
+        <div class="count-card pending">
+            <span class="label">Pending</span>
+            <span class="value">{{ counts.pending }}</span>
+        </div>
+        <div class="count-card ready">
+            <span class="label">Ready</span>
+            <span class="value">{{ counts.ready }}</span>
+        </div>
+        <div class="count-card sending">
+            <span class="label">Sending</span>
+            <span class="value">{{ counts.sending }}</span>
+        </div>
+        <div class="count-card sent">
+            <span class="label">Sent</span>
+            <span class="value">{{ counts.sent }}</span>
+        </div>
+        <div class="count-card failed">
+            <span class="label">Failed</span>
+            <span class="value">{{ counts.failed }}</span>
+        </div>
+    </div>
+
+    <!-- ============================= TODAY'S GRID ============================= -->
+    <div class="panel-card">
+        <div class="panel-card-head">
+            <div class="panel-card-title">
+                <i class="bi bi-calendar-check"></i>
+                Today &mdash; {{ today|date:"d M Y" }}
+            </div>
+            <span class="sub">
+                {{ today_rows|length }} constituenc{{ today_rows|length|pluralize:"y,ies" }}
+            </span>
+        </div>
+
+        {% if today_rows %}
+        <div class="panel-body-scroll">
+            <table class="table-custom">
+                <thead>
+                    <tr>
+                        <th>Constituency</th>
+                        <th>Progress</th>
+                        <th>Status</th>
+                        <th>Ready At</th>
+                        <th>Sent At</th>
+                        <th style="text-align:right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in today_rows %}
+                    <tr>
+                        <td>
+                            <span class="const-name">
+                                {{ row.constituency.name }}
+                            </span>
+                            {% if row.constituency.code %}
+                                <span class="code-tag">{{ row.constituency.code }}</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Dual progress: Wards + Kits -->
+                        <td>
+                            <div class="progress-wrap">
+                                <!-- Wards -->
+                                <div class="progress-row">
+                                    <div class="progress-track">
+                                        <div class="progress-bar
+                                            {% if row.ward_progress_pct >= 100 %}ok{% elif row.ward_progress_pct < 50 %}warn{% endif %}"
+                                             style="width: {{ row.ward_progress_pct }}%;"></div>
+                                    </div>
+                                    <span class="progress-label">
+                                        Wards <strong>{{ row.submitted_wards }}/{{ row.total_wards }}</strong>
+                                    </span>
+                                </div>
+
+                                <!-- Kits (only if the constituency has any) -->
+                                {% if row.total_kits %}
+                                <div class="progress-row">
+                                    <div class="progress-track">
+                                        <div class="progress-bar
+                                            {% if row.kit_progress_pct >= 100 %}ok{% elif row.kit_progress_pct < 50 %}warn{% endif %}"
+                                             style="width: {{ row.kit_progress_pct }}%;"></div>
+                                    </div>
+                                    <span class="progress-label">
+                                        Kits <strong>{{ row.submitted_kits }}/{{ row.total_kits }}</strong>
+                                    </span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <!-- Status -->
+                        <td>
+                            {% if row.state %}
+                                <span class="status-pill {{ row.state.status }}">
+                                    <span class="status-dot"></span>
+                                    {{ row.state.get_status_display|default:row.state.status }}
+                                </span>
+                            {% else %}
+                                <span class="status-pill none">
+                                    <span class="status-dot"></span>
+                                    No activity
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Ready At -->
+                        <td style="font-size: 12px; color: var(--text-muted);">
+                            {% if row.state and row.state.ready_at %}
+                                {{ row.state.ready_at|date:"H:i:s" }}
+                            {% else %}&mdash;{% endif %}
+                        </td>
+
+                        <!-- Sent At -->
+                        <td style="font-size: 12px; color: var(--text-muted);">
+                            {% if row.state and row.state.sent_at %}
+                                {{ row.state.sent_at|date:"H:i:s" }}
+                            {% else %}&mdash;{% endif %}
+                        </td>
+
+                        <!-- Actions -->
+                        <td>
+                            <div class="row-actions">
+                                {% if row.state and row.state.status == "FAILED" %}
+                                <form method="post"
+                                      action="{% url 'ict:system_status_retry' row.state.pk %}"
+                                      style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn-tiny danger"
+                                            onclick="return confirm('Retry this failed report?');">
+                                        <i class="bi bi-arrow-repeat"></i> Retry
+                                    </button>
+                                </form>
+                                {% endif %}
+
+                                <form method="post"
+                                      action="{% url 'ict:system_status_reevaluate' row.constituency.pk today|date:'Y-m-d' %}"
+                                      style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-tiny" title="Re-evaluate now">
+                                        <i class="bi bi-arrow-clockwise"></i> Re-eval
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-dense">
+            <i class="bi bi-inbox"></i>
+            No constituencies configured
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ============================= PROBLEM STATES ============================= -->
+    {% if problem_states %}
+    <div class="panel-card">
+        <div class="panel-card-head">
+            <div class="panel-card-title">
+                <i class="bi bi-exclamation-triangle" style="color: var(--danger);"></i>
+                Attention Required
+                <span class="sub">({{ problem_states|length }})</span>
+            </div>
+        </div>
+
+        <div class="panel-body-scroll">
+            <table class="table-custom">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Constituency</th>
+                        <th>Status</th>
+                        <th>Attempts</th>
+                        <th>Last Error</th>
+                        <th style="text-align:right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in problem_states %}
+                    <tr>
+                        <td><strong>{{ s.report_date|date:"d M Y" }}</strong></td>
+                        <td>{{ s.constituency.name }}</td>
+                        <td>
+                            <span class="status-pill {{ s.status }}">
+                                <span class="status-dot"></span>
+                                {{ s.get_status_display|default:s.status }}
+                            </span>
+                        </td>
+                        <td style="font-weight: 700;">{{ s.attempts }}</td>
+                        <td>
+                            {% if s.last_error %}
+                                <span class="error-snippet" title="{{ s.last_error }}">
+                                    {{ s.last_error|truncatechars:90 }}
+                                </span>
+                            {% else %}
+                                <span style="color: var(--text-faint);">&mdash;</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="row-actions">
+                                <form method="post"
+                                      action="{% url 'ict:system_status_retry' s.pk %}"
+                                      style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn-tiny danger"
+                                            onclick="return confirm('Re-arm this state for retry?');">
+                                        <i class="bi bi-arrow-repeat"></i> Retry
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ============================= HISTORY ============================= -->
+    <div class="panel-card">
+        <div class="panel-card-head">
+            <div class="panel-card-title">
+                <i class="bi bi-clock-history"></i>
+                Recent History
+                <span class="sub">(last 14 days)</span>
+            </div>
+        </div>
+
+        {% if history %}
+        <div class="panel-body-scroll">
+            <table class="table-custom">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Constituency</th>
+                        <th>Status</th>
+                        <th>Wards</th>
+                        <th>Sent At</th>
+                        <th>Hash</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in history %}
+                    <tr>
+                        <td>{{ s.report_date|date:"d M Y" }}</td>
+                        <td>{{ s.constituency.name }}</td>
+                        <td>
+                            <span class="status-pill {{ s.status }}">
+                                <span class="status-dot"></span>
+                                {{ s.get_status_display|default:s.status }}
+                            </span>
+                        </td>
+                        <td style="font-size: 12px; color: var(--text-muted);">
+                            {{ s.submitted_wards }}/{{ s.total_wards }}
+                        </td>
+                        <td style="font-size: 12px; color: var(--text-muted);">
+                            {% if s.sent_at %}
+                                {{ s.sent_at|date:"d M, H:i" }}
+                            {% else %}&mdash;{% endif %}
+                        </td>
+                        <td>
+                            {% if s.message_hash %}
+                                <span class="code-tag" title="{{ s.message_hash }}">
+                                    {{ s.message_hash|slice:":8" }}&hellip;
+                                </span>
+                            {% else %}&mdash;{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-dense">
+            <i class="bi bi-clock"></i>
+            No report history yet
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ---- Auto-refresh every 30s, but only pause when user interacts with a form ----
+    (function () {
+        const REFRESH_MS = 30000;
+        let userInteracting = false;
+
+        // Pause auto-refresh if the user has focused a form field or a modal is open
+        document.addEventListener("focusin", (e) => {
+            if (e.target.matches("input, select, textarea, button")) {
+                userInteracting = true;
+            }
+        });
+        document.addEventListener("focusout", () => {
+            userInteracting = false;
+        });
+
+        // Also pause while the tab is hidden — saves the server and the bot
+        let hidden = false;
+        document.addEventListener("visibilitychange", () => {
+            hidden = document.hidden;
+        });
+
+        setInterval(() => {
+            if (document.hidden) return;
+            if (userInteracting) return;
+            // Don't refresh if the user is mid-scroll on a long page? Optional.
+            window.location.reload();
+        }, REFRESH_MS);
+    })();
+
+    // ---- Confirm + POST for delete/retry buttons is handled inline ----
+</script>
+{% endblock %}

@@ -1,12 +1,35 @@
 import uuid
+from django.utils import timezone
 
 from django.contrib.auth.models import User
 from django.db import models
 
 
+class Constituency(models.Model):
+    name = models.CharField(max_length=150, unique=True)
+    code = models.CharField(max_length=20, unique=True, blank=True, null=True)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "Constituencies"
+
+    def __str__(self):
+        return self.name
+
+
 class Ward(models.Model):
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=20, unique=True, blank=True, null=True)
+    active = models.BooleanField(default=True)
+    constituency = models.ForeignKey(
+        Constituency,
+        on_delete=models.PROTECT,
+        related_name="wards",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         ordering = ["name"]
@@ -84,6 +107,7 @@ class Phase(models.Model):
     def __str__(self):
         return self.name
 
+
 class DailyKIEMSEntry(models.Model):
     ENTRY_TYPES = [
         ('VENUE', 'Venue Mapping Only'),
@@ -150,6 +174,16 @@ class WhatsAppGroup(models.Model):
     group_id = models.CharField(max_length=100, unique=True)
     name = models.CharField(max_length=200)
     is_active = models.BooleanField(default=True)
+
+    constituency = models.ForeignKey(
+        "Constituency",
+        on_delete=models.CASCADE,
+        related_name="whatsapp_groups",
+        null=True,
+        blank=True,
+        help_text="Leave blank for global/superadmin-only groups.",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -181,8 +215,6 @@ class WhatsAppSetting(models.Model):
         ordering = ['user__username']
 
 
-# models.py - Add these new models
-
 class Device(models.Model):
     """Registered devices for KIEMS system"""
     fingerprint = models.CharField(max_length=255, unique=True, db_index=True)
@@ -196,26 +228,31 @@ class Device(models.Model):
     timezone = models.CharField(max_length=50, blank=True)
 
     # Status
-    is_burned = models.BooleanField(default=False)  # Device is burned/authorized
+    # is_burned=True  → device is AUTHORIZED (burned-in token granted)
+    # is_burned=False → device is NOT AUTHORIZED
+    is_burned = models.BooleanField(
+        default=False,
+        help_text="True = authorized (burned-in). False = not authorized.",
+    )
     is_active = models.BooleanField(default=True)
-    burn_date = models.DateTimeField(null=True, blank=True)
-    burn_notes = models.TextField(blank=True)
+    burn_date = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the device was authorized (burned-in).",
+    )
+    burn_notes = models.TextField(
+        blank=True,
+        help_text="Notes recorded at authorization time.",
+    )
 
     # Associated VRA
     vra = models.ForeignKey(
-        'VRA',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='devices'
+        'VRA', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='devices',
     )
     # Associated Clerk
     clerk = models.ForeignKey(
-        'Clerk',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='devices'
+        'Clerk', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='devices',
     )
 
     # Timestamps
@@ -230,17 +267,29 @@ class Device(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.fingerprint[:12]}... ({'Burned' if self.is_burned else 'Unburned'})"
+        status = "Authorized" if self.is_burned else "Not Authorized"
+        return f"{self.fingerprint[:12]}... ({status})"
+
+    @property
+    def is_authorized(self):
+        """Readable alias for templates / views."""
+        return self.is_burned
 
 
 class DeviceBurnLog(models.Model):
-    """Log of device burning/unburning operations"""
-    device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='burn_logs')
+    """Audit log of device authorization / revocation operations."""
+    device = models.ForeignKey(
+        Device, on_delete=models.CASCADE, related_name='burn_logs'
+    )
     action = models.CharField(max_length=20, choices=[
-        ('BURN', 'Burn Device'),
-        ('UNBURN', 'Unburn Device'),
-        ('REVOKE', 'Revoke Access'),
-        ('RESTORE', 'Restore Access'),
+        # New, semantically-correct actions
+        ("AUTHORIZE",      "Authorized"),
+        ("REVOKE",         "Authorization Revoked"),
+        # Legacy values kept so old rows still render
+        ("BURN",           "Burned (legacy)"),
+        ("UNBURN",         "Unburned (legacy)"),
+        ("REVOKE_ACCESS",  "Access Revoked (legacy)"),
+        ("RESTORE",        "Access Restored (legacy)"),
     ])
     performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     notes = models.TextField(blank=True)
@@ -250,7 +299,9 @@ class DeviceBurnLog(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.device.fingerprint[:12]} - {self.action} by {self.performed_by}"
+        who = self.performed_by.username if self.performed_by else "system"
+        return f"{self.device.fingerprint[:12]} - {self.action} by {who}"
+
 
 class DailyReportLog(models.Model):
     """Records that the all-wards grand-total report was already sent for a
@@ -264,3 +315,142 @@ class DailyReportLog(models.Model):
 
     def __str__(self):
         return f"Daily report sent for {self.report_date} at {self.sent_at}"
+
+class AuditLog(models.Model):
+    ACTIONS = [
+        ("CREATE", "Create"),
+        ("UPDATE", "Update"),
+        ("DELETE", "Delete"),
+        ("LOGIN", "Login"),
+        ("LOGOUT", "Logout"),
+        ("BURN", "Burn Device"),
+        ("UNBURN", "Unburn Device"),
+        ("SUBMIT", "Submit"),
+        ("EDIT", "Edit"),
+    ]
+
+    actor = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="audit_logs"
+    )
+    constituency = models.ForeignKey(
+        Constituency, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="audit_logs",
+    )
+    action = models.CharField(max_length=20, choices=ACTIONS)
+    model_name = models.CharField(max_length=100, blank=True)   # e.g. "VRA", "KIEMSKit"
+    object_id = models.CharField(max_length=64, blank=True)
+    object_repr = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["constituency", "-created_at"]),
+            models.Index(fields=["actor", "-created_at"]),
+            models.Index(fields=["model_name", "object_id"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.created_at:%Y-%m-%d %H:%M}] {self.actor} {self.action} {self.model_name}#{self.object_id}"
+
+
+class DailyReportState(models.Model):
+    """
+    One row per (constituency, report_date).
+    This is the authoritative state machine that decides whether the
+    grand-total report should be built and sent for a given day.
+    """
+    STATUS_CHOICES = [
+        ("PENDING",  "Pending — wards still submitting"),
+        ("READY",    "Ready — all wards in, waiting to send"),
+        ("SENDING",  "Sending — locked by a worker"),
+        ("SENT",     "Sent — done"),
+        ("FAILED",   "Failed — will be retried"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    constituency = models.ForeignKey(
+        "Constituency", on_delete=models.CASCADE,
+        related_name="daily_report_states",
+    )
+    report_date = models.DateField()
+
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default="PENDING")
+
+    # Snapshot of what "submitted" looked like when we last evaluated
+    total_wards = models.PositiveIntegerField(default=0)
+    submitted_wards = models.PositiveIntegerField(default=0)
+
+    # When we transitioned to READY, and when we actually sent
+    ready_at = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    # Send metadata
+    message_hash = models.CharField(max_length=64, blank=True)  # SHA-256 of payload
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+
+    # Guards against a slow SENDER holding the row forever
+    locked_at = models.DateTimeField(null=True, blank=True)
+    locked_by = models.CharField(max_length=100, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["constituency", "report_date"],
+                name="unique_daily_report_per_constituency_day",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["status", "report_date"]),
+            models.Index(fields=["constituency", "-report_date"]),
+        ]
+        ordering = ["-report_date"]
+
+    def __str__(self):
+        return f"{self.constituency.name} {self.report_date} — {self.status}"
+
+    # ---- State machine transitions ----
+    def mark_ready(self):
+        """Called when all wards have submitted."""
+        if self.status in ("READY", "SENT", "SENDING"):
+            return False
+        self.status = "READY"
+        self.ready_at = timezone.now()
+        self.save(update_fields=["status", "ready_at", "updated_at"])
+        return True
+
+    def mark_pending(self):
+        """Called when a ward edits its numbers, invalidating an earlier READY."""
+        if self.status == "SENT":
+            # Do NOT un-send an already-sent report; it's a historical fact.
+            return False
+        if self.status in ("PENDING", "SENDING"):
+            return False
+        self.status = "PENDING"
+        self.ready_at = None
+        self.save(update_fields=["status", "ready_at", "updated_at"])
+        return True
+
+class CronHeartbeat(models.Model):
+    """
+    Records the last successful run of the daily-report cron tick.
+    One row per job name so we can track multiple cron jobs later.
+    """
+    name = models.CharField(max_length=100, unique=True)
+    last_run_at = models.DateTimeField(auto_now=True)
+    last_summary = models.JSONField(default=dict, blank=True)
+    total_runs = models.PositiveIntegerField(default=0)
+    consecutive_failures = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} @ {self.last_run_at:%Y-%m-%d %H:%M:%S}"

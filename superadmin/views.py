@@ -20,6 +20,8 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
+from django.db import models
+from ict.models import ICTOfficerProfile
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +40,11 @@ except ImportError:
 
 from home.models import (
     Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry, WhatsAppSetting, WhatsAppGroup, Device, DeviceBurnLog,
-    DailyReportLog
+    DailyReportLog, Constituency, AuditLog
 )
 from .forms import (
     WardForm, VRAForm, ClerkForm, KIEMSKitForm, PhaseForm,
-    DailyKIEMSEntryForm, DailyEntryFilterForm, ImportForm, VenueMappingForm
+    DailyKIEMSEntryForm, DailyEntryFilterForm, ImportForm, VenueMappingForm, ICTOfficerForm, ConstituencyForm
 )
 
 
@@ -254,9 +256,38 @@ def phase_delete(request, pk):
 @login_required
 @user_passes_test(is_superadmin)
 def ward_list(request):
-    """List all wards"""
-    wards = Ward.objects.all().order_by('name')
-    return render(request, 'superadmin/ward_list.html', {'wards': wards})
+    """List all wards, with constituency filter + search."""
+    wards = (
+        Ward.objects
+        .select_related("constituency")
+        .annotate(
+            vra_count=Count("vras", distinct=True),
+            clerk_count=Count("clerks", distinct=True),
+            kit_count=Count("kits", distinct=True),
+        )
+        .order_by("constituency__name", "name")
+    )
+
+    # Filters
+    q = request.GET.get("q", "").strip()
+    constituency_id = request.GET.get("constituency", "").strip()
+
+    if q:
+        wards = wards.filter(
+            Q(name__icontains=q) | Q(code__icontains=q)
+        )
+    if constituency_id:
+        wards = wards.filter(constituency_id=constituency_id)
+
+    context = {
+        "wards": wards,
+        "constituencies": Constituency.objects.all().order_by("name"),
+        "selected_constituency": constituency_id,
+        "q": q,
+        "total_count": Ward.objects.count(),
+        "filtered_count": wards.count(),
+    }
+    return render(request, "superadmin/ward_list.html", context)
 
 
 @login_required
@@ -3559,3 +3590,241 @@ def get_kit_details(request):
         return JsonResponse({'ward_id': kit.ward_id, 'ward_name': kit.ward.name})
     except KIEMSKit.DoesNotExist:
         return JsonResponse({'error': 'Kit not found'}, status=404)
+
+
+def _superadmin_required(view_func):
+    """Only allow superusers into the superadmin views."""
+    return user_passes_test(lambda u: u.is_active and u.is_superuser)(view_func)
+
+
+def _log(request, action, instance, description=""):
+    AuditLog.objects.create(
+        actor=request.user,
+        constituency=getattr(instance, "constituency", None),
+        action=action,
+        model_name="ICTOfficerProfile",
+        object_id=str(instance.pk),
+        object_repr=str(instance)[:255],
+        description=description,
+        ip_address=request.META.get("REMOTE_ADDR"),
+    )
+
+
+@_superadmin_required
+def ict_officer_list(request):
+    qs = (
+        ICTOfficerProfile.objects
+        .select_related("user", "constituency")
+        .order_by("constituency__name", "user__username")
+    )
+
+    # Optional filters
+    constituency_id = request.GET.get("constituency")
+    status = request.GET.get("status")
+    q = request.GET.get("q")
+
+    if constituency_id:
+        qs = qs.filter(constituency_id=constituency_id)
+    if status == "active":
+        qs = qs.filter(active=True)
+    elif status == "inactive":
+        qs = qs.filter(active=False)
+    if q:
+        qs = qs.filter(
+            models.Q(user__username__icontains=q)
+            | models.Q(user__first_name__icontains=q)
+            | models.Q(user__last_name__icontains=q)
+            | models.Q(user__email__icontains=q)
+        )
+
+    context = {
+        "officers": qs,
+        "constituencies": Constituency.objects.all().order_by("name"),
+        "selected_constituency": constituency_id,
+        "selected_status": status,
+        "q": q or "",
+    }
+    return render(request, "superadmin/ict_officers/list.html", context)
+
+
+@_superadmin_required
+def ict_officer_create(request):
+    if request.method == "POST":
+        form = ICTOfficerForm(request.POST)
+        if form.is_valid():
+            profile = form.save()
+            _log(request, "CREATE", profile,
+                 f"Created ICT officer {profile.user.username} for {profile.constituency.name}")
+            messages.success(
+                request,
+                f"ICT Officer '{profile.user.username}' created for {profile.constituency.name}."
+            )
+            return redirect("superadmin:ict_officer_list")
+    else:
+        form = ICTOfficerForm()
+    return render(request, "superadmin/ict_officers/form.html", {
+        "form": form, "mode": "create",
+    })
+
+
+@_superadmin_required
+def ict_officer_edit(request, pk):
+    profile = get_object_or_404(
+        ICTOfficerProfile.objects.select_related("user", "constituency"), pk=pk
+    )
+    if request.method == "POST":
+        form = ICTOfficerForm(request.POST, instance=profile)
+        if form.is_valid():
+            profile = form.save()
+            _log(request, "UPDATE", profile,
+                 f"Updated ICT officer {profile.user.username}")
+            messages.success(request, "ICT Officer updated.")
+            return redirect("superadmin:ict_officer_list")
+    else:
+        form = ICTOfficerForm(instance=profile)
+    return render(request, "superadmin/ict_officers/form.html", {
+        "form": form, "mode": "edit", "profile": profile,
+    })
+
+
+@_superadmin_required
+def ict_officer_toggle(request, pk):
+    profile = get_object_or_404(ICTOfficerProfile, pk=pk)
+    if request.method == "POST":
+        profile.active = not profile.active
+        profile.save(update_fields=["active"])
+        _log(request, "UPDATE", profile,
+             f"{'Activated' if profile.active else 'Deactivated'} ICT officer {profile.user.username}")
+        messages.success(
+            request,
+            f"ICT Officer {'activated' if profile.active else 'deactivated'}."
+        )
+    return redirect("superadmin:ict_officer_list")
+
+
+@_superadmin_required
+def ict_officer_delete(request, pk):
+    profile = get_object_or_404(ICTOfficerProfile, pk=pk)
+    if request.method == "POST":
+        username = profile.user.username
+        constituency = profile.constituency.name
+        user = profile.user
+        profile.delete()
+        user.delete()   # also removes the user account
+        AuditLog.objects.create(
+            actor=request.user,
+            action="DELETE",
+            model_name="ICTOfficerProfile",
+            object_id=str(pk),
+            object_repr=f"{username} @ {constituency}",
+            description=f"Deleted ICT officer {username}",
+            ip_address=request.META.get("REMOTE_ADDR"),
+        )
+        messages.success(request, f"ICT Officer '{username}' deleted.")
+    return redirect("superadmin:ict_officer_list")
+
+
+@_superadmin_required
+def constituency_list(request):
+    qs = Constituency.objects.annotate(
+        ward_count=Count("wards", distinct=True),
+        officer_count=Count("ict_officers", distinct=True),
+    ).order_by("name")
+
+    q = request.GET.get("q")
+    status = request.GET.get("status")
+    if q:
+        qs = qs.filter(Q(name__icontains=q) | Q(code__icontains=q))
+    if status == "active":
+        qs = qs.filter(active=True)
+    elif status == "inactive":
+        qs = qs.filter(active=False)
+
+    return render(request, "superadmin/constituencies/list.html", {
+        "constituencies": qs,
+        "q": q or "",
+        "status": status or "",
+        "total_count": Constituency.objects.count(),
+    })
+
+
+@_superadmin_required
+def constituency_create(request):
+    if request.method == "POST":
+        form = ConstituencyForm(request.POST)
+        if form.is_valid():
+            constituency = form.save()
+            _log(request, "CREATE", constituency,
+                 f"Created constituency {constituency.name}")
+            messages.success(request, f"Constituency '{constituency.name}' created.")
+            return redirect("superadmin:constituency_list")
+    else:
+        form = ConstituencyForm()
+    return render(request, "superadmin/constituencies/form.html", {
+        "form": form,
+        "title": "Add Constituency",
+    })
+
+
+@_superadmin_required
+def constituency_edit(request, pk):
+    constituency = get_object_or_404(Constituency, pk=pk)
+    if request.method == "POST":
+        form = ConstituencyForm(request.POST, instance=constituency)
+        if form.is_valid():
+            constituency = form.save()
+            _log(request, "UPDATE", constituency,
+                 f"Updated constituency {constituency.name}")
+            messages.success(request, "Constituency updated.")
+            return redirect("superadmin:constituency_list")
+    else:
+        form = ConstituencyForm(instance=constituency)
+    return render(request, "superadmin/constituencies/form.html", {
+        "form": form,
+        "title": "Edit Constituency",
+        "constituency": constituency,
+    })
+
+
+@_superadmin_required
+def constituency_toggle(request, pk):
+    constituency = get_object_or_404(Constituency, pk=pk)
+    if request.method == "POST":
+        constituency.active = not constituency.active
+        constituency.save(update_fields=["active"])
+        _log(request, "UPDATE", constituency,
+             f"{'Activated' if constituency.active else 'Deactivated'} {constituency.name}")
+        messages.success(
+            request,
+            f"Constituency {'activated' if constituency.active else 'deactivated'}."
+        )
+    return redirect("superadmin:constituency_list")
+
+
+@_superadmin_required
+def constituency_delete(request, pk):
+    constituency = get_object_or_404(Constituency, pk=pk)
+    if request.method == "POST":
+        # Safety: block deletion while wards still reference it
+        ward_count = Ward.objects.filter(constituency=constituency).count()
+        if ward_count:
+            messages.error(
+                request,
+                f"Cannot delete '{constituency.name}' — {ward_count} ward(s) still assigned. "
+                f"Reassign or delete them first."
+            )
+            return redirect("superadmin:constituency_list")
+
+        name = constituency.name
+        constituency.delete()
+        AuditLog.objects.create(
+            actor=request.user,
+            action="DELETE",
+            model_name="Constituency",
+            object_id=str(pk),
+            object_repr=name,
+            description=f"Deleted constituency {name}",
+            ip_address=request.META.get("REMOTE_ADDR"),
+        )
+        messages.success(request, f"Constituency '{name}' deleted.")
+    return redirect("superadmin:constituency_list")

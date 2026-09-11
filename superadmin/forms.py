@@ -1,19 +1,154 @@
 from django import forms
 from django.contrib.auth.models import User
-from home.models import (
-    Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry
-)
+from django.db import transaction
 
+from home.models import (
+    Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry, Constituency
+)
+from ict.models import ICTOfficerProfile
+
+
+class ICTOfficerForm(forms.Form):
+    # User fields
+    username = forms.CharField(
+        max_length=150,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "username"}),
+    )
+    first_name = forms.CharField(
+        max_length=150, required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    last_name = forms.CharField(
+        max_length=150, required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    email = forms.EmailField(
+        required=False,
+        widget=forms.EmailInput(attrs={"class": "form-control"}),
+    )
+    password = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(attrs={"class": "form-control"}),
+        help_text="Leave blank to keep current password (edit mode).",
+    )
+    confirm_password = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(attrs={"class": "form-control"}),
+    )
+
+    # Profile fields
+    constituency = forms.ModelChoiceField(
+        queryset=Constituency.objects.all().order_by("name"),
+        widget=forms.Select(attrs={"class": "form-control"}),
+    )
+    phone_number = forms.CharField(
+        max_length=20, required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "+254..."}),
+    )
+    active = forms.BooleanField(
+        required=False, initial=True,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        self.instance = instance  # ICTOfficerProfile or None
+        super().__init__(*args, **kwargs)
+        if instance:
+            u = instance.user
+            self.fields["username"].initial = u.username
+            self.fields["first_name"].initial = u.first_name
+            self.fields["last_name"].initial = u.last_name
+            self.fields["email"].initial = u.email
+            self.fields["constituency"].initial = instance.constituency
+            self.fields["phone_number"].initial = instance.phone_number
+            self.fields["active"].initial = instance.active
+            # Password optional on edit
+            self.fields["password"].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        pwd = cleaned.get("password")
+        confirm = cleaned.get("confirm_password")
+        if pwd or confirm:
+            if pwd != confirm:
+                raise forms.ValidationError("Passwords do not match.")
+            if len(pwd) < 6:
+                raise forms.ValidationError("Password must be at least 6 characters.")
+        if not self.instance and not pwd:
+            raise forms.ValidationError("Password is required when creating a new ICT officer.")
+        return cleaned
+
+    def clean_username(self):
+        username = self.cleaned_data["username"]
+        qs = User.objects.filter(username=username)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.user.pk)
+        if qs.exists():
+            raise forms.ValidationError("That username is already taken.")
+        return username
+
+    @transaction.atomic
+    def save(self):
+        data = self.cleaned_data
+        if self.instance:
+            user = self.instance.user
+            profile = self.instance
+        else:
+            user = User()
+            profile = ICTOfficerProfile(user=user)
+
+        user.username = data["username"]
+        user.first_name = data.get("first_name", "")
+        user.last_name = data.get("last_name", "")
+        user.email = data.get("email", "")
+        user.is_staff = False  # ICT officers are NOT Django staff
+        if data.get("password"):
+            user.set_password(data["password"])
+        user.save()
+
+        profile.user = user
+        profile.constituency = data["constituency"]
+        profile.phone_number = data.get("phone_number", "")
+        profile.active = data.get("active", True)
+        profile.save()
+        return profile
+
+
+class ConstituencyForm(forms.ModelForm):
+    class Meta:
+        model = Constituency
+        fields = ["name", "code", "active"]
+        widgets = {
+            "name": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "e.g. Starehe",
+                "autocomplete": "off",
+            }),
+            "code": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "e.g. 001 (optional)",
+                "autocomplete": "off",
+            }),
+        }
+        labels = {
+            "name": "Constituency Name",
+            "code": "Constituency Code",
+            "active": "Active",
+        }
+        help_texts = {
+            "code": "Optional. Must be unique if provided.",
+            "active": "Inactive constituencies are hidden from operational dashboards.",
+        }
 
 class WardForm(forms.ModelForm):
     class Meta:
         model = Ward
-        fields = ['name', 'code']
+        fields = ["name", "code", "constituency"]   # <-- add here
         widgets = {
-            'name': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Enter ward name'}),
-            'code': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Enter ward code'}),
+            "name": forms.TextInput(attrs={"class": "form-input"}),
+            "code": forms.TextInput(attrs={"class": "form-input"}),
+            "constituency": forms.Select(attrs={"class": "form-input"}),
         }
-
 
 class VRAForm(forms.ModelForm):
     class Meta:

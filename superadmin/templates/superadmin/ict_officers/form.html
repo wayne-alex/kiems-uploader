@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+
+</body>
+{% extends "superadmin/base.html" %}
+{% block title %}{% if mode == 'edit' %}Edit ICT Officer{% else %}Add ICT Officer{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+    }
+    .page-header h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
+    .page-header p { font-size: 13px; color: #8e8e93; margin-top: 2px; }
+
+    .btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 9px 16px; border-radius: 8px; font-size: 14px;
+        font-weight: 600; text-decoration: none; border: none;
+        cursor: pointer; transition: all 0.2s ease;
+    }
+    .btn-primary { background: #2e7d32; color: #fff; }
+    .btn-primary:hover { background: #1b5e20; }
+    .btn-outline { background: #fff; border: 0.5px solid #c6c6c8; color: #3a3a3c; }
+    .btn-outline:hover { background: #f2f2f7; }
+
+    .form-card {
+        background: #fff; border-radius: 14px; padding: 26px;
+        max-width: 720px; border: 0.5px solid rgba(0,0,0,0.05);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .form-section {
+        font-size: 12px; font-weight: 700; text-transform: uppercase;
+        color: #8e8e93; letter-spacing: 0.5px; margin: 6px 0 12px;
+        padding-bottom: 6px; border-bottom: 0.5px solid #f0f0f2;
+    }
+    .form-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+
+    .form-row { margin-bottom: 16px; }
+    .form-row label {
+        display: block; font-size: 13px; font-weight: 600;
+        margin-bottom: 6px; color: #3a3a3c;
+    }
+    .form-row .help { font-size: 12px; color: #8e8e93; margin-top: 4px; }
+    .form-control {
+        width: 100%; padding: 10px 12px; border-radius: 8px;
+        border: 0.5px solid #c6c6c8; font-size: 14px;
+        background: #fff; font-family: inherit;
+    }
+    .form-control:focus {
+        outline: none; border-color: #90EE90;
+        box-shadow: 0 0 0 3px rgba(144,238,144,0.25);
+    }
+    .errorlist {
+        list-style: none; color: #c62828; font-size: 12px; margin-top: 4px;
+    }
+    .form-actions {
+        display: flex; gap: 10px; margin-top: 22px; padding-top: 18px;
+        border-top: 0.5px solid #f0f0f2;
+    }
+    .form-check {
+        display: flex; align-items: center; gap: 8px;
+        margin-top: 6px;
+    }
+    .form-check input { width: 18px; height: 18px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2>{% if mode == 'edit' %}Edit ICT Officer{% else %}Add ICT Officer{% endif %}</h2>
+        <p>An ICT officer is scoped to exactly one constituency</p>
+    </div>
+    <a href="{% url 'superadmin:ict_officer_list' %}" class="btn btn-outline">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<form method="post" class="form-card" autocomplete="off">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+        <div class="errorlist" style="margin-bottom:14px;">
+            {% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="form-section">Account Details</div>
+    <div class="form-grid">
+        <div class="form-row">
+            <label for="{{ form.username.id_for_label }}">Username *</label>
+            {{ form.username }}
+            {{ form.username.errors }}
+        </div>
+        <div class="form-row">
+            <label for="{{ form.email.id_for_label }}">Email</label>
+            {{ form.email }}
+            {{ form.email.errors }}
+        </div>
+        <div class="form-row">
+            <label for="{{ form.first_name.id_for_label }}">First Name</label>
+            {{ form.first_name }}
+            {{ form.first_name.errors }}
+        </div>
+        <div class="form-row">
+            <label for="{{ form.last_name.id_for_label }}">Last Name</label>
+            {{ form.last_name }}
+            {{ form.last_name.errors }}
+        </div>
+        <div class="form-row">
+            <label for="{{ form.password.id_for_label }}">
+                Password {% if mode == 'create' %}*{% endif %}
+            </label>
+            {{ form.password }}
+            <div class="help">{{ form.password.help_text }}</div>
+            {{ form.password.errors }}
+        </div>
+        <div class="form-row">
+            <label for="{{ form.confirm_password.id_for_label }}">Confirm Password</label>
+            {{ form.confirm_password }}
+            {{ form.confirm_password.errors }}
+        </div>
+    </div>
+
+    <div class="form-section" style="margin-top:22px;">Assignment</div>
+    <div class="form-grid">
+        <div class="form-row">
+            <label for="{{ form.constituency.id_for_label }}">Constituency *</label>
+            {{ form.constituency }}
+            {{ form.constituency.errors }}
+        </div>
+        <div class="form-row">
+            <label for="{{ form.phone_number.id_for_label }}">Phone Number</label>
+            {{ form.phone_number }}
+            {{ form.phone_number.errors }}
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="form-check">
+            {{ form.active }}
+            <label for="{{ form.active.id_for_label }}" style="margin:0;">Active (can log in)</label>
+        </div>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i>
+            {% if mode == 'edit' %}Save Changes{% else %}Create ICT Officer{% endif %}
+        </button>
+        <a href="{% url 'superadmin:ict_officer_list' %}" class="btn btn-outline">Cancel</a>
+    </div>
+</form>
+{% endblock %}

@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -303,7 +304,7 @@
 
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
-            <img src="https://cvr.iebc.or.ke/images/logoiebc.png" alt="IEBC Logo">
+            <img src="{% static 'logo.png' %}" alt="IEBC Logo">
             <div class="brand-text">
                 <h1>KIEMS Portal</h1>
                 <p>SuperAdmin Command</p>
@@ -332,6 +333,16 @@
                     Phases
                 </a>
             </li>
+            <li class="menu-item {% if 'constituenc' in request.path %}active{% endif %}">
+    <a href="{% url 'superadmin:constituency_list' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 21h18"/>
+            <path d="M5 21V7l7-4 7 4v14"/>
+            <path d="M9 21v-6h6v6"/>
+        </svg>
+        Constituencies
+    </a>
+</li>
             <li class="menu-item {% if 'ward' in request.path %}active{% endif %}">
                 <a href="{% url 'superadmin:ward_list' %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -353,6 +364,14 @@
                     Staff
                 </a>
             </li>
+            <li class="menu-item {% if 'ict-officer' in request.path %}active{% endif %}">
+    <a href="{% url 'superadmin:ict_officer_list' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/>
+        </svg>
+        ICT Officers
+    </a>
+</li>
             <li class="menu-item {% if 'kit' in request.path %}active{% endif %}">
                 <a href="{% url 'superadmin:kit_list' %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

@@ -1,0 +1,416 @@
+{% extends "ict/base.html" %}
+
+{% block title %}Devices &mdash; {{ constituency.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .device-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    /* Top Action Bar */
+    .device-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .device-title h2 {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+        color: var(--text);
+        line-height: 1.2;
+    }
+
+    .device-title p {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 500;
+        margin-top: 2px;
+    }
+
+    /* Summary Pills */
+    .summary-pills {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .summary-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 11px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+    }
+
+    .summary-pill strong {
+        color: var(--text);
+        font-weight: 700;
+    }
+
+    .summary-pill.authorized {
+        background: var(--success-soft, #ecfdf5);
+        border-color: rgba(16, 185, 129, 0.25);
+        color: var(--success, #059669);
+    }
+
+    .summary-pill.authorized strong {
+        color: var(--success, #059669);
+    }
+
+    .summary-pill.unauthorized {
+        background: var(--surface-alt);
+        border-color: var(--border);
+        color: var(--text-muted);
+    }
+
+    /* Filter Controls */
+    .filter-select {
+        padding: 6px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-strong);
+        font-size: 12.5px;
+        background: var(--surface);
+        color: var(--text);
+        outline: none;
+        cursor: pointer;
+        font-weight: 500;
+        transition: border-color 0.15s ease;
+    }
+
+    .filter-select:focus {
+        border-color: var(--primary);
+    }
+
+    /* Panel Card Wrap */
+    .panel-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        overflow: hidden;
+    }
+
+    /* Custom Table Styling */
+    .table-custom {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+    }
+
+    .table-custom th {
+        text-align: left;
+        padding: 9px 14px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        background: var(--surface-alt);
+        border-bottom: 1px solid var(--border);
+    }
+
+    .table-custom td {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text);
+        vertical-align: middle;
+    }
+
+    .table-custom tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .table-custom tbody tr:hover td {
+        background: var(--primary-soft);
+    }
+
+    .code-tag {
+        font-family: monospace;
+        font-size: 11px;
+        background: var(--surface-alt);
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+    }
+
+    /* Status Pill Badges */
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 9px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .status-pill.authorized {
+        background: var(--success-soft, #ecfdf5);
+        color: var(--success, #059669);
+    }
+
+    .status-pill.unauthorized {
+        background: var(--surface-alt);
+        color: var(--text-muted);
+        border: 1px solid var(--border);
+    }
+
+    .status-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    /* Assigned-To Pills */
+    .assigned-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+    }
+
+    .assigned-pill .role-tag {
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 1px 6px;
+        border-radius: 4px;
+    }
+
+    .assigned-pill.vra .role-tag {
+        background: rgba(59, 130, 246, 0.12);
+        color: #2563eb;
+    }
+
+    .assigned-pill.clerk .role-tag {
+        background: rgba(139, 92, 246, 0.12);
+        color: #7c3aed;
+    }
+
+    /* Action Buttons */
+    .action-group {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        justify-content: flex-end;
+    }
+
+    .action-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: var(--radius-sm);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        color: var(--text-muted);
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+    .action-btn:hover {
+        background: var(--primary-soft);
+        color: var(--primary);
+    }
+
+    .action-btn.danger:hover {
+        background: var(--danger-soft, #fef2f2);
+        color: var(--danger, #dc2626);
+    }
+
+    .action-btn.success:hover {
+        background: var(--success-soft, #ecfdf5);
+        color: var(--success, #059669);
+    }
+
+    .empty-dense {
+        text-align: center;
+        padding: 32px 16px;
+        color: var(--text-muted);
+        font-size: 12.5px;
+    }
+
+    .empty-dense i {
+        font-size: 28px;
+        display: block;
+        margin-bottom: 6px;
+        opacity: 0.4;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="device-container">
+
+    <!-- Header -->
+    <div class="device-header">
+        <div class="device-title">
+            <h2>Devices</h2>
+            <p>Registered device hardware in {{ constituency.name }}</p>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <!-- Summary pills -->
+            <div class="summary-pills">
+                <span class="summary-pill">
+                    Total <strong>{{ devices.count }}</strong>
+                </span>
+                <span class="summary-pill authorized">
+                    Authorized <strong>{{ authorized_count|default:0 }}</strong>
+                </span>
+                <span class="summary-pill unauthorized">
+                    Not Authorized <strong>{{ unauthorized_count|default:0 }}</strong>
+                </span>
+            </div>
+
+            <!-- Status filter -->
+            <form method="get" style="display: flex; gap: 8px;">
+                <select name="status" class="filter-select" onchange="this.form.submit()">
+                    <option value="">All devices</option>
+                    <option value="authorized" {% if status == 'authorized' %}selected{% endif %}>Authorized</option>
+                    <option value="unauthorized" {% if status == 'unauthorized' %}selected{% endif %}>Not Authorized</option>
+                </select>
+            </form>
+        </div>
+    </div>
+
+    <!-- Table Container -->
+    <div class="panel-card">
+        <div class="table-wrap">
+            {% if devices %}
+            <table class="data-table table-custom">
+                <thead>
+                    <tr>
+                        <th>Fingerprint</th>
+                        <th>Assigned To</th>
+                        <th>Platform</th>
+                        <th>Authorization</th>
+                        <th>Last Seen</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in devices %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'ict:device_detail' d.pk %}"
+                               class="code-tag"
+                               style="text-decoration: none;"
+                               title="{{ d.fingerprint }}">
+                                {{ d.fingerprint|truncatechars:20 }}
+                            </a>
+                        </td>
+
+                        <td>
+                            {% if d.vra %}
+                                <span class="assigned-pill vra">
+                                    <span class="role-tag">VRA</span>
+                                    {{ d.vra.name }}
+                                </span>
+                            {% elif d.clerk %}
+                                <span class="assigned-pill clerk">
+                                    <span class="role-tag">Clerk</span>
+                                    {{ d.clerk.name }}
+                                </span>
+                            {% else %}
+                                <span style="color: var(--text-muted); font-size: 12px;">Unassigned</span>
+                            {% endif %}
+                        </td>
+
+                        <td>{{ d.platform|default:"—" }}</td>
+
+                        <td>
+                            {% if d.is_burned %}
+                                <span class="status-pill authorized">
+                                    <span class="status-dot"></span> Authorized
+                                </span>
+                            {% else %}
+                                <span class="status-pill unauthorized">
+                                    <span class="status-dot"></span> Not Authorized
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td style="font-size: 12px; color: var(--text-muted);">
+                            {{ d.last_seen|date:"M d, H:i" }}
+                        </td>
+
+                        <td style="text-align: right;">
+    <div class="action-btns action-group">
+        <a href="{% url 'ict:device_detail' d.pk %}"
+           class="action-btn"
+           title="View Details">
+            <i class="bi bi-eye"></i>
+        </a>
+
+        {% if d.is_burned %}
+            <form method="post"
+                  action="{% url 'ict:device_revoke' d.pk %}"
+                  style="display:inline;"
+                  onsubmit="return confirm('Revoke authorization for this device?');">
+                {% csrf_token %}
+                <button type="submit"
+                        class="action-btn danger"
+                        title="Revoke Authorization">
+                    <i class="bi bi-shield-x"></i>
+                </button>
+            </form>
+        {% else %}
+            <form method="post"
+                  action="{% url 'ict:device_authorize' d.pk %}"
+                  style="display:inline;"
+                  onsubmit="return confirm('Authorize this device?');">
+                {% csrf_token %}
+                <button type="submit"
+                        class="action-btn success"
+                        title="Authorize Device">
+                    <i class="bi bi-shield-check"></i>
+                </button>
+            </form>
+        {% endif %}
+
+        <form method="post"
+              action="{% url 'ict:device_delete' d.pk %}"
+              style="display:inline;"
+              onsubmit="return confirm('Permanently delete device {{ d.fingerprint|slice:':12'|escapejs }}…? This cannot be undone.');">
+            {% csrf_token %}
+            <button type="submit"
+                    class="action-btn danger"
+                    title="Delete Device">
+                <i class="bi bi-trash"></i>
+            </button>
+        </form>
+    </div>
+</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-dense">
+                <i class="bi bi-phone"></i>
+                <p>No registered devices found matching criteria</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>System Health Report — {{ report_date_iso }}</title>
+<style>
+    * { box-sizing: border-box; }
+    :root {
+        --green: #2E7D32;
+        --green-dark: #1B5E20;
+        --green-tint: #E8F5E9;
+        --ink: #1c1c1e;
+        --muted: #6b7280;
+        --faint: #9ca3af;
+        --border: #e5e7eb;
+        --bg-soft: #f8f9fb;
+        --danger: #c62828;
+        --danger-tint: #fdecea;
+        --warning: #b5750a;
+        --warning-tint: #fdf4e3;
+        --info: #1565c0;
+        --info-tint: #e3f2fd;
+        --purple: #6b21a8;
+        --purple-tint: #f2edfe;
+        --success: #1f9d55;
+        --success-tint: #e7f7ee;
+    }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        padding: 40px; margin: 0;
+        color: var(--ink); background: #fff;
+        font-size: 12.5px; line-height: 1.5;
+    }
+
+    /* ---------- Letterhead ---------- */
+    .letterhead {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 20px; padding-bottom: 16px;
+        border-bottom: 3px solid var(--green);
+        margin-bottom: 4px;
+    }
+    .letterhead-brand { display: flex; align-items: center; gap: 14px; }
+    .letterhead-brand img { height: 54px; width: 54px; object-fit: contain; }
+    .letterhead-brand .org-name {
+        font-size: 14.5px; font-weight: 700;
+        color: var(--green-dark); letter-spacing: 0.2px;
+        text-transform: uppercase; line-height: 1.3;
+    }
+    .letterhead-brand .org-tagline {
+        font-size: 10.5px; color: var(--muted); margin-top: 2px;
+    }
+    .letterhead-meta {
+        text-align: right; font-size: 10.5px; color: var(--muted);
+    }
+    .letterhead-meta .doc-tag {
+        display: inline-block;
+        background: var(--green-tint); color: var(--green-dark);
+        font-weight: 700; font-size: 9.5px;
+        letter-spacing: 0.5px; text-transform: uppercase;
+        padding: 3px 8px; border-radius: 4px; margin-bottom: 4px;
+    }
+
+    /* ---------- Title ---------- */
+    .report-title { text-align: center; margin: 20px 0 22px; }
+    .report-title h1 {
+        font-size: 19px; color: var(--ink);
+        letter-spacing: -0.2px; margin-bottom: 4px;
+    }
+    .report-title .subtitle {
+        color: var(--muted); font-size: 11.5px;
+    }
+
+    /* ---------- Meta strip ---------- */
+    .meta-strip {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+    .meta-box {
+        background: var(--bg-soft); border: 1px solid var(--border);
+        border-radius: 8px; padding: 10px 12px;
+        text-align: center;
+    }
+    .meta-box .k {
+        font-size: 10px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.4px;
+        color: var(--muted); margin-bottom: 3px;
+    }
+    .meta-box .v {
+        font-size: 15px; font-weight: 700; color: var(--ink);
+    }
+    .meta-box.ok .v { color: var(--success); }
+    .meta-box.bad .v { color: var(--danger); }
+
+    /* ---------- Sections ---------- */
+    .section { margin-top: 22px; }
+    .section h2 {
+        font-size: 13px; color: var(--green-dark);
+        margin-bottom: 8px; padding-bottom: 5px;
+        border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; gap: 8px;
+        text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .section h2::before {
+        content: ""; width: 4px; height: 13px;
+        background: var(--green); border-radius: 2px;
+    }
+    .section h2 .count {
+        background: var(--bg-soft); color: var(--muted);
+        font-size: 10.5px; padding: 1px 7px;
+        border-radius: 8px; font-weight: 600;
+        letter-spacing: 0;
+    }
+
+    /* ---------- Tables ---------- */
+    table {
+        width: 100%; border-collapse: collapse;
+        font-size: 11px; margin-bottom: 8px;
+        border-radius: 6px; overflow: hidden;
+    }
+    th {
+        background: var(--green); color: #fff;
+        padding: 7px 9px; text-align: left;
+        font-weight: 600; font-size: 10px;
+        text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    td {
+        padding: 6px 9px; border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+    }
+    tr:nth-child(even) td { background: var(--bg-soft); }
+    tr:last-child td { border-bottom: none; }
+
+    /* ---------- Status pills ---------- */
+    .pill {
+        display: inline-block;
+        padding: 1px 8px; border-radius: 10px;
+        font-size: 9.5px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .pill.pending     { background: var(--warning-tint); color: var(--warning); }
+    .pill.ready       { background: var(--info-tint);    color: var(--info); }
+    .pill.sending     { background: var(--purple-tint);  color: var(--purple); }
+    .pill.sent        { background: var(--success-tint); color: var(--success); }
+    .pill.failed      { background: var(--danger-tint);  color: var(--danger); }
+    .pill.no_activity { background: var(--bg-soft);      color: var(--muted); }
+
+    /* ---------- Progress bars ---------- */
+    .progress {
+        display: inline-block; vertical-align: middle;
+        width: 78px; height: 5px;
+        background: var(--border); border-radius: 3px;
+        overflow: hidden; margin-right: 5px;
+    }
+    .progress span {
+        display: block; height: 100%;
+        background: var(--green); border-radius: 3px;
+    }
+    .progress.warn span { background: var(--warning); }
+    .progress.bad span  { background: var(--danger); }
+
+    /* ---------- Footer ---------- */
+    .footer {
+        margin-top: 30px; padding-top: 12px;
+        border-top: 1px solid var(--border);
+        font-size: 9.5px; color: var(--muted);
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .footer .confidential {
+        font-weight: 600; letter-spacing: 0.3px;
+        text-transform: uppercase; color: var(--faint);
+    }
+
+    @media print {
+        body { padding: 18px; }
+        th { background: var(--green) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .pill, .meta-box, .progress span { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+</style>
+</head>
+<body>
+
+<!-- ============================ LETTERHEAD ============================ -->
+<div class="letterhead">
+    <div class="letterhead-brand">
+        <img src="{{ brand_logo_url|default:'https://verify.iebc.or.ke/images/1.png' }}" alt="IEBC">
+        <div>
+            <div class="org-name">Independent Electoral and<br>Boundaries Commission</div>
+            <div class="org-tagline">KIEMS System &bull; Reporting Pipeline Health</div>
+        </div>
+    </div>
+    <div class="letterhead-meta">
+        <span class="doc-tag">Internal Report</span><br>
+        {{ generated_at }}
+    </div>
+</div>
+
+<!-- ============================ TITLE ============================ -->
+<div class="report-title">
+    <h1>System Health Report</h1>
+    <div class="subtitle">
+        Scope: {{ scope_label }} &bull; Reporting date: {{ report_date|date:"d M Y" }}
+        {% if active_phase %} &bull; Phase: {{ active_phase.name }}{% endif %}
+    </div>
+</div>
+
+<!-- ============================ META STRIP ============================ -->
+<div class="meta-strip">
+    <div class="meta-box">
+        <div class="k">Constituencies</div>
+        <div class="v">{{ totals.constituencies }}</div>
+    </div>
+    <div class="meta-box">
+        <div class="k">Active Wards</div>
+        <div class="v">{{ totals.wards }}</div>
+    </div>
+    <div class="meta-box">
+        <div class="k">Active Kits</div>
+        <div class="v">{{ totals.kits }}</div>
+    </div>
+    <div class="meta-box {% if bot_online %}ok{% else %}bad{% endif %}">
+        <div class="k">WhatsApp Bot</div>
+        <div class="v">{% if bot_online %}Online{% else %}Offline{% endif %}</div>
+    </div>
+</div>
+
+<!-- ============================ TODAY'S STATUS COUNTS ============================ -->
+<div class="section">
+    <h2>Today's Report Pipeline</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Pending</th>
+                <th>Ready</th>
+                <th>Sending</th>
+                <th>Sent</th>
+                <th>Failed</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>{{ counts.pending }}</strong></td>
+                <td><strong>{{ counts.ready }}</strong></td>
+                <td><strong>{{ counts.sending }}</strong></td>
+                <td><strong>{{ counts.sent }}</strong></td>
+                <td><strong>{{ counts.failed }}</strong></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- ============================ TODAY'S GRID ============================ -->
+<div class="section">
+    <h2>Per-Constituency Status <span class="count">{{ today_rows|length }}</span></h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Constituency</th>
+                <th>Wards</th>
+                <th>Kits</th>
+                <th>Status</th>
+                <th>Ready At</th>
+                <th>Sent At</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in today_rows %}
+            <tr>
+                <td><strong>{{ row.constituency.name }}</strong></td>
+
+                <!-- Wards progress -->
+                <td>
+                    <span class="progress {% if row.ward_pct >= 100 %}{% elif row.ward_pct < 50 %}warn{% endif %}">
+                        <span style="width: {{ row.ward_pct }}%;"></span>
+                    </span>
+                    {{ row.submitted_wards }}/{{ row.total_wards }}
+                </td>
+
+                <!-- Kits progress -->
+                <td>
+                    {% if row.total_kits %}
+                        <span class="progress {% if row.kit_pct >= 100 %}{% elif row.kit_pct < 50 %}warn{% endif %}">
+                            <span style="width: {{ row.kit_pct }}%;"></span>
+                        </span>
+                        {{ row.submitted_kits }}/{{ row.total_kits }}
+                    {% else %}
+                        &mdash;
+                    {% endif %}
+                </td>
+
+                <td>
+                    <span class="pill {{ row.status|lower }}">{{ row.status_label }}</span>
+                </td>
+
+                <td style="color: var(--muted);">
+                    {% if row.ready_at %}{{ row.ready_at|date:"H:i:s" }}{% else %}&mdash;{% endif %}
+                </td>
+                <td style="color: var(--muted);">
+                    {% if row.sent_at %}{{ row.sent_at|date:"H:i:s" }}{% else %}&mdash;{% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" style="text-align:center;color:var(--muted);">No data</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ============================ PROBLEM STATES ============================ -->
+{% if problem_states %}
+<div class="section">
+    <h2>Attention Required <span class="count">{{ problem_states|length }}</span></h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Constituency</th>
+                <th>Status</th>
+                <th style="text-align:center;">Attempts</th>
+                <th>Last Error</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in problem_states %}
+            <tr>
+                <td><strong>{{ s.report_date|date:"d M Y" }}</strong></td>
+                <td>{{ s.constituency.name }}</td>
+                <td><span class="pill {{ s.status|lower }}">{{ s.get_status_display|default:s.status }}</span></td>
+                <td style="text-align:center;">{{ s.attempts }}</td>
+                <td style="color: var(--muted); font-size: 10.5px;">
+                    {{ s.last_error|default:"—"|truncatechars:90 }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- ============================ RECENTLY SENT ============================ -->
+<div class="section">
+    <h2>Recently Sent (Last 14 Days) <span class="count">{{ sent_recent|length }}</span></h2>
+    {% if sent_recent %}
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Constituency</th>
+                <th>Wards</th>
+                <th>Sent At</th>
+                <th>Message Hash</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in sent_recent %}
+            <tr>
+                <td>{{ s.report_date|date:"d M Y" }}</td>
+                <td>{{ s.constituency.name }}</td>
+                <td>{{ s.submitted_wards }}/{{ s.total_wards }}</td>
+                <td style="color: var(--muted);">
+                    {% if s.sent_at %}{{ s.sent_at|date:"d M, H:i" }}{% else %}&mdash;{% endif %}
+                </td>
+                <td style="font-family: monospace; font-size: 10px; color: var(--muted);">
+                    {% if s.message_hash %}{{ s.message_hash|slice:":12" }}&hellip;{% else %}&mdash;{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--muted); font-size: 11px;">No reports sent in the last 14 days.</p>
+    {% endif %}
+</div>
+
+<!-- ============================ FOOTER ============================ -->
+<div class="footer">
+    <span>IEBC &bull; {{ scope_label }} &bull; Generated {{ generated_at }}</span>
+    <span class="confidential">Confidential &mdash; Internal Use Only</span>
+</div>
+
+</body>
+</html>
