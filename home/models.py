@@ -170,7 +170,11 @@ class DailyKIEMSEntry(models.Model):
 # ==================== WHATSAPP MODELS ====================
 
 class WhatsAppGroup(models.Model):
-    """WhatsApp Groups configuration"""
+    """
+    WhatsApp group. Every group is scoped to exactly one constituency,
+    or explicitly marked as global (constituency=NULL) for cross-cutting
+    broadcasts (e.g. a national ops channel).
+    """
     group_id = models.CharField(max_length=100, unique=True)
     name = models.CharField(max_length=200)
     is_active = models.BooleanField(default=True)
@@ -181,18 +185,30 @@ class WhatsAppGroup(models.Model):
         related_name="whatsapp_groups",
         null=True,
         blank=True,
-        help_text="Leave blank for global/superadmin-only groups.",
+        help_text=(
+            "Constituency this group belongs to. "
+            "Leave blank ONLY for genuinely global groups "
+            "(national ops, superadmin broadcasts)."
+        ),
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
-        return f"{self.name} ({self.group_id})"
-
     class Meta:
-        ordering = ['name']
+        ordering = ['constituency__name', 'name']
+        constraints = [
+            # A constituency cannot have two groups with the same name.
+            # (Group IDs are globally unique already.)
+            models.UniqueConstraint(
+                fields=["constituency", "name"],
+                name="unique_group_name_per_constituency",
+            ),
+        ]
 
+    def __str__(self):
+        scope = self.constituency.name if self.constituency else "GLOBAL"
+        return f"[{scope}] {self.name}"
 
 class WhatsAppSetting(models.Model):
     """User settings for WhatsApp"""

@@ -14,26 +14,33 @@ from .models import (
     Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry,
     Device, WhatsAppSetting, WhatsAppGroup, Constituency
 )
+from .services.whatsapp import send_to_constituency, get_group_for_constituency
 
 
 # ==================== WHATSAPP HELPER FUNCTIONS ====================
 
-def get_whatsapp_group_for_vra(vra):
-    """Get WhatsApp group for VRA submissions"""
-    try:
-        from django.contrib.auth.models import User
-        admin_user = User.objects.filter(is_superuser=True).first()
-        if admin_user:
-            setting = WhatsAppSetting.objects.filter(user=admin_user).first()
-            if setting and setting.default_group and setting.default_group.is_active:
-                return setting.default_group.group_id
 
-        group = WhatsAppGroup.objects.filter(is_active=True).first()
-        if group:
-            return group.group_id
-    except Exception as e:
-        print(f"WhatsApp group error: {str(e)}")
-    return None
+def get_whatsapp_group_for_vra(vra):
+    """Kept for backward compatibility — resolves via the VRA's ward constituency."""
+    if not vra or not vra.ward or not vra.ward.constituency_id:
+        return None
+    group = get_group_for_constituency(vra.ward.constituency)
+    return group.group_id if group else None
+
+
+def send_whatsapp_message_from_vra(message, vra):
+    """Route a VRA message to their constituency's group. Never raises."""
+    if not vra or not vra.ward or not vra.ward.constituency_id:
+        print(f"[whatsapp] VRA '{vra}' has no constituency — message dropped")
+        return False
+
+    ok, err, group_id = send_to_constituency(vra.ward.constituency, message)
+    if not ok:
+        print(
+            f"[whatsapp] Send failed for {vra.ward.constituency.name} "
+            f"(group: {group_id}): {err}"
+        )
+    return ok
 
 
 def get_whatsapp_settings():
@@ -62,24 +69,7 @@ def get_whatsapp_settings():
         return None
 
 
-def send_whatsapp_message_from_vra(message, vra):
-    """Send WhatsApp message from VRA submission"""
-    try:
-        group_id = get_whatsapp_group_for_vra(vra)
-        if not group_id:
-            return False
 
-        bot_url = getattr(settings, 'WHATSAPP_BOT_URL', 'http://localhost:3000')
-        response = requests.post(
-            f"{bot_url}/send",
-            json={'groupId': group_id, 'message': message},
-            timeout=10,
-            headers={'Content-Type': 'application/json'}
-        )
-        return response.status_code == 200
-    except Exception as e:
-        print(f"WhatsApp error: {str(e)}")
-        return False
 
 
 def format_vra_submission_message(entry, is_update=False):

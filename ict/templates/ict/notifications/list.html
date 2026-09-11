@@ -1,114 +1,192 @@
 {% extends "ict/base.html" %}
+
 {% block title %}Notifications &mdash; {{ constituency.name }}{% endblock %}
 
 {% block extra_css %}
 <style>
     .notif-container { display: flex; flex-direction: column; gap: 20px; }
 
+    /* ---------- Status Banner ---------- */
     .status-banner {
-        background: #fff; border: 1px solid rgba(0,0,0,0.06);
-        border-radius: 14px; padding: 20px 24px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 18px 22px;
         display: flex; align-items: center; justify-content: space-between;
         gap: 16px; flex-wrap: wrap;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        box-shadow: var(--shadow-xs);
     }
     .bot-status-card { display: flex; align-items: center; gap: 16px; }
     .bot-icon-wrapper {
         width: 48px; height: 48px; border-radius: 12px;
-        background: #dcfce7; color: #16a34a;
+        background: var(--success-soft); color: var(--success);
         display: flex; align-items: center; justify-content: center;
         font-size: 24px; flex-shrink: 0;
     }
-    .bot-icon-wrapper.offline { background: #fee2e2; color: #dc2626; }
-    .bot-info h3 { font-size: 16px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; }
-    .bot-info p { font-size: 12px; color: #8e8e93; margin: 3px 0 0 0; }
+    .bot-icon-wrapper.offline {
+        background: var(--danger-soft); color: var(--danger);
+    }
+    .bot-info h3 {
+        font-size: 15.5px; font-weight: 700; margin: 0;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .bot-info p {
+        font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;
+    }
 
     .live-dot {
         width: 8px; height: 8px; border-radius: 50%;
-        background-color: #22c55e; display: inline-block;
-        box-shadow: 0 0 0 0 rgba(34,197,94,0.7);
+        background-color: var(--success);
+        box-shadow: 0 0 0 0 rgba(31,157,85,0.7);
+        display: inline-block;
         animation: pulse-green 1.8s infinite;
     }
-    .live-dot.offline { background-color: #ef4444; box-shadow: none; animation: none; }
+    .live-dot.offline {
+        background-color: var(--danger); box-shadow: none; animation: none;
+    }
     @keyframes pulse-green {
-        0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34,197,94,0.7); }
-        70%  { transform: scale(1);    box-shadow: 0 0 0 6px rgba(34,197,94,0); }
-        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+        0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(31,157,85,0.7); }
+        70%  { transform: scale(1);    box-shadow: 0 0 0 6px rgba(31,157,85,0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(31,157,85,0); }
     }
 
+    /* ---------- Cards ---------- */
     .card-panel {
-        background: #fff; border: 1px solid rgba(0,0,0,0.06);
-        border-radius: 14px; overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-xs);
+        overflow: hidden;
     }
     .card-panel-header {
-        padding: 16px 22px; border-bottom: 1px solid rgba(0,0,0,0.06);
+        padding: 14px 20px; border-bottom: 1px solid var(--border);
         display: flex; align-items: center; justify-content: space-between;
+        flex-wrap: wrap; gap: 8px;
     }
-    .card-panel-header h3 { font-size: 15px; font-weight: 700; margin: 0; }
-    .card-panel-header .hint { font-size: 12px; color: #8e8e93; }
-    .card-body { padding: 22px; }
+    .card-panel-header h3 {
+        font-size: 14.5px; font-weight: 700; margin: 0;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .card-panel-header .hint {
+        font-size: 11.5px; color: var(--text-muted);
+    }
+    .card-body { padding: 20px; }
 
-    .user-group-card {
+    /* ---------- Active Group Card ---------- */
+    .active-group-card {
         background: linear-gradient(135deg, rgba(13,148,136,0.08), rgba(2,132,199,0.08));
         border: 1px solid rgba(13,148,136,0.25);
-        border-radius: 12px; padding: 16px 20px;
+        border-radius: 12px;
+        padding: 16px 20px;
         display: flex; align-items: center; justify-content: space-between;
-        gap: 12px; flex-wrap: wrap;
+        gap: 14px; flex-wrap: wrap;
+    }
+    .active-group-card.empty {
+        background: var(--danger-soft);
+        border-color: rgba(229,72,77,0.3);
+    }
+    .active-group-info {
+        display: flex; align-items: center; gap: 14px;
+    }
+    .active-group-icon {
+        width: 46px; height: 46px; border-radius: 10px;
+        background: var(--primary); color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 22px; flex-shrink: 0;
+    }
+    .active-group-card.empty .active-group-icon {
+        background: var(--danger);
+    }
+    .active-group-meta {
+        display: flex; flex-direction: column; gap: 2px;
+    }
+    .active-group-meta .label {
+        font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.4px; color: var(--text-muted);
+    }
+    .active-group-meta .name {
+        font-size: 15px; font-weight: 700; color: var(--text);
+    }
+    .active-group-meta .id {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11.5px; color: var(--text-muted);
+    }
+    .active-group-card.empty .active-group-meta .name,
+    .active-group-card.empty .active-group-meta .id {
+        color: var(--danger);
     }
 
+    /* ---------- Buttons ---------- */
     .btn {
         display: inline-flex; align-items: center; gap: 6px;
-        padding: 9px 16px; border-radius: 8px; font-size: 14px;
-        font-weight: 600; text-decoration: none; border: none;
-        cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
+        padding: 9px 16px; border-radius: 10px;
+        font-size: 14px; font-weight: 600;
+        text-decoration: none; border: none; cursor: pointer;
+        transition: all 0.15s ease; white-space: nowrap;
     }
-    .btn-primary { background: #0d9488; color: #fff; }
-    .btn-primary:hover { background: #0b7c72; }
-    .btn-outline { background: #fff; border: 1px solid rgba(0,0,0,0.1); color: #3a3a3c; }
-    .btn-outline:hover { background: #f2f2f7; }
-    .btn-success { background: #16a34a; color: #fff; }
-    .btn-success:hover { background: #128036; }
-    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-    .btn-sm { padding: 6px 12px; font-size: 12.5px; }
+    .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 4px 10px rgba(13,148,136,0.25); }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-outline { background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); }
+    .btn-outline:hover { background: var(--surface-alt); }
+    .btn-success { background: var(--success); color: #fff; }
+    .btn-success:hover { background: #188042; }
+    .btn-sm { padding: 6px 12px; font-size: 12.5px; border-radius: 8px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     .form-control {
         width: 100%; padding: 10px 12px; border-radius: 8px;
-        border: 1px solid rgba(0,0,0,0.1); font-size: 14px;
-        background: #fff; font-family: inherit;
+        border: 1px solid var(--border-strong);
+        font-size: 14px; background: var(--surface);
+        font-family: inherit;
     }
-    .form-control:focus { outline: none; border-color: #0d9488; box-shadow: 0 0 0 3px rgba(13,148,136,0.15); }
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px var(--primary-soft-strong);
+    }
+    .label-sm {
+        font-size: 10.5px; font-weight: 700; color: var(--text-muted);
+        text-transform: uppercase; letter-spacing: 0.4px;
+        display: block; margin-bottom: 5px;
+    }
 
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 640px) { .form-row { grid-template-columns: 1fr; } }
+    /* ---------- Group Picker ---------- */
+    #groupPicker { display: none; margin-top: 14px; }
+    #groupPicker .picker-row {
+        display: grid; grid-template-columns: 1fr auto auto; gap: 10px;
+        align-items: end;
+    }
+    @media (max-width: 640px) {
+        #groupPicker .picker-row { grid-template-columns: 1fr; }
+    }
+    .picker-hint {
+        margin-top: 10px; font-size: 12px; color: var(--text-muted);
+        display: flex; align-items: flex-start; gap: 6px;
+    }
 
-    .label { font-size: 11px; font-weight: 700; color: #8e8e93; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px; display: block; }
-
+    /* ---------- Event Grid ---------- */
     .event-grid {
-        display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 12px; padding: 22px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+        padding: 20px;
     }
     .event-item {
         display: flex; align-items: flex-start; gap: 12px;
         padding: 12px; border-radius: 10px;
-        background: #f9fafb; border: 1px solid rgba(0,0,0,0.05);
+        background: var(--surface-alt);
+        border: 1px solid var(--border);
     }
     .event-icon {
         width: 32px; height: 32px; border-radius: 8px;
-        background: #e0f2fe; color: #0284c7;
+        background: var(--info-soft); color: var(--info);
         display: flex; align-items: center; justify-content: center;
         font-size: 16px; flex-shrink: 0;
     }
+    .event-item strong { font-size: 13px; display: block; }
+    .event-item span { font-size: 12px; color: var(--text-muted); }
 
-    .preview-box {
-        background: #0f172a; color: #e2e8f0;
-        font-family: ui-monospace, "SF Mono", Menlo, monospace;
-        font-size: 12.5px; line-height: 1.55;
-        padding: 16px; border-radius: 10px;
-        white-space: pre-wrap; word-break: break-word;
-        max-height: 320px; overflow-y: auto;
-    }
-
+    /* ---------- Toast ---------- */
     .toast {
         position: fixed; bottom: 20px; right: 20px;
         background: #111827; color: #fff;
@@ -120,15 +198,15 @@
         max-width: 380px;
     }
     .toast.show { opacity: 1; transform: translateY(0); }
-    .toast.success { background: #15803d; }
-    .toast.error   { background: #b91c1c; }
+    .toast.success { background: var(--success); }
+    .toast.error   { background: var(--danger); }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="notif-container">
 
-    <!-- Bot Status Banner -->
+    <!-- ============= BOT STATUS ============= -->
     <div class="status-banner">
         <div class="bot-status-card">
             <div class="bot-icon-wrapper" id="botIcon">
@@ -138,162 +216,138 @@
                 <h3>
                     WhatsApp Gateway Bot
                     <span class="live-dot offline" id="botDot"></span>
-                    <span id="botState" style="font-size:12px; font-weight:700; color:#8e8e93;">CHECKING…</span>
+                    <span id="botState" style="font-size:12px; font-weight:700; color:var(--text-muted);">
+                        CHECKING…
+                    </span>
                 </h3>
                 <p id="botDetails">Connecting to gateway…</p>
             </div>
         </div>
 
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" class="btn btn-outline btn-sm" onclick="refreshStatus()">
                 <i class="bi bi-arrow-clockwise"></i> Refresh
             </button>
             <a href="{% url 'ict:notification_settings' %}" class="btn btn-primary btn-sm">
-                <i class="bi bi-gear-fill"></i> Preferences
+                <i class="bi bi-sliders"></i> Preferences
             </a>
         </div>
     </div>
 
-    <!-- Target Group Picker -->
+    <!-- ============= ACTIVE CONSTITUENCY GROUP ============= -->
     <div class="card-panel">
         <div class="card-panel-header">
-            <h3>Target WhatsApp Group</h3>
-            <span class="hint">All reports & alerts are sent here</span>
+            <h3>
+                <i class="bi bi-geo-alt"></i>
+                Group for {{ constituency.name }}
+            </h3>
+            <span class="hint">All automated messages route to this group</span>
         </div>
+
         <div class="card-body">
-            {% if selected_group %}
-            <div class="user-group-card" style="margin-bottom:16px;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <div style="width:36px; height:36px; border-radius:8px; background:#0d9488; color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px;">
-                        <i class="bi bi-bell-fill"></i>
+            {% if constituency_group %}
+                <!-- Populated -->
+                <div class="active-group-card">
+                    <div class="active-group-info">
+                        <div class="active-group-icon">
+                            <i class="bi bi-bell-fill"></i>
+                        </div>
+                        <div class="active-group-meta">
+                            <span class="label">Active target</span>
+                            <div class="name" id="currentGroupName">{{ constituency_group.name }}</div>
+                            <div class="id" id="currentGroupId">{{ constituency_group.group_id }}</div>
+                        </div>
                     </div>
-                    <div>
-                        <span class="label" style="margin:0;">Current Target</span>
-                        <div style="font-size:14.5px; font-weight:700;" id="currentGroupName">{{ selected_group.name }}</div>
-                        <div style="font-family:monospace; font-size:11.5px; color:#8e8e93;" id="currentGroupId">{{ selected_group.group_id }}</div>
-                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="openGroupPicker()">
+                        <i class="bi bi-arrow-repeat"></i> Change Group
+                    </button>
                 </div>
-                <button type="button" class="btn btn-outline btn-sm" onclick="openGroupPicker()">
-                    <i class="bi bi-arrow-repeat"></i> Change Group
-                </button>
-            </div>
             {% else %}
-            <div class="user-group-card" style="background:#fef2f2; border-color:#fca5a5; margin-bottom:16px;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <div style="width:36px; height:36px; border-radius:8px; background:#ef4444; color:#fff; display:flex; align-items:center; justify-content:center; font-size:18px;">
-                        <i class="bi bi-exclamation-triangle-fill"></i>
+                <!-- Missing -->
+                <div class="active-group-card empty">
+                    <div class="active-group-info">
+                        <div class="active-group-icon">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                        </div>
+                        <div class="active-group-meta">
+                            <span class="label">No group assigned</span>
+                            <div class="name">Messages are being dropped</div>
+                            <div class="id">Pick a group below to start routing</div>
+                        </div>
                     </div>
-                    <div>
-                        <span class="label" style="margin:0; color:#991b1b;">No Target Group</span>
-                        <div style="font-size:14px; font-weight:600; color:#991b1b;">Select a group to enable notifications</div>
-                    </div>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="openGroupPicker()">
+                        <i class="bi bi-plus-lg"></i> Select Group
+                    </button>
                 </div>
-                <button type="button" class="btn btn-primary btn-sm" onclick="openGroupPicker()">
-                    <i class="bi bi-plus-lg"></i> Select Group
-                </button>
-            </div>
             {% endif %}
 
-            <!-- Group Picker (hidden by default) -->
-            <div id="groupPicker" style="display:none; margin-top:8px;">
-                <div class="form-row" style="align-items:end;">
+            <!-- Group picker -->
+            <div id="groupPicker">
+                <div class="picker-row">
                     <div>
-                        <label class="label">Available Groups</label>
+                        <label class="label-sm">Available groups</label>
                         <select id="groupSelect" class="form-control">
                             <option value="">— Loading… —</option>
                         </select>
                     </div>
-                    <div style="display:flex; gap:8px;">
-                        <button type="button" class="btn btn-success" style="flex:1;" onclick="saveGroupSelection()">
-                            <i class="bi bi-check-lg"></i> Save Selection
-                        </button>
-                        <button type="button" class="btn btn-outline" onclick="closeGroupPicker()">Cancel</button>
-                    </div>
+                    <button type="button" class="btn btn-success" onclick="saveGroupSelection()">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                    <button type="button" class="btn btn-outline" onclick="closeGroupPicker()">
+                        Cancel
+                    </button>
                 </div>
-                <div style="margin-top:10px; font-size:12px; color:#8e8e93;">
-                    <i class="bi bi-info-circle"></i>
-                    Groups are fetched live from the WhatsApp gateway. Only constituency &amp; global groups are shown.
+
+                <div class="picker-hint">
+                    <i class="bi bi-info-circle" style="margin-top:2px;"></i>
+                    <span>
+                        Groups are fetched live from the WhatsApp gateway.
+                        Picking one makes it the official group for
+                        <strong>{{ constituency.name }}</strong> — any previous
+                        group will be un-assigned.
+                    </span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Manual Report Sender -->
+    <!-- ============= AUTOMATED TRIGGERS ============= -->
     <div class="card-panel">
         <div class="card-panel-header">
-            <h3>Send Report Manually</h3>
-            <span class="hint">Pushes a formatted summary to your target group</span>
+            <h3>
+                <i class="bi bi-lightning-charge"></i>
+                Automated Triggers
+            </h3>
+            <span class="hint">Fires automatically when conditions are met</span>
         </div>
-        <div class="card-body">
-            <div class="form-row">
-                <div>
-                    <label class="label">Report Type</label>
-                    <select id="reportType" class="form-control" onchange="onReportTypeChange()">
-                        <option value="constituency">Constituency-wide</option>
-                        <option value="ward">Single Ward</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="label">Report Date</label>
-                    <input type="date" id="reportDate" class="form-control" value="{{ today|date:'Y-m-d' }}">
-                </div>
-            </div>
 
-            <div id="wardPickerWrap" style="display:none; margin-top:12px;">
-                <label class="label">Ward</label>
-                <select id="reportWard" class="form-control">
-                    {% for w in wards %}
-                        <option value="{{ w.pk }}">{{ w.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div style="display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;">
-                <button type="button" class="btn btn-outline" onclick="previewReport()">
-                    <i class="bi bi-eye"></i> Preview
-                </button>
-                <button type="button" class="btn btn-primary" id="sendBtn" onclick="sendReport()">
-                    <i class="bi bi-send-fill"></i> Send Now
-                </button>
-            </div>
-
-            <div id="previewWrap" style="display:none; margin-top:16px;">
-                <label class="label">Preview</label>
-                <div class="preview-box" id="previewBox"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Trigger Explanations (unchanged) -->
-    <div class="card-panel">
-        <div class="card-panel-header"><h3>Automated Triggers</h3></div>
         <div class="event-grid">
             <div class="event-item">
                 <div class="event-icon"><i class="bi bi-person-plus-fill"></i></div>
                 <div>
-                    <strong style="font-size:13px; display:block;">VRA Registration Submission</strong>
-                    <span style="font-size:12px; color:#8e8e93;">Instant alert when a VRA submits daily numbers.</span>
+                    <strong>VRA Registration Submission</strong>
+                    <span>Instant alert when a VRA submits daily numbers.</span>
                 </div>
             </div>
             <div class="event-item">
                 <div class="event-icon"><i class="bi bi-pencil-square"></i></div>
                 <div>
-                    <strong style="font-size:13px; display:block;">VRA Record Updates</strong>
-                    <span style="font-size:12px; color:#8e8e93;">Notifies when a submission is edited.</span>
+                    <strong>VRA Record Updates</strong>
+                    <span>Notifies when a submission is edited.</span>
                 </div>
             </div>
             <div class="event-item">
                 <div class="event-icon"><i class="bi bi-journal-text"></i></div>
                 <div>
-                    <strong style="font-size:13px; display:block;">Daily Ward Summary</strong>
-                    <span style="font-size:12px; color:#8e8e93;">End-of-day summary per ward.</span>
+                    <strong>Daily Ward Summary</strong>
+                    <span>End-of-day summary per ward.</span>
                 </div>
             </div>
             <div class="event-item">
                 <div class="event-icon"><i class="bi bi-award-fill"></i></div>
                 <div>
-                    <strong style="font-size:13px; display:block;">Constituency Grand Total</strong>
-                    <span style="font-size:12px; color:#8e8e93;">Broadcast once all wards submit.</span>
+                    <strong>Constituency Grand Total</strong>
+                    <span>Broadcast once all wards have submitted.</span>
                 </div>
             </div>
         </div>
@@ -301,19 +355,19 @@
 
 </div>
 
+<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
 const URLS = {
-    status:     "{% url 'ict:whatsapp_bot_status' %}",
-    groups:     "{% url 'ict:whatsapp_groups_live' %}",
-    selectGrp:  "{% url 'ict:whatsapp_select_group' %}",
-    sendReport: "{% url 'ict:whatsapp_send_report' %}",
-    preview:    "{% url 'ict:whatsapp_report_preview' %}",
+    status:    "{% url 'ict:whatsapp_bot_status' %}",
+    groups:    "{% url 'ict:whatsapp_groups_live' %}",
+    selectGrp: "{% url 'ict:whatsapp_select_group' %}",
 };
 
 function csrf() {
-    return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+    const m = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+    return m ? m[1] : '';
 }
 
 function showToast(msg, kind = 'success') {
@@ -321,10 +375,10 @@ function showToast(msg, kind = 'success') {
     t.textContent = msg;
     t.className = 'toast show ' + kind;
     clearTimeout(t._tid);
-    t._tid = setTimeout(() => t.className = 'toast ' + kind, 4000);
+    t._tid = setTimeout(() => t.className = 'toast ' + kind, 4500);
 }
 
-// ---------- BOT STATUS ----------
+/* ---------- BOT STATUS ---------- */
 async function refreshStatus() {
     const dot = document.getElementById('botDot');
     const state = document.getElementById('botState');
@@ -332,7 +386,7 @@ async function refreshStatus() {
     const icon = document.getElementById('botIcon');
 
     state.textContent = 'CHECKING…';
-    state.style.color = '#8e8e93';
+    state.style.color = 'var(--text-muted)';
     dot.classList.add('offline');
     icon.classList.remove('offline');
 
@@ -342,37 +396,39 @@ async function refreshStatus() {
         if (d.success && d.isReady) {
             dot.classList.remove('offline');
             state.textContent = 'LIVE';
-            state.style.color = '#16a34a';
+            state.style.color = 'var(--success)';
             icon.classList.remove('offline');
-            details.innerHTML = `Connected${d.phoneNumber ? ' as <strong>' + d.phoneNumber + '</strong>' : ''} &bull; Status: ${d.status}`;
+            details.innerHTML =
+                `Connected${d.phoneNumber ? ' as <strong>' + d.phoneNumber + '</strong>' : ''} &bull; Status: ${d.status}`;
         } else {
             dot.classList.add('offline');
             state.textContent = d.status === 'offline' ? 'OFFLINE' : 'NOT READY';
-            state.style.color = '#dc2626';
+            state.style.color = 'var(--danger)';
             icon.classList.add('offline');
             details.textContent = d.error || 'Gateway not ready.';
         }
     } catch (e) {
         dot.classList.add('offline');
         state.textContent = 'ERROR';
-        state.style.color = '#dc2626';
+        state.style.color = 'var(--danger)';
         icon.classList.add('offline');
         details.textContent = 'Could not reach the gateway.';
     }
 }
 
-// ---------- GROUP PICKER ----------
+/* ---------- GROUP PICKER ---------- */
 async function openGroupPicker() {
     const wrap = document.getElementById('groupPicker');
-    wrap.style.display = 'block';
     const sel = document.getElementById('groupSelect');
+    wrap.style.display = 'block';
     sel.innerHTML = '<option value="">— Loading… —</option>';
 
     try {
         const r = await fetch(URLS.groups);
         const d = await r.json();
+
         if (!d.success) {
-            sel.innerHTML = '<option value="">— ' + (d.error || 'Unable to fetch groups') + ' —</option>';
+            sel.innerHTML = `<option value="">— ${d.error || 'Unable to fetch groups'} —</option>`;
             showToast(d.error || 'Unable to load groups', 'error');
             return;
         }
@@ -380,10 +436,14 @@ async function openGroupPicker() {
             sel.innerHTML = '<option value="">— No groups available —</option>';
             return;
         }
+
         sel.innerHTML = '<option value="">— Choose a group —</option>' +
-            d.data.map(g =>
-                `<option value="${g.id}">${g.name}${g.constituency ? ' (' + g.constituency + ')' : ' (Global)'}</option>`
-            ).join('');
+            d.data.map(g => {
+                let tag = '';
+                if (g.is_mine) tag = '  (current)';
+                else if (g.is_unclaimed) tag = '  (unassigned)';
+                return `<option value="${g.id}">${g.name}${tag}</option>`;
+            }).join('');
     } catch (e) {
         sel.innerHTML = '<option value="">— Error —</option>';
         showToast('Failed to fetch groups', 'error');
@@ -398,18 +458,20 @@ async function saveGroupSelection() {
     const sel = document.getElementById('groupSelect');
     const id = sel.value;
     if (!id) { showToast('Pick a group first', 'error'); return; }
-    const name = sel.options[sel.selectedIndex].textContent;
+    const name = sel.options[sel.selectedIndex].textContent.replace(/\s+\(.*\)$/, '');
 
     try {
         const r = await fetch(URLS.selectGrp, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
-            body: JSON.stringify({group_id: id, group_name: name}),
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrf(),
+            },
+            body: JSON.stringify({ group_id: id, group_name: name }),
         });
         const d = await r.json();
         if (d.success) {
             showToast(d.message || 'Group saved', 'success');
-            // Update the current target display and reload to reflect state
             setTimeout(() => location.reload(), 700);
         } else {
             showToast(d.error || 'Save failed', 'error');
@@ -419,70 +481,7 @@ async function saveGroupSelection() {
     }
 }
 
-// ---------- MANUAL REPORT ----------
-function onReportTypeChange() {
-    const type = document.getElementById('reportType').value;
-    document.getElementById('wardPickerWrap').style.display = type === 'ward' ? 'block' : 'none';
-    document.getElementById('previewWrap').style.display = 'none';
-}
-
-async function previewReport() {
-    const params = new URLSearchParams({
-        report_type: document.getElementById('reportType').value,
-        date: document.getElementById('reportDate').value,
-    });
-    if (params.get('report_type') === 'ward') {
-        params.set('ward_id', document.getElementById('reportWard').value);
-    }
-    try {
-        const r = await fetch(URLS.preview + '?' + params.toString());
-        const d = await r.json();
-        document.getElementById('previewBox').textContent = d.preview || '(no preview)';
-        document.getElementById('previewWrap').style.display = 'block';
-    } catch (e) {
-        showToast('Failed to load preview', 'error');
-    }
-}
-
-async function sendReport() {
-    const btn = document.getElementById('sendBtn');
-    const payload = {
-        report_type: document.getElementById('reportType').value,
-        date: document.getElementById('reportDate').value,
-    };
-    if (payload.report_type === 'ward') {
-        payload.ward_id = document.getElementById('reportWard').value;
-    }
-
-    btn.disabled = true;
-    const original = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Sending…';
-
-    try {
-        const r = await fetch(URLS.sendReport, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
-            body: JSON.stringify(payload),
-        });
-        const d = await r.json();
-        if (d.success) {
-            showToast(d.message || 'Report sent!', 'success');
-            if (d.preview) {
-                document.getElementById('previewBox').textContent = d.preview;
-                document.getElementById('previewWrap').style.display = 'block';
-            }
-        } else {
-            showToast(d.error || 'Send failed', 'error');
-        }
-    } catch (e) {
-        showToast('Network error', 'error');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = original;
-    }
-}
-
-// Auto-run on load
+/* Auto-run on load */
 document.addEventListener('DOMContentLoaded', refreshStatus);
 </script>
 {% endblock %}

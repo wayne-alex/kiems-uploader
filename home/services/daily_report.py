@@ -1,13 +1,10 @@
-# home/services/daily_report.py
-
 import hashlib
 import json
 import socket
-
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Sum
 from django.utils import timezone
 
 from home.models import (
@@ -16,7 +13,7 @@ from home.models import (
 
 
 # ============================================================
-# HELPERS
+# HELPERS — ward / kit submission state
 # ============================================================
 
 def _submitted_kit_ids(ward, phase, report_date):
@@ -177,7 +174,7 @@ def _build_grand_total_payload(state):
         ).order_by("ward__name")
     )
 
-    # Stable hash of the underlying data
+    # Stable hash of the underlying data — same numbers => same hash
     fingerprint_payload = {
         "c": state.constituency_id,
         "d": state.report_date.isoformat(),
@@ -212,7 +209,7 @@ def send_ready_reports(limit=20, max_attempts=5):
 
     Returns: {"sent": int, "failed": int, "skipped": int}
     """
-    from home.services.whatsapp import send_whatsapp_to_group, get_default_group
+    from home.services.whatsapp import send_to_constituency
 
     now = timezone.now()
     hostname = socket.gethostname()
@@ -255,24 +252,14 @@ def send_ready_reports(limit=20, max_attempts=5):
             results["skipped"] += 1
             continue
 
-        group_id = get_default_group(constituency=state.constituency)
-        if not group_id:
-            with transaction.atomic():
-                s = DailyReportState.objects.select_for_update().get(pk=state.pk)
-                s.status = "FAILED"
-                s.last_error = "No WhatsApp group configured"
-                s.locked_at = None
-                s.locked_by = ""
-                s.save(update_fields=["status", "last_error", "locked_at", "locked_by"])
-            results["failed"] += 1
-            continue
-
-        ok, err = send_whatsapp_to_group(group_id, message)
+        # --- Route to the constituency's group ---
+        ok, err, group_id = send_to_constituency(state.constituency, message)
 
         with transaction.atomic():
             s = DailyReportState.objects.select_for_update().get(pk=state.pk)
             s.locked_at = None
             s.locked_by = ""
+
             if ok:
                 s.status = "SENT"
                 s.sent_at = timezone.now()
@@ -280,9 +267,12 @@ def send_ready_reports(limit=20, max_attempts=5):
                 s.last_error = ""
                 results["sent"] += 1
             else:
-                # Exhausted attempts → park as FAILED; otherwise retry
+                # Exhausted attempts → park as FAILED; otherwise retry next tick
                 s.status = "FAILED" if s.attempts >= max_attempts else "READY"
-                s.last_error = err or "Unknown error"
+                s.last_error = (
+                        f"{err or 'Unknown error'}"
+                        + (f" (group: {group_id})" if group_id else "")
+                )
                 results["failed"] += 1
             s.save()
 
@@ -317,12 +307,16 @@ def reap_stuck_sending_states(stale_after_minutes=10):
 # ONE-CALL TICK — used by cron / management command / button
 # ============================================================
 
-def run_daily_report_tick():
+def run_daily_report_tick(max_send=20):
     """
     Reap stale SENDING states, then attempt to send any READY ones.
-    Safe to call repeatedly.
+    Safe to call repeatedly (idempotent).
+
+    max_send caps how many reports are sent in a single tick — useful on
+    Vercel's serverless timeouts. Set to 1 for maximum safety, or higher
+    when running on a persistent worker.
     """
     reaped = reap_stuck_sending_states(stale_after_minutes=10)
-    summary = send_ready_reports(limit=20)
+    summary = send_ready_reports(limit=max_send)
     summary["reaped"] = reaped
     return summary

@@ -1083,17 +1083,26 @@ def entry_import_csv(request):
     return redirect("ict:entry_list")
 
 
-# ============================================================
-# WHATSAPP BOT HELPERS (ICT-side)
-# ============================================================
 @ict_required
 def notification_list(request):
     c = request.constituency
+
+    # The group actually used for routing today
+    constituency_group = (
+        WhatsAppGroup.objects
+        .filter(constituency=c, is_active=True)
+        .order_by("name")
+        .first()
+    )
+
+    # The officer's private preference (may be None or stale)
     setting = WhatsAppSetting.objects.filter(user=request.user).first()
 
     return render(request, "ict/notifications/list.html", {
         "constituency": c,
-        "selected_group": setting.default_group if setting else None,
+        "constituency_group": constituency_group,
+        "selected_group": constituency_group,   # keep name for template compat
+        "personal_setting": setting,
         "wards": Ward.objects.filter(constituency=c).order_by("name"),
         "today": timezone.now().date(),
     })
@@ -1101,15 +1110,21 @@ def notification_list(request):
 
 @ict_required
 def notification_settings(request):
-    """Notification Settings - Shows ONLY the currently selected group and toggles."""
     c = request.constituency
     setting, _ = WhatsAppSetting.objects.get_or_create(user=request.user)
+
+    constituency_group = (
+        WhatsAppGroup.objects
+        .filter(constituency=c, is_active=True)
+        .order_by("name")
+        .first()
+    )
 
     if request.method == "POST":
         form = WhatsAppSettingForm(request.POST, instance=setting, constituency=c)
         if form.is_valid():
             form.save()
-            messages.success(request, "Notification settings saved successfully.")
+            messages.success(request, "Notification settings saved.")
             return redirect("ict:notification_settings")
     else:
         form = WhatsAppSettingForm(instance=setting, constituency=c)
@@ -1117,7 +1132,8 @@ def notification_settings(request):
     return render(request, "ict/notifications/settings.html", {
         "form": form,
         "constituency": c,
-        "selected_group": setting.default_group,
+        "constituency_group": constituency_group,
+        "selected_group": constituency_group,
     })
 
 
@@ -1169,12 +1185,12 @@ def whatsapp_bot_status(request):
 @require_GET
 def whatsapp_groups_live(request):
     """
-    Fetch groups from the bot. Filters to groups the ICT officer can target
-    (their own constituency's groups + global groups).
+    Fetch groups from the bot. Filters to groups the officer can target
+    (their own constituency's groups, unclaimed groups, and global groups).
     """
     c = request.constituency
+
     try:
-        # Check bot is up first
         s = requests.get(f"{_bot_url()}/status", timeout=3,
                          headers={"Content-Type": "application/json"})
         if s.status_code != 200 or not s.json().get("isReady"):
@@ -1192,9 +1208,11 @@ def whatsapp_groups_live(request):
             }, status=503)
 
         raw_groups = r.json().get("data", [])
+        counts = {g["id"]: g.get("participants", 0) for g in raw_groups if g.get("id")}
 
-        # Persist / refresh any groups that belong to this constituency
-        # (best-effort; do not fail the request if a group save errors)
+        # Persist any groups the bot knows that we haven't seen yet.
+        # Do NOT auto-scope them to a constituency — leave that to the
+        # explicit picker, so we don't accidentally claim a shared group.
         for g in raw_groups:
             gid = g.get("id")
             gname = g.get("name", f"Group {gid[:10]}")
@@ -1206,7 +1224,7 @@ def whatsapp_groups_live(request):
                     defaults={
                         "name": gname,
                         "is_active": True,
-                        "constituency": c,  # <- auto-scope new groups
+                        "constituency": None,   # unclaimed until picked
                     },
                 )
                 if not created and obj.name != gname:
@@ -1215,19 +1233,25 @@ def whatsapp_groups_live(request):
             except Exception:
                 continue
 
-        # Return only groups the officer can see
-        visible = WhatsAppGroup.objects.filter(
-            Q(constituency=c) | Q(constituency__isnull=True),
-            is_active=True,
-        ).order_by("name")
-
-        # Include participant count where available
-        counts = {g["id"]: g.get("participants", 0) for g in raw_groups if g.get("id")}
+        # Show: this constituency's group, unclaimed groups, global groups.
+        # Hide other constituencies' groups (they aren't pickable).
+        visible = (
+            WhatsAppGroup.objects
+            .filter(is_active=True)
+            .filter(
+                Q(constituency=c)                 # mine
+                | Q(constituency__isnull=True)    # unclaimed or global
+            )
+            .select_related("constituency")
+            .order_by("name")
+        )
 
         data = [{
             "id": g.group_id,
             "name": g.name,
             "constituency": g.constituency.name if g.constituency else None,
+            "is_mine": bool(g.constituency_id == c.id),
+            "is_unclaimed": g.constituency_id is None,
             "participants": counts.get(g.group_id, 0),
         } for g in visible]
 
@@ -1244,7 +1268,16 @@ def whatsapp_groups_live(request):
 @require_POST
 def whatsapp_select_group(request):
     """
-    Set the ICT officer's target WhatsApp group.
+    Set the WhatsApp group that will receive this constituency's messages.
+
+    Behavior:
+      - Assigns the chosen WhatsAppGroup to the officer's constituency.
+      - Any other group that was previously scoped to this constituency
+        is un-scoped (constituency set to NULL) so a constituency never
+        has more than one active target.
+      - Also records the choice in the officer's WhatsAppSetting for UI
+        display, but routing uses WhatsAppGroup.constituency, not this.
+
     Accepts JSON {group_id: "..."} or form POST.
     """
     try:
@@ -1253,39 +1286,79 @@ def whatsapp_select_group(request):
         else:
             data = request.POST.dict()
 
-        group_id = data.get("group_id", "").strip()
+        group_id = (data.get("group_id") or "").strip()
+        c = request.constituency
+
         setting, _ = WhatsAppSetting.objects.get_or_create(user=request.user)
 
+        # --- Clear selection ---
         if not group_id:
+            # Un-scope all of this constituency's groups so nothing routes to them
+            WhatsAppGroup.objects.filter(constituency=c).update(constituency=None)
             setting.default_group = None
             setting.save(update_fields=["default_group"])
-            return JsonResponse({"success": True, "message": "Group cleared.",
-                                 "group_id": "", "group_name": ""})
+            return JsonResponse({
+                "success": True,
+                "message": "Constituency group cleared.",
+                "group_id": "",
+                "group_name": "",
+            })
 
-        c = request.constituency
-        try:
-            group = WhatsAppGroup.objects.get(
-                Q(constituency=c) | Q(constituency__isnull=True),
-                group_id=group_id,
-                is_active=True,
-            )
-        except WhatsAppGroup.DoesNotExist:
-            # Create it as a constituency-scoped group (fresh from bot)
+        # --- Find or create the group ---
+        # Match by group_id regardless of current constituency, because the
+        # officer may be re-picking a group that's currently assigned to
+        # another constituency (e.g. reassigning it) or to NULL.
+        group = WhatsAppGroup.objects.filter(group_id=group_id).first()
+
+        if group is None:
+            # Brand new — the bot gave us a group we've never seen
             group = WhatsAppGroup.objects.create(
                 group_id=group_id,
                 name=data.get("group_name") or f"Group {group_id[:12]}",
                 is_active=True,
                 constituency=c,
             )
+        else:
+            # If it's already scoped to a *different* constituency,
+            # refuse unless the user is a superuser — this prevents
+            # accidentally stealing another constituency's group.
+            if (
+                group.constituency_id
+                and group.constituency_id != c.id
+                and not request.user.is_superuser
+            ):
+                return JsonResponse({
+                    "success": False,
+                    "error": (
+                        f"Group '{group.name}' is already assigned to "
+                        f"{group.constituency.name}. Ask the SuperAdmin to "
+                        f"reassign it if this is intentional."
+                    ),
+                }, status=409)
 
+            # Un-scope any OTHER group currently claiming this constituency
+            WhatsAppGroup.objects.filter(
+                constituency=c
+            ).exclude(pk=group.pk).update(constituency=None)
+
+            # Assign to this constituency
+            group.constituency = c
+            if data.get("group_name"):
+                group.name = data["group_name"]
+            group.is_active = True
+            group.save(update_fields=["constituency", "name", "is_active"])
+
+        # --- Reflect in the officer's UI preference ---
         setting.default_group = group
         setting.save(update_fields=["default_group"])
 
         return JsonResponse({
             "success": True,
-            "message": f"Target group set to '{group.name}'.",
+            "message": f"'{group.name}' is now the group for {c.name}.",
             "group_id": group.group_id,
             "group_name": group.name,
+            "constituency_id": c.id,
+            "constituency_name": c.name,
         })
 
     except Exception as e:
@@ -2042,3 +2115,640 @@ def cron_send_reports(request):
     hb.save()
 
     return JsonResponse({"ok": True, "summary": summary})
+
+
+
+# ============================================================
+# MAIN VIEW
+# ============================================================
+
+@ict_required
+def system_status(request):
+    """
+    System status dashboard:
+      - Today's per-constituency report state
+      - WhatsApp group status per constituency
+      - Cron heartbeat freshness
+      - Any FAILED / stuck-SENDING states (last 14 days)
+      - Recent send history
+    """
+    today = timezone.localdate()
+    fourteen_days_ago = today - timedelta(days=14)
+
+    # ---------- Scope: superuser sees all, ICT sees their own ----------
+    if request.user.is_superuser:
+        constituencies = Constituency.objects.filter(active=True).order_by("name")
+    else:
+        constituencies = Constituency.objects.filter(
+            id=request.constituency.id, active=True
+        ).order_by("name")
+
+    visible_ids = list(constituencies.values_list("id", flat=True))
+
+    # ---------- Today's report states for visible constituencies ----------
+    todays_states = {
+        s.constituency_id: s
+        for s in DailyReportState.objects.filter(
+            report_date=today, constituency_id__in=visible_ids
+        )
+    }
+
+    # ---------- Today's WhatsApp group per constituency ----------
+    # Pick the first active group for each constituency (alphabetically).
+    # If none, mark as missing.
+    groups_by_constituency = {}
+    for g in (
+        WhatsAppGroup.objects
+        .filter(constituency_id__in=visible_ids, is_active=True)
+        .order_by("name")
+    ):
+        # First one wins
+        if g.constituency_id not in groups_by_constituency:
+            groups_by_constituency[g.constituency_id] = g
+
+    # ---------- Build the today grid ----------
+    active_phase = Phase.objects.filter(active=True).first()
+
+    # Precompute ward + kit totals in bulk to avoid N+1 on a big list
+    ward_totals = dict(
+        Ward.objects
+        .filter(constituency_id__in=visible_ids, active=True)
+        .values("constituency_id")
+        .annotate(n=Count("id"))
+        .values_list("constituency_id", "n")
+    )
+
+    # Kits per constituency
+    kit_totals = dict(
+        KIEMSKit.objects
+        .filter(
+            ward__constituency_id__in=visible_ids,
+            ward__active=True,
+            status=True,
+        )
+        .values("ward__constituency_id")
+        .annotate(n=Count("id"))
+        .values_list("ward__constituency_id", "n")
+    )
+
+    # Kits submitted today per constituency
+    submitted_kits_today = {}
+    if active_phase:
+        submitted_kits_today = dict(
+            DailyKIEMSEntry.objects
+            .filter(
+                ward__constituency_id__in=visible_ids,
+                phase=active_phase,
+                entry_date=today,
+                entry_type="REGISTRATION",
+            )
+            .values("ward__constituency_id")
+            .annotate(n=Count("kiems_kit_id", distinct=True))
+            .values_list("ward__constituency_id", "n")
+        )
+
+    today_rows = []
+    for c in constituencies:
+        state = todays_states.get(c.id)
+        group = groups_by_constituency.get(c.id)
+
+        total_wards = (
+            state.total_wards if state
+            else ward_totals.get(c.id, 0)
+        )
+        submitted_wards = state.submitted_wards if state else 0
+
+        total_kits = kit_totals.get(c.id, 0)
+        submitted_kits = submitted_kits_today.get(c.id, 0)
+        if submitted_kits > total_kits:
+            submitted_kits = total_kits
+
+        ward_pct = int((submitted_wards / total_wards) * 100) if total_wards else 0
+        kit_pct = int((submitted_kits / total_kits) * 100) if total_kits else 0
+
+        today_rows.append({
+            "constituency": c,
+            "state": state,
+            "total_wards": total_wards,
+            "submitted_wards": submitted_wards,
+            "ward_progress_pct": ward_pct,
+            "total_kits": total_kits,
+            "submitted_kits": submitted_kits,
+            "kit_progress_pct": kit_pct,
+            # WhatsApp group status
+            "has_group": group is not None,
+            "group_name": group.name if group else "",
+            "group_id": group.group_id if group else "",
+        })
+
+    # ---------- Problem states (FAILED / stuck SENDING, last 14 days) ----------
+    problem_states = list(
+        DailyReportState.objects
+        .filter(
+            report_date__gte=fourteen_days_ago,
+            constituency_id__in=visible_ids,
+            status__in=["FAILED", "SENDING"],
+        )
+        .select_related("constituency")
+        .order_by("-report_date")[:50]
+    )
+
+    # ---------- Recent send history ----------
+    history = list(
+        DailyReportState.objects
+        .filter(
+            report_date__gte=fourteen_days_ago,
+            constituency_id__in=visible_ids,
+            status__in=["SENT", "FAILED"],
+        )
+        .select_related("constituency")
+        .order_by("-sent_at", "-updated_at")[:100]
+    )
+
+    # ---------- Summary counts ----------
+    counts = {
+        "pending": sum(
+            1 for r in today_rows
+            if not r["state"] or r["state"].status == "PENDING"
+        ),
+        "ready": sum(
+            1 for r in today_rows
+            if r["state"] and r["state"].status == "READY"
+        ),
+        "sending": sum(
+            1 for r in today_rows
+            if r["state"] and r["state"].status == "SENDING"
+        ),
+        "sent": sum(
+            1 for r in today_rows
+            if r["state"] and r["state"].status == "SENT"
+        ),
+        "failed": sum(
+            1 for r in today_rows
+            if r["state"] and r["state"].status == "FAILED"
+        ),
+    }
+
+    # ---------- Cron heartbeat ----------
+    heartbeat = CronHeartbeat.objects.filter(name="send_daily_reports").first()
+    heartbeat_stale = (
+        True if not heartbeat
+        else (timezone.now() - heartbeat.last_run_at).total_seconds() > 600  # 10 min
+    )
+
+    context = {
+        "constituency": request.constituency,
+        "today": today,
+        "today_rows": today_rows,
+        "problem_states": problem_states,
+        "history": history,
+        "bot_online": _check_bot_health(),
+        "heartbeat": heartbeat,
+        "heartbeat_stale": heartbeat_stale,
+        "counts": counts,
+    }
+    return render(request, "ict/system_status.html", context)
+
+
+# ============================================================
+# POST ACTIONS
+# ============================================================
+
+@ict_required
+@require_POST
+def system_status_run_tick(request):
+    """Manually fire the reconciler tick (for ops use)."""
+    try:
+        reaped = reap_stuck_sending_states(stale_after_minutes=10)
+        summary = send_ready_reports(limit=20)
+        messages.success(
+            request,
+            f"Tick ran. Reaped {reaped} stuck. "
+            f"Sent {summary.get('sent', 0)}, "
+            f"failed {summary.get('failed', 0)}, "
+            f"skipped {summary.get('skipped', 0)}."
+        )
+    except Exception as e:
+        logger.exception("Manual tick failed")
+        messages.error(request, f"Tick failed: {e}")
+    return redirect("ict:system_status")
+
+
+@ict_required
+@require_POST
+def system_status_retry(request, state_id):
+    """
+    Force a single FAILED / stuck-SENDING state back to READY.
+    Scoped to the officer's own constituency unless they're a superuser.
+    """
+    qs = DailyReportState.objects.all()
+    if not request.user.is_superuser:
+        qs = qs.filter(constituency=request.constituency)
+
+    state = get_object_or_404(qs, pk=state_id)
+
+    if state.status not in ("FAILED", "SENDING"):
+        messages.info(
+            request, f"State is already {state.status} — nothing to retry."
+        )
+        return redirect("ict:system_status")
+
+    state.status = "READY"
+    state.attempts = 0
+    state.last_error = ""
+    state.ready_at = timezone.now()   # re-arm ready_at so the tick picks it up
+    state.locked_at = None
+    state.locked_by = ""
+    state.save(update_fields=[
+        "status", "attempts", "last_error",
+        "ready_at", "locked_at", "locked_by",
+    ])
+
+    messages.success(request, "State re-armed. It will be sent on the next tick.")
+    return redirect("ict:system_status")
+
+
+@ict_required
+@require_POST
+def system_status_reevaluate(request, constituency_id, report_date):
+    """
+    Force a re-evaluation for a specific constituency/date.
+    Officers may only re-evaluate their own constituency.
+    """
+    if request.user.is_superuser:
+        c = get_object_or_404(Constituency, pk=constituency_id)
+    else:
+        c = get_object_or_404(
+            Constituency, pk=constituency_id, id=request.constituency.id
+        )
+
+    parsed_date = _coerce_date(report_date)
+    state = reevaluate_constituency_report(c, parsed_date)
+
+    if state:
+        messages.success(
+            request,
+            f"Re-evaluated {c.name}: "
+            f"{state.submitted_wards}/{state.total_wards} wards — {state.status}"
+        )
+    else:
+        messages.warning(
+            request, "Nothing to evaluate (no active phase or no wards)."
+        )
+
+    return redirect("ict:system_status")
+
+
+# ==================== SYSTEM STATUS ====================
+
+import time
+import requests
+import logging
+
+from django.conf import settings
+from django.db.models import Count
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.utils import timezone
+from django.views.decorators.http import require_POST, require_GET
+
+from datetime import timedelta
+
+from home.models import (
+    Ward, KIEMSKit, DailyKIEMSEntry, DailyReportState,
+    Constituency, WhatsAppGroup, CronHeartbeat,
+)
+from home.services.daily_report import (
+    reap_stuck_sending_states,
+    send_ready_reports,
+    reevaluate_constituency_report,
+    constituency_kit_progress,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# ------------------------------------------------------------
+# Bot health with a short in-process cache
+# ------------------------------------------------------------
+_BOT_HEALTH_CACHE = {"ts": 0.0, "ok": False}
+_BOT_HEALTH_TTL_SECONDS = 5
+
+
+def _check_bot_health():
+    """Ping the WhatsApp bot, cached for 5s to survive rapid page refreshes."""
+    now = time.time()
+    if now - _BOT_HEALTH_CACHE["ts"] < _BOT_HEALTH_TTL_SECONDS:
+        return _BOT_HEALTH_CACHE["ok"]
+
+    ok = False
+    try:
+        url = getattr(settings, "WHATSAPP_BOT_URL", "http://localhost:3000")
+        r = requests.get(f"{url}/status", timeout=3)
+        if r.status_code == 200:
+            ok = bool(r.json().get("isReady", False))
+    except Exception:
+        ok = False
+
+    _BOT_HEALTH_CACHE["ts"] = now
+    _BOT_HEALTH_CACHE["ok"] = ok
+    return ok
+
+
+# ------------------------------------------------------------
+# Utility: accept date, string, or None
+# ------------------------------------------------------------
+def _coerce_date(value):
+    """Accept a date object, a 'YYYY-MM-DD' string, or None → today."""
+    from datetime import datetime as _dt
+    if value is None:
+        return timezone.localdate()
+    if hasattr(value, "year") and hasattr(value, "month"):
+        return value  # already a date
+    try:
+        return _dt.strptime(str(value), "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return timezone.localdate()
+
+
+# ============================================================
+# MAIN VIEW
+# ============================================================
+
+@ict_required
+def system_status(request):
+    """
+    System status dashboard:
+      - Today's per-constituency report state
+      - WhatsApp group status per constituency
+      - Cron heartbeat freshness
+      - Any FAILED / stuck-SENDING states (last 14 days)
+      - Recent send history
+    """
+    today = timezone.localdate()
+    fourteen_days_ago = today - timedelta(days=14)
+
+    # ---------- Scope: superuser sees all, ICT sees their own ----------
+    if request.user.is_superuser:
+        constituencies = Constituency.objects.filter(active=True).order_by("name")
+    else:
+        constituencies = Constituency.objects.filter(
+            id=request.constituency.id, active=True
+        ).order_by("name")
+
+    visible_ids = list(constituencies.values_list("id", flat=True))
+
+    # ---------- Today's report states for visible constituencies ----------
+    todays_states = {
+        s.constituency_id: s
+        for s in DailyReportState.objects.filter(
+            report_date=today, constituency_id__in=visible_ids
+        )
+    }
+
+    # ---------- Today's WhatsApp group per constituency ----------
+    # Pick the first active group for each constituency (alphabetically).
+    # If none, mark as missing.
+    groups_by_constituency = {}
+    for g in (
+        WhatsAppGroup.objects
+        .filter(constituency_id__in=visible_ids, is_active=True)
+        .order_by("name")
+    ):
+        # First one wins
+        if g.constituency_id not in groups_by_constituency:
+            groups_by_constituency[g.constituency_id] = g
+
+    # ---------- Build the today grid ----------
+    active_phase = Phase.objects.filter(active=True).first()
+
+    # Precompute ward + kit totals in bulk to avoid N+1 on a big list
+    ward_totals = dict(
+        Ward.objects
+        .filter(constituency_id__in=visible_ids, active=True)
+        .values("constituency_id")
+        .annotate(n=Count("id"))
+        .values_list("constituency_id", "n")
+    )
+
+    # Kits per constituency
+    kit_totals = dict(
+        KIEMSKit.objects
+        .filter(
+            ward__constituency_id__in=visible_ids,
+            ward__active=True,
+            status=True,
+        )
+        .values("ward__constituency_id")
+        .annotate(n=Count("id"))
+        .values_list("ward__constituency_id", "n")
+    )
+
+    # Kits submitted today per constituency
+    submitted_kits_today = {}
+    if active_phase:
+        submitted_kits_today = dict(
+            DailyKIEMSEntry.objects
+            .filter(
+                ward__constituency_id__in=visible_ids,
+                phase=active_phase,
+                entry_date=today,
+                entry_type="REGISTRATION",
+            )
+            .values("ward__constituency_id")
+            .annotate(n=Count("kiems_kit_id", distinct=True))
+            .values_list("ward__constituency_id", "n")
+        )
+
+    today_rows = []
+    for c in constituencies:
+        state = todays_states.get(c.id)
+        group = groups_by_constituency.get(c.id)
+
+        total_wards = (
+            state.total_wards if state
+            else ward_totals.get(c.id, 0)
+        )
+        submitted_wards = state.submitted_wards if state else 0
+
+        total_kits = kit_totals.get(c.id, 0)
+        submitted_kits = submitted_kits_today.get(c.id, 0)
+        if submitted_kits > total_kits:
+            submitted_kits = total_kits
+
+        ward_pct = int((submitted_wards / total_wards) * 100) if total_wards else 0
+        kit_pct = int((submitted_kits / total_kits) * 100) if total_kits else 0
+
+        today_rows.append({
+            "constituency": c,
+            "state": state,
+            "total_wards": total_wards,
+            "submitted_wards": submitted_wards,
+            "ward_progress_pct": ward_pct,
+            "total_kits": total_kits,
+            "submitted_kits": submitted_kits,
+            "kit_progress_pct": kit_pct,
+            # WhatsApp group status
+            "has_group": group is not None,
+            "group_name": group.name if group else "",
+            "group_id": group.group_id if group else "",
+        })
+
+    # ---------- Problem states (FAILED / stuck SENDING, last 14 days) ----------
+    problem_states = list(
+        DailyReportState.objects
+        .filter(
+            report_date__gte=fourteen_days_ago,
+            constituency_id__in=visible_ids,
+            status__in=["FAILED", "SENDING"],
+        )
+        .select_related("constituency")
+        .order_by("-report_date")[:50]
+    )
+
+    # ---------- Recent send history ----------
+    history = list(
+        DailyReportState.objects
+        .filter(
+            report_date__gte=fourteen_days_ago,
+            constituency_id__in=visible_ids,
+            status__in=["SENT", "FAILED"],
+        )
+        .select_related("constituency")
+        .order_by("-sent_at", "-updated_at")[:100]
+    )
+
+    # ---------- Summary counts ----------
+    counts = {
+        "pending": sum(
+            1 for r in today_rows
+            if not r["state"] or r["state"].status == "PENDING"
+        ),
+        "ready": sum(
+            1 for r in today_rows
+            if r["state"] and r["state"].status == "READY"
+        ),
+        "sending": sum(
+            1 for r in today_rows
+            if r["state"] and r["state"].status == "SENDING"
+        ),
+        "sent": sum(
+            1 for r in today_rows
+            if r["state"] and r["state"].status == "SENT"
+        ),
+        "failed": sum(
+            1 for r in today_rows
+            if r["state"] and r["state"].status == "FAILED"
+        ),
+    }
+
+    # ---------- Cron heartbeat ----------
+    heartbeat = CronHeartbeat.objects.filter(name="send_daily_reports").first()
+    heartbeat_stale = (
+        True if not heartbeat
+        else (timezone.now() - heartbeat.last_run_at).total_seconds() > 600  # 10 min
+    )
+
+    context = {
+        "constituency": request.constituency,
+        "today": today,
+        "today_rows": today_rows,
+        "problem_states": problem_states,
+        "history": history,
+        "bot_online": _check_bot_health(),
+        "heartbeat": heartbeat,
+        "heartbeat_stale": heartbeat_stale,
+        "counts": counts,
+    }
+    return render(request, "ict/system_status.html", context)
+
+
+# ============================================================
+# POST ACTIONS
+# ============================================================
+
+@ict_required
+@require_POST
+def system_status_run_tick(request):
+    """Manually fire the reconciler tick (for ops use)."""
+    try:
+        reaped = reap_stuck_sending_states(stale_after_minutes=10)
+        summary = send_ready_reports(limit=20)
+        messages.success(
+            request,
+            f"Tick ran. Reaped {reaped} stuck. "
+            f"Sent {summary.get('sent', 0)}, "
+            f"failed {summary.get('failed', 0)}, "
+            f"skipped {summary.get('skipped', 0)}."
+        )
+    except Exception as e:
+        logger.exception("Manual tick failed")
+        messages.error(request, f"Tick failed: {e}")
+    return redirect("ict:system_status")
+
+
+@ict_required
+@require_POST
+def system_status_retry(request, state_id):
+    """
+    Force a single FAILED / stuck-SENDING state back to READY.
+    Scoped to the officer's own constituency unless they're a superuser.
+    """
+    qs = DailyReportState.objects.all()
+    if not request.user.is_superuser:
+        qs = qs.filter(constituency=request.constituency)
+
+    state = get_object_or_404(qs, pk=state_id)
+
+    if state.status not in ("FAILED", "SENDING"):
+        messages.info(
+            request, f"State is already {state.status} — nothing to retry."
+        )
+        return redirect("ict:system_status")
+
+    state.status = "READY"
+    state.attempts = 0
+    state.last_error = ""
+    state.ready_at = timezone.now()   # re-arm ready_at so the tick picks it up
+    state.locked_at = None
+    state.locked_by = ""
+    state.save(update_fields=[
+        "status", "attempts", "last_error",
+        "ready_at", "locked_at", "locked_by",
+    ])
+
+    messages.success(request, "State re-armed. It will be sent on the next tick.")
+    return redirect("ict:system_status")
+
+
+@ict_required
+@require_POST
+def system_status_reevaluate(request, constituency_id, report_date):
+    """
+    Force a re-evaluation for a specific constituency/date.
+    Officers may only re-evaluate their own constituency.
+    """
+    if request.user.is_superuser:
+        c = get_object_or_404(Constituency, pk=constituency_id)
+    else:
+        c = get_object_or_404(
+            Constituency, pk=constituency_id, id=request.constituency.id
+        )
+
+    parsed_date = _coerce_date(report_date)
+    state = reevaluate_constituency_report(c, parsed_date)
+
+    if state:
+        messages.success(
+            request,
+            f"Re-evaluated {c.name}: "
+            f"{state.submitted_wards}/{state.total_wards} wards — {state.status}"
+        )
+    else:
+        messages.warning(
+            request, "Nothing to evaluate (no active phase or no wards)."
+        )
+
+    return redirect("ict:system_status")

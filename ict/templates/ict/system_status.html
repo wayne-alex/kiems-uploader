@@ -30,14 +30,16 @@
         background: var(--surface); border: 1px solid var(--border);
     }
     .health-pill.online {
-        color: var(--success);
-        border-color: rgba(31,157,85,0.3);
+        color: var(--success); border-color: rgba(31,157,85,0.3);
         background: var(--success-soft);
     }
     .health-pill.offline {
-        color: var(--danger);
-        border-color: rgba(229,72,77,0.3);
+        color: var(--danger); border-color: rgba(229,72,77,0.3);
         background: var(--danger-soft);
+    }
+    .health-pill.warn {
+        color: var(--warning); border-color: rgba(181,117,10,0.3);
+        background: var(--warning-soft);
     }
     .health-dot {
         width: 7px; height: 7px; border-radius: 50%;
@@ -52,7 +54,7 @@
         100% { box-shadow: 0 0 0 0 rgba(31,157,85,0); }
     }
 
-    /* ---------- Summary counters ---------- */
+    /* ---------- Count Cards ---------- */
     .status-counts {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -115,7 +117,7 @@
     .table-custom tbody tr:last-child td { border-bottom: none; }
     .table-custom tbody tr:hover td { background: var(--surface-alt); }
 
-    /* ---------- Status pill ---------- */
+    /* ---------- Status Pill ---------- */
     .status-pill {
         display: inline-flex; align-items: center; gap: 5px;
         padding: 3px 10px; border-radius: 12px;
@@ -134,25 +136,24 @@
         width: 5px; height: 5px; border-radius: 50%;
         background: currentColor;
     }
-    .status-pill.SENDING .status-dot { animation: pulse-green 1.5s infinite; }
+    .status-pill.SENDING .status-dot {
+        animation: pulse-green 1.5s infinite;
+    }
 
-    /* ---------- Progress bars ---------- */
+    /* ---------- Progress Bars ---------- */
     .progress-wrap {
-        display: flex; flex-direction: column; gap: 3px;
-        min-width: 150px;
+        display: flex; flex-direction: column; gap: 3px; min-width: 150px;
     }
     .progress-row {
         display: flex; align-items: center; gap: 8px;
     }
     .progress-track {
         flex: 1; height: 6px; background: var(--surface-alt);
-        border-radius: 4px; overflow: hidden;
-        min-width: 90px;
+        border-radius: 4px; overflow: hidden; min-width: 90px;
     }
     .progress-bar {
         height: 100%; background: var(--primary);
-        border-radius: 4px;
-        transition: width 0.35s ease;
+        border-radius: 4px; transition: width 0.35s ease;
     }
     .progress-bar.warn { background: var(--warning); }
     .progress-bar.ok   { background: var(--success); }
@@ -173,17 +174,12 @@
         display: inline-flex; align-items: center; gap: 6px;
         font-weight: 700; color: var(--text);
     }
-
     .error-snippet {
         font-size: 11.5px; color: var(--text-muted);
-        max-width: 340px;
-        display: inline-block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        max-width: 340px; display: inline-block; overflow: hidden;
+        text-overflow: ellipsis; white-space: nowrap;
         vertical-align: middle;
     }
-
     .empty-dense {
         padding: 32px 16px; color: var(--text-muted);
         font-size: 12.5px; text-align: center;
@@ -192,7 +188,7 @@
         font-size: 26px; display: block; margin-bottom: 6px; opacity: 0.4;
     }
 
-    /* ---------- Row action buttons ---------- */
+    /* ---------- Row Actions ---------- */
     .row-actions {
         display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap;
     }
@@ -206,16 +202,12 @@
         white-space: nowrap;
     }
     .btn-tiny:hover { background: var(--primary-soft); color: var(--primary-hover); }
-    .btn-tiny.primary {
-        background: var(--primary); color: #fff;
-    }
+    .btn-tiny.primary { background: var(--primary); color: #fff; }
     .btn-tiny.primary:hover { background: var(--primary-hover); color: #fff; }
-    .btn-tiny.danger {
-        background: var(--danger-soft); color: var(--danger);
-    }
+    .btn-tiny.danger { background: var(--danger-soft); color: var(--danger); }
     .btn-tiny.danger:hover { background: var(--danger); color: #fff; }
 
-    /* ---------- Refresh indicator ---------- */
+    /* ---------- Auto Refresh ---------- */
     .auto-refresh-pill {
         display: inline-flex; align-items: center; gap: 6px;
         font-size: 11px; color: var(--text-muted);
@@ -233,7 +225,7 @@
 {% block content %}
 <div class="status-container">
 
-    <!-- ============================= HEADER ============================= -->
+    <!-- ============= HEADER ============= -->
     <div class="status-header">
         <div class="status-title">
             <h2>System Status</h2>
@@ -246,21 +238,37 @@
                 Auto-refresh 30s
             </span>
 
+            <!-- Bot health -->
             <span class="health-pill {% if bot_online %}online{% else %}offline{% endif %}">
                 <span class="health-dot"></span>
                 Bot {% if bot_online %}Online{% else %}Offline{% endif %}
             </span>
-            <a href="{% url 'ict:system_health_report_preview' %}"
-   target="_blank"
-   class="btn btn-outline btn-sm"
-   title="Preview in new tab">
-    <i class="bi bi-eye"></i> Preview
-</a>
+
+            <!-- Cron heartbeat -->
+            {% if heartbeat %}
+                <span class="health-pill {% if heartbeat_stale %}warn{% else %}online{% endif %}"
+                      title="Last run: {{ heartbeat.last_run_at|date:'H:i:s' }} ({{ heartbeat.total_runs }} total)">
+                    <span class="health-dot"></span>
+                    Cron {% if heartbeat_stale %}stale{% else %}live{% endif %}
+                    &middot; {{ heartbeat.last_run_at|timesince }} ago
+                </span>
+            {% else %}
+                <span class="health-pill offline" title="No cron heartbeat yet">
+                    <span class="health-dot"></span>
+                    Cron not running
+                </span>
+            {% endif %}
 
             <a href="{% url 'ict:system_health_report_download' %}"
-   class="btn btn-outline btn-sm">
-    <i class="bi bi-file-earmark-pdf"></i> Health Report
-</a>
+               class="btn btn-outline btn-sm">
+                <i class="bi bi-file-earmark-pdf"></i> Health Report
+            </a>
+
+            <a href="{% url 'ict:system_health_report_preview' %}"
+               target="_blank"
+               class="btn btn-outline btn-sm">
+                <i class="bi bi-eye"></i> Preview
+            </a>
 
             <form method="post" action="{% url 'ict:system_status_run_tick' %}" style="display:inline;">
                 {% csrf_token %}
@@ -273,7 +281,7 @@
         </div>
     </div>
 
-    <!-- ============================= COUNTS ============================= -->
+    <!-- ============= COUNTS ============= -->
     <div class="status-counts">
         <div class="count-card pending">
             <span class="label">Pending</span>
@@ -297,7 +305,7 @@
         </div>
     </div>
 
-    <!-- ============================= TODAY'S GRID ============================= -->
+    <!-- ============= TODAY GRID ============= -->
     <div class="panel-card">
         <div class="panel-card-head">
             <div class="panel-card-title">
@@ -316,6 +324,7 @@
                     <tr>
                         <th>Constituency</th>
                         <th>Progress</th>
+                        <th>Group</th>
                         <th>Status</th>
                         <th>Ready At</th>
                         <th>Sent At</th>
@@ -326,9 +335,7 @@
                     {% for row in today_rows %}
                     <tr>
                         <td>
-                            <span class="const-name">
-                                {{ row.constituency.name }}
-                            </span>
+                            <span class="const-name">{{ row.constituency.name }}</span>
                             {% if row.constituency.code %}
                                 <span class="code-tag">{{ row.constituency.code }}</span>
                             {% endif %}
@@ -337,7 +344,6 @@
                         <!-- Dual progress: Wards + Kits -->
                         <td>
                             <div class="progress-wrap">
-                                <!-- Wards -->
                                 <div class="progress-row">
                                     <div class="progress-track">
                                         <div class="progress-bar
@@ -349,7 +355,6 @@
                                     </span>
                                 </div>
 
-                                <!-- Kits (only if the constituency has any) -->
                                 {% if row.total_kits %}
                                 <div class="progress-row">
                                     <div class="progress-track">
@@ -365,7 +370,20 @@
                             </div>
                         </td>
 
-                        <!-- Status -->
+                        <!-- WhatsApp group -->
+                        <td>
+                            {% if row.has_group %}
+                                <span class="status-pill SENT" title="{{ row.group_name }}">
+                                    <span class="status-dot"></span> Group OK
+                                </span>
+                            {% else %}
+                                <span class="status-pill FAILED">
+                                    <span class="status-dot"></span> No Group
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Pipeline status -->
                         <td>
                             {% if row.state %}
                                 <span class="status-pill {{ row.state.status }}">
@@ -374,27 +392,23 @@
                                 </span>
                             {% else %}
                                 <span class="status-pill none">
-                                    <span class="status-dot"></span>
-                                    No activity
+                                    <span class="status-dot"></span> No activity
                                 </span>
                             {% endif %}
                         </td>
 
-                        <!-- Ready At -->
                         <td style="font-size: 12px; color: var(--text-muted);">
                             {% if row.state and row.state.ready_at %}
                                 {{ row.state.ready_at|date:"H:i:s" }}
                             {% else %}&mdash;{% endif %}
                         </td>
 
-                        <!-- Sent At -->
                         <td style="font-size: 12px; color: var(--text-muted);">
                             {% if row.state and row.state.sent_at %}
                                 {{ row.state.sent_at|date:"H:i:s" }}
                             {% else %}&mdash;{% endif %}
                         </td>
 
-                        <!-- Actions -->
                         <td>
                             <div class="row-actions">
                                 {% if row.state and row.state.status == "FAILED" %}
@@ -433,7 +447,7 @@
         {% endif %}
     </div>
 
-    <!-- ============================= PROBLEM STATES ============================= -->
+    <!-- ============= PROBLEM STATES ============= -->
     {% if problem_states %}
     <div class="panel-card">
         <div class="panel-card-head">
@@ -499,7 +513,7 @@
     </div>
     {% endif %}
 
-    <!-- ============================= HISTORY ============================= -->
+    <!-- ============= HISTORY ============= -->
     <div class="panel-card">
         <div class="panel-card-head">
             <div class="panel-card-title">
@@ -566,12 +580,11 @@
 
 {% block extra_js %}
 <script>
-    // ---- Auto-refresh every 30s, but only pause when user interacts with a form ----
+    // Auto-refresh every 30s; pause when tab hidden or a form field is focused.
     (function () {
         const REFRESH_MS = 30000;
         let userInteracting = false;
 
-        // Pause auto-refresh if the user has focused a form field or a modal is open
         document.addEventListener("focusin", (e) => {
             if (e.target.matches("input, select, textarea, button")) {
                 userInteracting = true;
@@ -581,20 +594,11 @@
             userInteracting = false;
         });
 
-        // Also pause while the tab is hidden — saves the server and the bot
-        let hidden = false;
-        document.addEventListener("visibilitychange", () => {
-            hidden = document.hidden;
-        });
-
         setInterval(() => {
             if (document.hidden) return;
             if (userInteracting) return;
-            // Don't refresh if the user is mid-scroll on a long page? Optional.
             window.location.reload();
         }, REFRESH_MS);
     })();
-
-    // ---- Confirm + POST for delete/retry buttons is handled inline ----
 </script>
 {% endblock %}
