@@ -19,7 +19,7 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: #f2f2f7;
-            color: #000000;
+            color: #1c1c1e;
             min-height: 100vh;
             display: flex;
             overflow-x: hidden;
@@ -34,9 +34,9 @@
 
         /* Sidebar */
         .sidebar {
-            width: 260px;
+            width: 240px;
             background-color: #ffffff;
-            border-right: 0.5px solid rgba(0, 0, 0, 0.1);
+            border-right: 0.5px solid rgba(0, 0, 0, 0.08);
             display: flex;
             flex-direction: column;
             position: fixed;
@@ -44,78 +44,82 @@
             bottom: 0;
             left: 0;
             z-index: 100;
-            transition: transform 0.3s ease;
+            transition: transform 0.25s ease;
         }
 
         .sidebar-brand {
-            padding: 20px 16px;
+            padding: 14px 14px;
             display: flex;
             align-items: center;
-            gap: 12px;
-            border-bottom: 0.5px solid #c6c6c8;
+            gap: 10px;
+            border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
         }
 
         .sidebar-brand img {
-            height: 36px;
+            height: 28px;
             width: auto;
             object-fit: contain;
         }
 
         .brand-text h1 {
-            font-size: 18px;
+            font-size: 15px;
             font-weight: 700;
             letter-spacing: -0.3px;
+            line-height: 1.2;
+            color: #1c1c1e;
         }
 
         .brand-text p {
-            font-size: 11px;
+            font-size: 10px;
             color: #8e8e93;
+            font-weight: 500;
         }
 
         .sidebar-menu {
             flex: 1;
-            padding: 16px 8px;
+            padding: 12px 6px;
             overflow-y: auto;
             list-style: none;
         }
 
         .menu-category {
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 10px;
+            font-weight: 700;
             color: #8e8e93;
             text-transform: uppercase;
-            padding: 12px 12px 6px 12px;
-            letter-spacing: 0.5px;
+            padding: 10px 10px 4px 10px;
+            letter-spacing: 0.6px;
         }
 
         .menu-item a {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 10px 12px;
+            gap: 10px;
+            padding: 7px 10px;
             color: #3a3a3c;
             text-decoration: none;
-            font-size: 15px;
+            font-size: 13px;
             font-weight: 500;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-            margin-bottom: 2px;
+            border-radius: 6px;
+            transition: all 0.15s ease;
+            margin-bottom: 1px;
         }
 
         .menu-item svg {
-            width: 20px;
-            height: 20px;
+            width: 17px;
+            height: 17px;
             color: #8e8e93;
-            transition: color 0.2s ease;
+            transition: color 0.15s ease;
+            flex-shrink: 0;
         }
 
         .menu-item a:hover {
-            background-color: rgba(144, 238, 144, 0.15);
+            background-color: rgba(144, 238, 144, 0.18);
             color: #000000;
         }
 
         .menu-item a:hover svg {
-            color: #7fe07f;
+            color: #248a3d;
         }
 
         .menu-item.active a {
@@ -129,52 +133,57 @@
         }
 
         .sidebar-footer {
-            padding: 16px;
-            border-top: 0.5px solid #c6c6c8;
-            background-color: #f8f8f8;
+            padding: 12px;
+            border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+            background-color: #fafafa;
         }
 
         .user-badge {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 12px;
+            gap: 8px;
+            margin-bottom: 10px;
         }
 
         .user-avatar {
-            width: 36px;
-            height: 36px;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
             background-color: #90EE90;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 600;
-            font-size: 14px;
+            font-weight: 700;
+            font-size: 12px;
+            color: #000;
+            flex-shrink: 0;
         }
 
         .user-info p {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 600;
+            line-height: 1.2;
+            color: #1c1c1e;
         }
 
         .user-info span {
-            font-size: 11px;
+            font-size: 10px;
             color: #ff3b30;
             font-weight: 600;
+            display: block;
         }
 
         .btn-logout {
             width: 100%;
-            padding: 8px;
+            padding: 6px;
             background: transparent;
             border: 0.5px solid #ff3b30;
             color: #ff3b30;
             border-radius: 6px;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.15s ease;
         }
 
         .btn-logout:hover {
@@ -183,7 +192,7 @@
 
         .main-wrapper {
             flex: 1;
-            margin-left: 260px;
+            margin-left: 240px;
             display: flex;
             flex-direction: column;
             min-width: 0;
@@ -192,11 +201,11 @@
         .mobile-header {
             display: none;
             background-color: #ffffff;
-            height: 56px;
-            padding: 0 16px;
+            height: 50px;
+            padding: 0 14px;
             align-items: center;
             justify-content: space-between;
-            border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
+            border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
             position: sticky;
             top: 0;
             z-index: 90;
@@ -207,15 +216,16 @@
             border: none;
             cursor: pointer;
             padding: 4px;
+            color: #1c1c1e;
         }
 
         .mobile-brand {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 700;
         }
 
         .content-body {
-            padding: 24px;
+            padding: 20px 24px;
             flex: 1;
         }
 
@@ -226,24 +236,25 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(0, 0, 0, 0.25);
             backdrop-filter: blur(2px);
             z-index: 95;
         }
 
         /* Toast/Messages */
         .messages {
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
 
         .alert {
-            padding: 12px 16px;
-            border-radius: 12px;
+            padding: 10px 14px;
+            border-radius: 8px;
             margin-bottom: 8px;
+            font-size: 13px;
             font-weight: 500;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
         .alert-success {
@@ -334,15 +345,15 @@
                 </a>
             </li>
             <li class="menu-item {% if 'constituenc' in request.path %}active{% endif %}">
-    <a href="{% url 'superadmin:constituency_list' %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 21h18"/>
-            <path d="M5 21V7l7-4 7 4v14"/>
-            <path d="M9 21v-6h6v6"/>
-        </svg>
-        Constituencies
-    </a>
-</li>
+                <a href="{% url 'superadmin:constituency_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 21h18"/>
+                        <path d="M5 21V7l7-4 7 4v14"/>
+                        <path d="M9 21v-6h6v6"/>
+                    </svg>
+                    Constituencies
+                </a>
+            </li>
             <li class="menu-item {% if 'ward' in request.path %}active{% endif %}">
                 <a href="{% url 'superadmin:ward_list' %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -353,7 +364,7 @@
                     Wards
                 </a>
             </li>
-            <li class="menu-item {% if 'clerk' in request.path %}active{% endif %}">
+            <li class="menu-item {% if 'staff' in request.path or 'clerk' in request.path %}active{% endif %}">
                 <a href="{% url 'superadmin:staff_list' %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -365,13 +376,13 @@
                 </a>
             </li>
             <li class="menu-item {% if 'ict-officer' in request.path %}active{% endif %}">
-    <a href="{% url 'superadmin:ict_officer_list' %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/>
-        </svg>
-        ICT Officers
-    </a>
-</li>
+                <a href="{% url 'superadmin:ict_officer_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/>
+                    </svg>
+                    ICT Officers
+                </a>
+            </li>
             <li class="menu-item {% if 'kit' in request.path %}active{% endif %}">
                 <a href="{% url 'superadmin:kit_list' %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -381,45 +392,45 @@
                     KIEMS Kits
                 </a>
             </li>
-            <li class="menu-item {% if 'kit' in request.path %}active{% endif %}">
+            <li class="menu-item {% if 'performance' in request.path %}active{% endif %}">
                 <a href="{% url 'superadmin:performance_dashboard' %}" class="sidebar-link">
-                    <svg class="icon" viewBox="0 0 24 24">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
                         <polyline points="17 6 23 6 23 12"/>
                     </svg>
                     Performance
                 </a>
             </li>
-            <!-- Add this in the sidebar menu section -->
-<div class="menu-category">Device Management</div>
-<li class="menu-item {% if 'device' in request.path %}active{% endif %}">
-    <a href="{% url 'superadmin:device_list' %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
-            <path d="M2 3h20v14H2z"/>
-        </svg>
-        Device Management
-    </a>
-</li>
-<li class="menu-item {% if 'device-logs' in request.path %}active{% endif %}">
-    <a href="{% url 'superadmin:device_logs' %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 8v4l3 3"/>
-            <circle cx="12" cy="12" r="10"/>
-        </svg>
-        Device Logs
-    </a>
-</li>
 
+            <div class="menu-category">Device Management</div>
+            <li class="menu-item {% if 'device' in request.path and 'device-logs' not in request.path %}active{% endif %}">
+                <a href="{% url 'superadmin:device_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                        <line x1="8" y1="21" x2="16" y2="21"/>
+                        <line x1="12" y1="17" x2="12" y2="21"/>
+                    </svg>
+                    Device Management
+                </a>
+            </li>
+            <li class="menu-item {% if 'device-logs' in request.path %}active{% endif %}">
+                <a href="{% url 'superadmin:device_logs' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 8v4l3 3"/>
+                        <circle cx="12" cy="12" r="10"/>
+                    </svg>
+                    Device Logs
+                </a>
+            </li>
 
             <div class="menu-category">Data & Logs</div>
-              <li class="menu-item {% if 'entry' in request.path %}active{% endif %}">
+            <li class="menu-item {% if 'whatsapp' in request.path and 'group' not in request.path %}active{% endif %}">
                 <a href="{% url 'superadmin:whatsapp_status' %}" class="sidebar-link">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-        WhatsApp
-    </a>
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                    </svg>
+                    WhatsApp
+                </a>
             </li>
             <li class="menu-item {% if 'entry' in request.path %}active{% endif %}">
                 <a href="{% url 'superadmin:entry_list' %}">
@@ -433,7 +444,7 @@
                 </a>
             </li>
             <li class="menu-item {% if 'sync' in request.path %}active{% endif %}">
-                <a href="">
+                <a href="#">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21.21 15.89A6 6 0 1 1 8 2.83"/>
                         <path d="M22 12A10 10 0 0 0 12 2v10z"/>
@@ -442,7 +453,7 @@
                 </a>
             </li>
             <li class="menu-item {% if 'audit' in request.path %}active{% endif %}">
-                <a href="">
+                <a href="#">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                         <line x1="12" y1="8" x2="12" y2="12"/>
@@ -465,7 +476,7 @@
             </li>
 
             <div class="menu-category">Import/Export</div>
-            <li class="menu-item {% if 'import' in request.path %}active{% endif %}">
+            <li class="menu-item {% if 'import' in request.path and 'import-logs' not in request.path %}active{% endif %}">
                 <a href="{% url 'superadmin:import_data' %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -476,7 +487,7 @@
                 </a>
             </li>
             <li class="menu-item {% if 'import-logs' in request.path %}active{% endif %}">
-                <a href="">
+                <a href="#">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                         <polyline points="14 2 14 8 20 8"/>
@@ -484,6 +495,22 @@
                         <line x1="16" y1="17" x2="8" y2="17"/>
                     </svg>
                     Import Logs
+                </a>
+            </li>
+            <li class="menu-item {% if 'system-health' in request.path %}active{% endif %}">
+                <a href="{% url 'superadmin:system_health' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                    System Health
+                </a>
+            </li>
+            <li class="menu-item {% if 'whatsapp_group' in request.path %}active{% endif %}">
+                <a href="{% url 'superadmin:whatsapp_group_admin' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                    </svg>
+                    WhatsApp Groups
                 </a>
             </li>
         </nav>
@@ -508,14 +535,14 @@
     <div class="main-wrapper">
         <header class="mobile-header">
             <button class="menu-toggle" id="menuToggle" aria-label="Open Navigation Menu">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="3" y1="12" x2="21" y2="12"/>
                     <line x1="3" y1="6" x2="21" y2="6"/>
                     <line x1="3" y1="18" x2="21" y2="18"/>
                 </svg>
             </button>
             <div class="mobile-brand">KIEMS Portal</div>
-            <div style="width: 32px;"></div>
+            <div style="width: 28px;"></div>
         </header>
 
         <main class="content-body">
@@ -548,8 +575,8 @@
         overlay.classList.toggle('show');
     }
 
-    menuToggle.addEventListener('click', toggleSidebar);
-    overlay.addEventListener('click', toggleSidebar);
+    if (menuToggle) menuToggle.addEventListener('click', toggleSidebar);
+    if (overlay) overlay.addEventListener('click', toggleSidebar);
 </script>
 {% block extra_js %}{% endblock %}
 </body>

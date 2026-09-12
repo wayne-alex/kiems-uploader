@@ -1,0 +1,105 @@
+{% extends "superadmin/base.html" %}
+{% block title %}WhatsApp Groups | KIEMS SuperAdmin{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:22px; flex-wrap:wrap; gap:12px;">
+    <div>
+        <h2 style="font-size: 22px; font-weight: 700;">WhatsApp Groups</h2>
+        <p style="font-size: 13px; color:#8e8e93; margin-top:4px;">
+            Assign each constituency's group. Reports route to the assigned group only.
+        </p>
+    </div>
+    <a href="{% url 'superadmin:whatsapp_status' %}" class="btn btn-outline" style="padding: 8px 16px; border-radius: 8px; text-decoration: none; background:#fff; border:1px solid #ddd;">
+        WhatsApp Status
+    </a>
+</div>
+
+<!-- Assignments -->
+<div style="background:#fff; border-radius: 12px; border: 0.5px solid rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 22px;">
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead style="background:#fafafa;">
+            <tr>
+                <th style="text-align:left; padding:12px 16px; font-size:10.5px; font-weight:700; text-transform:uppercase; color:#8e8e93; letter-spacing:0.5px;">Constituency</th>
+                <th style="text-align:left; padding:12px 16px; font-size:10.5px; font-weight:700; text-transform:uppercase; color:#8e8e93; letter-spacing:0.5px;">Assigned Group</th>
+                <th style="text-align:left; padding:12px 16px; font-size:10.5px; font-weight:700; text-transform:uppercase; color:#8e8e93; letter-spacing:0.5px;">Group ID</th>
+                <th style="text-align:right; padding:12px 16px; font-size:10.5px; font-weight:700; text-transform:uppercase; color:#8e8e93; letter-spacing:0.5px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in constituency_rows %}
+            <tr style="border-bottom:0.5px solid rgba(0,0,0,0.05);">
+                <td style="padding:12px 16px;"><strong>{{ row.constituency.name }}</strong></td>
+                <td style="padding:12px 16px;">
+                    {% if row.group %}
+                        <span style="background:#dcfce7; color:#15803d; padding:2px 9px; border-radius:12px; font-size:11px; font-weight:700;">
+                            {{ row.group.name }}
+                        </span>
+                    {% else %}
+                        <span style="background:#fee2e2; color:#b91c1c; padding:2px 9px; border-radius:12px; font-size:11px; font-weight:700;">
+                            Missing
+                        </span>
+                    {% endif %}
+                </td>
+                <td style="padding:12px 16px; font-family: monospace; font-size:11.5px; color:#6b7280;">
+                    {{ row.group.group_id|default:"—" }}
+                </td>
+                <td style="padding:12px 16px; text-align:right;">
+                    <form method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="assign">
+                        <input type="hidden" name="constituency_id" value="{{ row.constituency.pk }}">
+                        <select name="group_id" style="padding:5px 10px; border-radius:6px; border:1px solid #ddd; font-size:12px; background:#fff;">
+                            <option value="">— unassign —</option>
+                            {% for g in unassigned_groups %}
+                                <option value="{{ g.group_id }}">{{ g.name }}</option>
+                            {% endfor %}
+                            {% if row.group %}
+                                <option value="{{ row.group.group_id }}" selected>{{ row.group.name }} (current)</option>
+                            {% endif %}
+                        </select>
+                        <button type="submit" style="padding:5px 12px; border-radius:6px; border:none; background:#16a34a; color:#fff; font-size:12px; font-weight:600; cursor:pointer;">
+                            Assign
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" style="padding:32px; text-align:center; color:#8e8e93;">No active constituencies</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Unassigned groups -->
+<div style="background:#fff; border-radius: 12px; border: 0.5px solid rgba(0,0,0,0.08); overflow: hidden;">
+    <div style="padding:14px 20px; border-bottom:0.5px solid rgba(0,0,0,0.06);">
+        <h3 style="font-size:14px; font-weight:700;">Unassigned Groups ({{ unassigned_groups|length }})</h3>
+    </div>
+    {% if unassigned_groups %}
+    <table style="width:100%; border-collapse: collapse; font-size:13px;">
+        <tbody>
+            {% for g in unassigned_groups %}
+            <tr style="border-bottom:0.5px solid rgba(0,0,0,0.05);">
+                <td style="padding:12px 16px;"><strong>{{ g.name }}</strong></td>
+                <td style="padding:12px 16px; font-family: monospace; font-size:11.5px; color:#6b7280;">{{ g.group_id }}</td>
+                <td style="padding:12px 16px; text-align:right;">
+                    <form method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="group_id" value="{{ g.group_id }}">
+                        <button type="submit" style="background:none; border:none; color:#dc2626; font-size:12px; cursor:pointer;" onclick="return confirm('Delete this group?');">
+                            Delete
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="padding:32px; text-align:center; color:#8e8e93; font-size:13px;">
+        Every active group is assigned. Fetch more from the WhatsApp status page.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

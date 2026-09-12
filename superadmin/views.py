@@ -12,6 +12,7 @@ from django.contrib.auth import logout, authenticate, login
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator
+from django.db import models
 from django.db import transaction
 from django.db.models import Count, Sum, Q
 from django.http import HttpResponse, JsonResponse
@@ -20,12 +21,24 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
-from django.db import models
+
+from home.models import (
+    Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry,
+    WhatsAppSetting, WhatsAppGroup, Device, DeviceBurnLog,
+    DailyReportLog, Constituency, AuditLog, DailyReportState, CronHeartbeat,
+
+)
 from ict.models import ICTOfficerProfile
+from ict.views import _check_bot_health
+from .forms import (
+    WardForm, VRAForm, ClerkForm, KIEMSKitForm, PhaseForm,
+    DailyKIEMSEntryForm, DailyEntryFilterForm, ImportForm, VenueMappingForm, ICTOfficerForm, ConstituencyForm
+)
+
+# ==================== HELPER FUNCTIONS ====================
 
 logger = logging.getLogger(__name__)
 
-# Optional: ReportLab as fallback if PDF.co fails
 try:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter, landscape
@@ -38,17 +51,6 @@ try:
 except ImportError:
     REPORTLAB_AVAILABLE = False
 
-from home.models import (
-    Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry, WhatsAppSetting, WhatsAppGroup, Device, DeviceBurnLog,
-    DailyReportLog, Constituency, AuditLog
-)
-from .forms import (
-    WardForm, VRAForm, ClerkForm, KIEMSKitForm, PhaseForm,
-    DailyKIEMSEntryForm, DailyEntryFilterForm, ImportForm, VenueMappingForm, ICTOfficerForm, ConstituencyForm
-)
-
-
-# ==================== HELPER FUNCTIONS ====================
 
 def is_superadmin(user):
     return user.is_superuser
@@ -144,58 +146,125 @@ def password_reset_request(request):
 @login_required
 @user_passes_test(is_superadmin)
 def dashboard(request):
-    """SuperAdmin Dashboard"""
+    """SuperAdmin Dashboard — constituency-aware."""
     active_phase = Phase.objects.filter(active=True).first()
 
-    # Key Metrics
+    # ---- Global metrics ----
     metrics = {
-        'total_wards': Ward.objects.count(),
-        'total_vras': VRA.objects.filter(active=True).count(),
-        'total_clerks': Clerk.objects.filter(active=True).count(),
-        'total_kits': KIEMSKit.objects.filter(status=True).count(),
-        'inactive_kits': KIEMSKit.objects.filter(status=False).count(),
-        'total_phases': Phase.objects.count(),
-        'total_entries': DailyKIEMSEntry.objects.count(),
-        'total_registered': DailyKIEMSEntry.objects.aggregate(Sum('total_registered'))['total_registered__sum'] or 0,
-        'total_transferred': DailyKIEMSEntry.objects.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0,
-        'total_updated': DailyKIEMSEntry.objects.aggregate(Sum('total_updated'))['total_updated__sum'] or 0,
-        'venue_mappings': DailyKIEMSEntry.objects.filter(entry_type='VENUE').count(),
-        'registration_entries': DailyKIEMSEntry.objects.filter(entry_type='REGISTRATION').count(),
+        "total_constituencies": Constituency.objects.count(),
+        "active_constituencies": Constituency.objects.filter(active=True).count(),
+        "total_wards": Ward.objects.count(),
+        "total_vras": VRA.objects.filter(active=True).count(),
+        "total_clerks": Clerk.objects.filter(active=True).count(),
+        "total_kits": KIEMSKit.objects.filter(status=True).count(),
+        "inactive_kits": KIEMSKit.objects.filter(status=False).count(),
+        "total_phases": Phase.objects.count(),
+        "total_entries": DailyKIEMSEntry.objects.filter(entry_type="REGISTRATION").count(),
+        "total_registered": DailyKIEMSEntry.objects.filter(entry_type="REGISTRATION")
+                            .aggregate(s=Sum("total_registered"))["s"] or 0,
+        "total_transferred": DailyKIEMSEntry.objects.filter(entry_type="REGISTRATION")
+                             .aggregate(s=Sum("total_transferred"))["s"] or 0,
+        "venue_mappings": DailyKIEMSEntry.objects.filter(entry_type="VENUE").count(),
     }
 
-    # Recent entries
-    recent_entries = DailyKIEMSEntry.objects.select_related(
-        'kiems_kit', 'phase', 'ward', 'vra'
-    ).order_by('-created_at')[:10]
-
-    # Today's activity
-    today = timezone.now().date()
-    today_entries = DailyKIEMSEntry.objects.filter(entry_date=today)
+    # ---- Today's global activity ----
+    today = timezone.localdate()
+    today_qs = DailyKIEMSEntry.objects.filter(
+        entry_date=today, entry_type="REGISTRATION"
+    )
     today_activity = {
-        'registered': today_entries.filter(entry_type='REGISTRATION').aggregate(Sum('total_registered'))[
-                          'total_registered__sum'] or 0,
-        'transferred': today_entries.filter(entry_type='REGISTRATION').aggregate(Sum('total_transferred'))[
-                           'total_transferred__sum'] or 0,
-        'deleted': today_entries.filter(entry_type='REGISTRATION').aggregate(Sum('total_updated'))[
-                       'total_updated__sum'] or 0,
-        'venue_mappings': today_entries.filter(entry_type='VENUE').count(),
-        'registration_entries': today_entries.filter(entry_type='REGISTRATION').count(),
+        "registered": today_qs.aggregate(s=Sum("total_registered"))["s"] or 0,
+        "transferred": today_qs.aggregate(s=Sum("total_transferred"))["s"] or 0,
+        "updated": today_qs.aggregate(s=Sum("total_updated"))["s"] or 0,
+        "entries": today_qs.count(),
     }
 
-    # Kits by ward
-    kits_by_ward = KIEMSKit.objects.values('ward__name').annotate(
-        total=Count('id'),
-        active=Count('id', filter=Q(status=True))
-    ).order_by('-total')[:5]
+    # ---- Per-constituency rollup (today) ----
+    #  Ward counts, kit counts, today's registrations, and pipeline state
+    constituency_rows = []
+    for c in Constituency.objects.filter(active=True).order_by("name"):
+        c_today = DailyKIEMSEntry.objects.filter(
+            ward__constituency=c, entry_date=today, entry_type="REGISTRATION"
+        )
+        state = DailyReportState.objects.filter(
+            constituency=c, report_date=today
+        ).first()
+        group = (
+            WhatsAppGroup.objects
+            .filter(constituency=c, is_active=True)
+            .order_by("name").first()
+        )
+
+        constituency_rows.append({
+            "constituency": c,
+            "wards": Ward.objects.filter(constituency=c, active=True).count(),
+            "kits": KIEMSKit.objects.filter(
+                ward__constituency=c, ward__active=True, status=True
+            ).count(),
+            "registered_today": c_today.aggregate(s=Sum("total_registered"))["s"] or 0,
+            "transferred_today": c_today.aggregate(s=Sum("total_transferred"))["s"] or 0,
+            "state": state,
+            "state_status": state.status if state else "NO_ACTIVITY",
+            "submitted_wards": state.submitted_wards if state else 0,
+            "total_wards": state.total_wards if state else 0,
+            "has_group": group is not None,
+            "group_name": group.name if group else "",
+        })
+
+    # ---- Recent entries (registrations only) ----
+    recent_entries = (
+        DailyKIEMSEntry.objects
+        .filter(entry_type="REGISTRATION")
+        .select_related("kiems_kit", "phase", "ward", "ward__constituency", "vra")
+        .order_by("-created_at")[:10]
+    )
+
+    # ---- Recent audit ----
+    recent_audits = (
+        AuditLog.objects
+        .select_related("actor", "constituency")
+        .order_by("-created_at")[:10]
+    )
+
+    # ---- Charts data ----
+    # Wards per constituency (top 10)
+    wards_by_constituency = list(
+        Ward.objects
+        .values("constituency__name")
+        .annotate(total=Count("id"))
+        .order_by("-total")[:10]
+    )
+
+    # Kits per constituency
+    kits_by_constituency = list(
+        KIEMSKit.objects
+        .values("ward__constituency__name")
+        .annotate(total=Count("id"))
+        .order_by("-total")[:10]
+    )
+
+    # Today's report-state counts across all constituencies
+    report_state_counts = {
+        "PENDING": 0, "READY": 0, "SENDING": 0, "SENT": 0, "FAILED": 0
+    }
+    for row in constituency_rows:
+        key = row["state_status"]
+        if key not in report_state_counts:
+            key = "PENDING"
+        report_state_counts[key] += 1
 
     context = {
-        'active_phase': active_phase,
-        'metrics': metrics,
-        'recent_entries': recent_entries,
-        'today_activity': today_activity,
-        'kits_by_ward': kits_by_ward,
+        "active_phase": active_phase,
+        "metrics": metrics,
+        "today_activity": today_activity,
+        "constituency_rows": constituency_rows,
+        "recent_entries": recent_entries,
+        "recent_audits": recent_audits,
+        "wards_by_constituency": wards_by_constituency,
+        "kits_by_constituency": kits_by_constituency,
+        "report_state_counts": report_state_counts,
     }
-    return render(request, 'superadmin/dashboard.html', context)
+    return render(request, "superadmin/dashboard.html", context)
 
 
 # ==================== PHASE CRUD ====================
@@ -338,26 +407,55 @@ def ward_delete(request, pk):
 @login_required
 @user_passes_test(is_superadmin)
 def staff_list(request):
-    """List all clerks and VRAs in separate tables"""
-    # Get all clerks with their related data
-    clerks = Clerk.objects.select_related('ward').prefetch_related('kits').all().order_by('ward__name', 'name')
+    """List VRAs and Clerks with constituency + ward filter."""
+    constituency_id = request.GET.get("constituency", "").strip()
+    status_filter = request.GET.get("status", "").strip()
+    q = request.GET.get("q", "").strip()
 
-    # Get all VRAs with their related data
-    vras = VRA.objects.select_related('ward').all().order_by('ward__name', 'name')
+    clerks = (
+        Clerk.objects
+        .select_related("ward", "ward__constituency")
+        .prefetch_related("kits")
+    )
+    vras = (
+        VRA.objects
+        .select_related("ward", "ward__constituency")
+    )
 
-    # Statistics
+    if constituency_id:
+        clerks = clerks.filter(ward__constituency_id=constituency_id)
+        vras = vras.filter(ward__constituency_id=constituency_id)
+
+    if status_filter == "active":
+        clerks = clerks.filter(active=True)
+        vras = vras.filter(active=True)
+    elif status_filter == "inactive":
+        clerks = clerks.filter(active=False)
+        vras = vras.filter(active=False)
+
+    if q:
+        clerks = clerks.filter(Q(name__icontains=q) | Q(ward__name__icontains=q))
+        vras = vras.filter(Q(name__icontains=q) | Q(ward__name__icontains=q))
+
+    clerks = clerks.order_by("ward__constituency__name", "ward__name", "name")
+    vras = vras.order_by("ward__constituency__name", "ward__name", "name")
+
     stats = {
-        'total_clerks': clerks.count(),
-        'total_vras': vras.count(),
-        'active_clerks': clerks.filter(active=True).count(),
-        'active_vras': vras.filter(active=True).count(),
-        'total_staff': clerks.count() + vras.count(),
+        "total_clerks": clerks.count(),
+        "total_vras": vras.count(),
+        "active_clerks": clerks.filter(active=True).count(),
+        "active_vras": vras.filter(active=True).count(),
+        "total_staff": clerks.count() + vras.count(),
     }
 
-    return render(request, 'superadmin/staff_list.html', {
-        'clerks': clerks,
-        'vras': vras,
-        'stats': stats,
+    return render(request, "superadmin/staff_list.html", {
+        "clerks": clerks,
+        "vras": vras,
+        "stats": stats,
+        "constituencies": Constituency.objects.all().order_by("name"),
+        "selected_constituency": constituency_id,
+        "status_filter": status_filter,
+        "q": q,
     })
 
 
@@ -470,10 +568,31 @@ def clerk_list_old(request):
 @login_required
 @user_passes_test(is_superadmin)
 def kit_list(request):
-    """List all KIEMS kits"""
-    kits = KIEMSKit.objects.select_related('ward').prefetch_related('assigned_clerks').all().order_by('ward__name',
-                                                                                                      'kit_name')
-    return render(request, 'superadmin/kit_list.html', {'kits': kits})
+    """List KIEMS kits with a constituency filter."""
+    constituency_id = request.GET.get("constituency", "").strip()
+    status = request.GET.get("status", "").strip()
+
+    kits = (
+        KIEMSKit.objects
+        .select_related("ward", "ward__constituency")
+        .prefetch_related("assigned_clerks")
+    )
+
+    if constituency_id:
+        kits = kits.filter(ward__constituency_id=constituency_id)
+    if status == "active":
+        kits = kits.filter(status=True)
+    elif status == "inactive":
+        kits = kits.filter(status=False)
+
+    kits = kits.order_by("ward__constituency__name", "ward__name", "kit_name")
+
+    return render(request, "superadmin/kit_list.html", {
+        "kits": kits,
+        "constituencies": Constituency.objects.all().order_by("name"),
+        "selected_constituency": constituency_id,
+        "status": status,
+    })
 
 
 @login_required
@@ -524,93 +643,159 @@ def kit_delete(request, pk):
 @login_required
 @user_passes_test(is_superadmin)
 def entry_list(request):
-    """List all daily entries with filters"""
-    entries = DailyKIEMSEntry.objects.select_related(
-        'kiems_kit', 'phase', 'ward', 'vra'
-    ).all()
+    """List all daily entries (registrations only) with a constituency filter."""
+    entries = (
+        DailyKIEMSEntry.objects
+        .filter(entry_type="REGISTRATION")
+        .select_related("kiems_kit", "phase", "ward", "ward__constituency", "vra")
+    )
 
     form = DailyEntryFilterForm(request.GET or None)
     filter_params = {}
 
     if form.is_valid():
-        if form.cleaned_data.get('phase'):
-            entries = entries.filter(phase=form.cleaned_data['phase'])
-            filter_params['phase'] = form.cleaned_data['phase'].id
-        if form.cleaned_data.get('ward'):
-            entries = entries.filter(ward=form.cleaned_data['ward'])
-            filter_params['ward'] = form.cleaned_data['ward'].id
-        if form.cleaned_data.get('kit'):
-            entries = entries.filter(kiems_kit=form.cleaned_data['kit'])
-            filter_params['kit'] = form.cleaned_data['kit'].id
-        if form.cleaned_data.get('vra'):
-            entries = entries.filter(vra=form.cleaned_data['vra'])
-            filter_params['vra'] = form.cleaned_data['vra'].id
-        if form.cleaned_data.get('date_from'):
-            entries = entries.filter(entry_date__gte=form.cleaned_data['date_from'])
-            filter_params['date_from'] = form.cleaned_data['date_from'].isoformat()
-        if form.cleaned_data.get('date_to'):
-            entries = entries.filter(entry_date__lte=form.cleaned_data['date_to'])
-            filter_params['date_to'] = form.cleaned_data['date_to'].isoformat()
-        if form.cleaned_data.get('uploaded') == 'True':
+        if form.cleaned_data.get("phase"):
+            entries = entries.filter(phase=form.cleaned_data["phase"])
+            filter_params["phase"] = form.cleaned_data["phase"].id
+        if form.cleaned_data.get("ward"):
+            entries = entries.filter(ward=form.cleaned_data["ward"])
+            filter_params["ward"] = form.cleaned_data["ward"].id
+        if form.cleaned_data.get("kit"):
+            entries = entries.filter(kiems_kit=form.cleaned_data["kit"])
+            filter_params["kit"] = form.cleaned_data["kit"].id
+        if form.cleaned_data.get("vra"):
+            entries = entries.filter(vra=form.cleaned_data["vra"])
+            filter_params["vra"] = form.cleaned_data["vra"].id
+        if form.cleaned_data.get("date_from"):
+            entries = entries.filter(entry_date__gte=form.cleaned_data["date_from"])
+            filter_params["date_from"] = form.cleaned_data["date_from"].isoformat()
+        if form.cleaned_data.get("date_to"):
+            entries = entries.filter(entry_date__lte=form.cleaned_data["date_to"])
+            filter_params["date_to"] = form.cleaned_data["date_to"].isoformat()
+        if form.cleaned_data.get("uploaded") == "True":
             entries = entries.filter(uploaded=True)
-            filter_params['uploaded'] = 'True'
-        elif form.cleaned_data.get('uploaded') == 'False':
+            filter_params["uploaded"] = "True"
+        elif form.cleaned_data.get("uploaded") == "False":
             entries = entries.filter(uploaded=False)
-            filter_params['uploaded'] = 'False'
-        if form.cleaned_data.get('entry_type'):
-            entries = entries.filter(entry_type=form.cleaned_data['entry_type'])
-            filter_params['entry_type'] = form.cleaned_data['entry_type']
+            filter_params["uploaded"] = "False"
 
-    # Calculate totals with gender breakdown
-    total_registered = entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0
-    total_male = entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0
-    total_female = entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0
-    total_transferred = entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0
-    total_updated = entries.aggregate(Sum('total_updated'))['total_updated__sum'] or 0
+    # --- NEW: constituency filter (direct GET param) ---
+    constituency_id = request.GET.get("constituency", "").strip()
+    if constituency_id:
+        entries = entries.filter(ward__constituency_id=constituency_id)
+        filter_params["constituency"] = constituency_id
 
-    # Entry type stats
-    entry_type_stats = {
-        'venue_count': entries.filter(entry_type='VENUE').count(),
-        'registration_count': entries.filter(entry_type='REGISTRATION').count(),
-        'venue_registered': entries.filter(entry_type='VENUE').aggregate(Sum('total_registered'))[
-                                'total_registered__sum'] or 0,
-        'registration_registered': entries.filter(entry_type='REGISTRATION').aggregate(Sum('total_registered'))[
-                                       'total_registered__sum'] or 0,
-    }
+    # --- Totals ---
+    total_registered = entries.aggregate(Sum("total_registered"))["total_registered__sum"] or 0
+    total_male = entries.aggregate(Sum("registered_male"))["registered_male__sum"] or 0
+    total_female = entries.aggregate(Sum("registered_female"))["registered_female__sum"] or 0
+    total_transferred = entries.aggregate(Sum("total_transferred"))["total_transferred__sum"] or 0
+    total_updated = entries.aggregate(Sum("total_updated"))["total_updated__sum"] or 0
 
-    # Today's statistics with gender breakdown
-    today = timezone.now().date()
-    today_entries = DailyKIEMSEntry.objects.filter(entry_date=today)
+    # --- Today (unfiltered, global) ---
+    today = timezone.localdate()
+    today_qs = DailyKIEMSEntry.objects.filter(
+        entry_date=today, entry_type="REGISTRATION"
+    )
     today_stats = {
-        'total_entries': today_entries.count(),
-        'unique_kits': today_entries.values('kiems_kit').distinct().count(),
-        'total_registered': today_entries.aggregate(Sum('total_registered'))['total_registered__sum'] or 0,
-        'registered_male': today_entries.aggregate(Sum('registered_male'))['registered_male__sum'] or 0,
-        'registered_female': today_entries.aggregate(Sum('registered_female'))['registered_female__sum'] or 0,
-        'total_transferred': today_entries.aggregate(Sum('total_transferred'))['total_transferred__sum'] or 0,
-        'total_updated': today_entries.aggregate(Sum('total_updated'))['total_updated__sum'] or 0,
-        'venue_mappings': today_entries.filter(entry_type='VENUE').count(),
-        'registration_entries': today_entries.filter(entry_type='REGISTRATION').count(),
+        "total_entries": today_qs.count(),
+        "unique_kits": today_qs.values("kiems_kit").distinct().count(),
+        "total_registered": today_qs.aggregate(Sum("total_registered"))["total_registered__sum"] or 0,
+        "registered_male": today_qs.aggregate(Sum("registered_male"))["registered_male__sum"] or 0,
+        "registered_female": today_qs.aggregate(Sum("registered_female"))["registered_female__sum"] or 0,
+        "total_transferred": today_qs.aggregate(Sum("total_transferred"))["total_transferred__sum"] or 0,
+        "total_updated": today_qs.aggregate(Sum("total_updated"))["total_updated__sum"] or 0,
     }
 
-    paginator = Paginator(entries, 50)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    paginator = Paginator(entries.order_by("-entry_date", "ward__name"), 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
 
     context = {
-        'page_obj': page_obj,
-        'form': form,
-        'is_filtered': bool(request.GET and any(request.GET.values())),
-        'total_registered': total_registered,
-        'total_male': total_male,
-        'total_female': total_female,
-        'total_transferred': total_transferred,
-        'total_updated': total_updated,
-        'today_stats': today_stats,
-        'entry_type_stats': entry_type_stats,
-        'filter_params': filter_params,
+        "page_obj": page_obj,
+        "form": form,
+        "is_filtered": bool(request.GET and any(request.GET.values())),
+        "total_registered": total_registered,
+        "total_male": total_male,
+        "total_female": total_female,
+        "total_transferred": total_transferred,
+        "total_updated": total_updated,
+        "today_stats": today_stats,
+        "filter_params": filter_params,
+
+        # --- NEW: pass dropdown options ---
+        "constituencies": Constituency.objects.all().order_by("name"),
+        "selected_constituency": constituency_id,
     }
-    return render(request, 'superadmin/entry_list.html', context)
+    return render(request, "superadmin/entry_list.html", context)
+    """List daily entries (registrations) with a constituency filter."""
+    entries = DailyKIEMSEntry.objects.filter(
+        entry_type="REGISTRATION"
+    ).select_related("kiems_kit", "phase", "ward", "ward__constituency", "vra")
+
+    form = DailyEntryFilterForm(request.GET or None)
+    filter_params = {}
+
+    if form.is_valid():
+        if form.cleaned_data.get("phase"):
+            entries = entries.filter(phase=form.cleaned_data["phase"])
+            filter_params["phase"] = form.cleaned_data["phase"].id
+        if form.cleaned_data.get("ward"):
+            entries = entries.filter(ward=form.cleaned_data["ward"])
+            filter_params["ward"] = form.cleaned_data["ward"].id
+        if form.cleaned_data.get("kit"):
+            entries = entries.filter(kiems_kit=form.cleaned_data["kit"])
+            filter_params["kit"] = form.cleaned_data["kit"].id
+        if form.cleaned_data.get("vra"):
+            entries = entries.filter(vra=form.cleaned_data["vra"])
+            filter_params["vra"] = form.cleaned_data["vra"].id
+        if form.cleaned_data.get("date_from"):
+            entries = entries.filter(entry_date__gte=form.cleaned_data["date_from"])
+            filter_params["date_from"] = form.cleaned_data["date_from"].isoformat()
+        if form.cleaned_data.get("date_to"):
+            entries = entries.filter(entry_date__lte=form.cleaned_data["date_to"])
+            filter_params["date_to"] = form.cleaned_data["date_to"].isoformat()
+
+    # Constituency filter (direct GET param, not part of the filter form)
+    constituency_id = request.GET.get("constituency", "").strip()
+    if constituency_id:
+        entries = entries.filter(ward__constituency_id=constituency_id)
+        filter_params["constituency"] = constituency_id
+
+    totals = entries.aggregate(
+        registered=Sum("total_registered"),
+        male=Sum("registered_male"),
+        female=Sum("registered_female"),
+        transferred=Sum("total_transferred"),
+        updated=Sum("total_updated"),
+    )
+
+    today = timezone.localdate()
+    today_stats = DailyKIEMSEntry.objects.filter(
+        entry_date=today, entry_type="REGISTRATION"
+    ).aggregate(
+        total_entries=Count("id"),
+        unique_kits=Count("kiems_kit", distinct=True),
+        total_registered=Sum("total_registered"),
+        registered_male=Sum("registered_male"),
+        registered_female=Sum("registered_female"),
+        total_transferred=Sum("total_transferred"),
+        total_updated=Sum("total_updated"),
+    )
+
+    paginator = Paginator(entries.order_by("-entry_date", "ward__name"), 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    context = {
+        "page_obj": page_obj,
+        "form": form,
+        "is_filtered": bool(request.GET and any(request.GET.values())),
+        "totals": totals,
+        "today_stats": today_stats,
+        "filter_params": filter_params,
+        "constituencies": Constituency.objects.all().order_by("name"),
+        "selected_constituency": constituency_id,
+    }
+    return render(request, "superadmin/entry_list.html", context)
 
 
 @login_required
@@ -2084,98 +2269,69 @@ def whatsapp_bot_status(request):
 @login_required
 @user_passes_test(is_superadmin)
 def whatsapp_groups(request):
-    """Get WhatsApp groups and save them to database"""
+    """Fetch groups from the bot; optionally assign them to a constituency."""
+    constituency_id = request.GET.get("constituency_id")
+    constituency = None
+    if constituency_id:
+        constituency = Constituency.objects.filter(pk=constituency_id).first()
+
     try:
-        bot_url = getattr(settings, 'WHATSAPP_BOT_URL', 'http://localhost:3000')
+        bot_url = getattr(settings, "WHATSAPP_BOT_URL", "http://localhost:3000")
 
-        # First check if bot is ready
-        status_response = requests.get(
-            f"{bot_url}/status",
-            timeout=3,
-            headers={'Content-Type': 'application/json'}
-        )
-
-        if status_response.status_code != 200:
+        status_response = requests.get(f"{bot_url}/status", timeout=3)
+        if status_response.status_code != 200 or not status_response.json().get("isReady"):
             return JsonResponse({
-                'success': False,
-                'data': [],
-                'error': 'Bot is not responding'
+                "success": False, "data": [],
+                "error": "Bot is not ready. Scan QR from the WhatsApp status page.",
             }, status=503)
 
-        status_data = status_response.json()
-        if not status_data.get('isReady', False):
+        response = requests.get(f"{bot_url}/groups", timeout=10)
+        if response.status_code != 200:
             return JsonResponse({
-                'success': False,
-                'data': [],
-                'error': 'Bot is not ready. Please scan QR code first.'
+                "success": False, "data": [],
+                "error": f"Bot returned {response.status_code}",
             }, status=503)
 
-        # Now get groups
-        response = requests.get(
-            f"{bot_url}/groups",
-            timeout=10,
-            headers={'Content-Type': 'application/json'}
-        )
+        raw_groups = response.json().get("data", [])
+        saved_groups = []
+        for g in raw_groups:
+            gid = g.get("id")
+            gname = g.get("name", f"Group {gid[:10]}")
+            if not gid:
+                continue
 
-        if response.status_code == 200:
-            data = response.json()
-            groups = data.get('data', [])
+            obj, created = WhatsAppGroup.objects.get_or_create(
+                group_id=gid,
+                defaults={
+                    "name": gname,
+                    "is_active": True,
+                    "constituency": constituency,  # may be None
+                },
+            )
+            # If the superadmin passed a constituency, re-scope on the fly
+            if constituency and obj.constituency_id != constituency.id:
+                obj.constituency = constituency
+                obj.save(update_fields=["constituency"])
+            if not created and obj.name != gname:
+                obj.name = gname
+                obj.save(update_fields=["name"])
 
-            # Save each group to database
-            saved_groups = []
-            for group_data in groups:
-                group_id = group_data.get('id')
-                group_name = group_data.get('name', f'WhatsApp Group {group_id[:10]}...')
-
-                if group_id:
-                    try:
-                        # Try to get existing group
-                        group, created = WhatsAppGroup.objects.get_or_create(
-                            group_id=group_id,
-                            defaults={
-                                'name': group_name,
-                                'is_active': True
-                            }
-                        )
-                        # Update name if it changed
-                        if not created and group.name != group_name:
-                            group.name = group_name
-                            group.save()
-
-                        saved_groups.append({
-                            'id': group.group_id,
-                            'name': group.name,
-                            'participants': group_data.get('participants', 0),
-                            'isActive': group.is_active
-                        })
-                        print(f"? Group saved: {group.name} ({group.group_id})")
-                    except Exception as e:
-                        print(f"Error saving group {group_id}: {str(e)}")
-
-            return JsonResponse({
-                'success': True,
-                'data': saved_groups
+            saved_groups.append({
+                "id": obj.group_id,
+                "name": obj.name,
+                "constituency": obj.constituency.name if obj.constituency else None,
+                "participants": g.get("participants", 0),
+                "isActive": obj.is_active,
             })
-        else:
-            return JsonResponse({
-                'success': False,
-                'data': [],
-                'error': f'Bot returned status {response.status_code}'
-            }, status=503)
+
+        return JsonResponse({"success": True, "data": saved_groups})
 
     except requests.exceptions.ConnectionError:
-        return JsonResponse({
-            'success': False,
-            'data': [],
-            'error': 'WhatsApp bot is not running'
-        }, status=503)
+        return JsonResponse({"success": False, "data": [],
+                             "error": "Bot is offline"}, status=503)
     except Exception as e:
-        logger.error(f"WhatsApp groups error: {str(e)}")
-        return JsonResponse({
-            'success': False,
-            'data': [],
-            'error': str(e)
-        }, status=500)
+        logger.exception("whatsapp_groups failed")
+        return JsonResponse({"success": False, "data": [], "error": str(e)}, status=500)
 
 
 @login_required
@@ -2399,6 +2555,64 @@ def whatsapp_get_settings(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def whatsapp_group_admin(request):
+    """Assign/unassign groups to constituencies."""
+    if request.method == "POST":
+        action = request.POST.get("action")
+        group_id = request.POST.get("group_id")
+
+        if action == "assign":
+            constituency_id = request.POST.get("constituency_id") or None
+            group = get_object_or_404(WhatsAppGroup, group_id=group_id)
+
+            if constituency_id:
+                # Un-scope any other group already on that constituency
+                WhatsAppGroup.objects.filter(
+                    constituency_id=constituency_id
+                ).exclude(pk=group.pk).update(constituency=None)
+                group.constituency_id = constituency_id
+            else:
+                group.constituency = None
+            group.save(update_fields=["constituency"])
+
+            messages.success(request, f"Group '{group.name}' updated.")
+
+        elif action == "toggle":
+            group = get_object_or_404(WhatsAppGroup, group_id=group_id)
+            group.is_active = not group.is_active
+            group.save(update_fields=["is_active"])
+            messages.success(request, f"Group '{group.name}' "
+                                      f"{'activated' if group.is_active else 'deactivated'}.")
+
+        elif action == "delete":
+            group = get_object_or_404(WhatsAppGroup, group_id=group_id)
+            name = group.name
+            group.delete()
+            messages.success(request, f"Group '{name}' deleted.")
+
+        return redirect("superadmin:whatsapp_group_admin")
+
+    # GET: show all constituencies and all groups
+    constituencies = Constituency.objects.all().order_by("name")
+    groups = WhatsAppGroup.objects.select_related("constituency").order_by("name")
+
+    # For each constituency, its (up to one) group
+    constituency_rows = []
+    for c in constituencies:
+        g = groups.filter(constituency=c).first()
+        constituency_rows.append({"constituency": c, "group": g})
+
+    # Unassigned groups (constituency=None)
+    unassigned = [g for g in groups if g.constituency_id is None]
+
+    return render(request, "superadmin/whatsapp_groups.html", {
+        "constituency_rows": constituency_rows,
+        "unassigned_groups": unassigned,
+    })
 
 
 @login_required
@@ -3089,7 +3303,7 @@ def venue_management(request):
     kit_id = request.GET.get('kit')
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
-    entry_type = request.GET.get('entry_type', '')      # '' = all types (fixes the empty-filter bug)
+    entry_type = request.GET.get('entry_type', '')  # '' = all types (fixes the empty-filter bug)
     venue_status = request.GET.get('venue_status', '')  # '', 'set', 'missing'
     search = request.GET.get('search', '')
 
@@ -3163,7 +3377,7 @@ def _filtered_entries_qs(request):
     kit_id = request.GET.get('kit')
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
-    entry_type = request.GET.get('entry_type', '')   # '' = all types, matches venue_management now
+    entry_type = request.GET.get('entry_type', '')  # '' = all types, matches venue_management now
     search = request.GET.get('search', '')
 
     entries = DailyKIEMSEntry.objects.select_related('kiems_kit', 'ward', 'vra', 'phase')
@@ -3302,7 +3516,7 @@ def generate_venue_report_html(request):
     html_string = render_to_string('superadmin/kitMovement_report.html', {
         'constituency': 'TURBO',
         'report_groups': report_groups,
-        'has_entries': bool(report_groups),   # <-- new
+        'has_entries': bool(report_groups),  # <-- new
         'date_from': filters['date_from'],
         'date_to': filters['date_to'],
         'generated_at': timezone.localtime().strftime('%d %b %Y, %H:%M'),
@@ -3544,6 +3758,7 @@ def generate_venue_report_preview(request):
     """HTML preview of the movement notice, same pattern as generate_report_preview()."""
     return generate_venue_report_html(request)
 
+
 @login_required
 @user_passes_test(is_superadmin)
 @require_GET
@@ -3576,6 +3791,7 @@ def entry_detail_api(request, pk):
         'office_updated_by': entry.office_updated_by or None,
         'office_updated_at': entry.office_updated_at.strftime('%d %b %Y, %H:%M') if entry.office_updated_at else None,
     })
+
 
 @login_required
 @user_passes_test(is_superadmin)
@@ -3710,7 +3926,7 @@ def ict_officer_delete(request, pk):
         constituency = profile.constituency.name
         user = profile.user
         profile.delete()
-        user.delete()   # also removes the user account
+        user.delete()  # also removes the user account
         AuditLog.objects.create(
             actor=request.user,
             action="DELETE",
@@ -3828,3 +4044,140 @@ def constituency_delete(request, pk):
         )
         messages.success(request, f"Constituency '{name}' deleted.")
     return redirect("superadmin:constituency_list")
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def system_health(request):
+    """Cross-constituency system health (mirrors ICT system_status but global)."""
+
+    today = timezone.localdate()
+    fourteen_days_ago = today - timedelta(days=14)
+
+    constituencies = Constituency.objects.filter(active=True).order_by("name")
+    todays_states = {
+        s.constituency_id: s
+        for s in DailyReportState.objects.filter(report_date=today)
+    }
+
+    today_rows = []
+    for c in constituencies:
+        state = todays_states.get(c.id)
+        total_wards = Ward.objects.filter(constituency=c, active=True).count()
+        submitted_wards = state.submitted_wards if state else 0
+        total_kits = KIEMSKit.objects.filter(
+            ward__constituency=c, ward__active=True, status=True
+        ).count()
+        submitted_kits = (
+            DailyKIEMSEntry.objects
+            .filter(
+                ward__constituency=c,
+                entry_date=today,
+                entry_type="REGISTRATION",
+            )
+            .values("kiems_kit_id").distinct().count()
+        )
+        group = WhatsAppGroup.objects.filter(
+            constituency=c, is_active=True
+        ).order_by("name").first()
+
+        today_rows.append({
+            "constituency": c,
+            "state": state,
+            "total_wards": total_wards,
+            "submitted_wards": submitted_wards,
+            "ward_pct": int((submitted_wards / total_wards * 100)) if total_wards else 0,
+            "total_kits": total_kits,
+            "submitted_kits": min(submitted_kits, total_kits),
+            "kit_pct": int((submitted_kits / total_kits * 100)) if total_kits else 0,
+            "has_group": group is not None,
+            "group_name": group.name if group else "",
+        })
+
+    problem_states = DailyReportState.objects.filter(
+        report_date__gte=fourteen_days_ago,
+        status__in=["FAILED", "SENDING"],
+    ).select_related("constituency").order_by("-report_date")[:100]
+
+    history = DailyReportState.objects.filter(
+        report_date__gte=fourteen_days_ago,
+        status__in=["SENT", "FAILED"],
+    ).select_related("constituency").order_by("-sent_at")[:100]
+
+    heartbeat = CronHeartbeat.objects.filter(name="send_daily_reports").first()
+    heartbeat_stale = (
+        True if not heartbeat
+        else (timezone.now() - heartbeat.last_run_at).total_seconds() > 600
+    )
+
+    counts = {
+        "pending": sum(1 for r in today_rows if not r["state"] or r["state"].status == "PENDING"),
+        "ready": sum(1 for r in today_rows if r["state"] and r["state"].status == "READY"),
+        "sending": sum(1 for r in today_rows if r["state"] and r["state"].status == "SENDING"),
+        "sent": sum(1 for r in today_rows if r["state"] and r["state"].status == "SENT"),
+        "failed": sum(1 for r in today_rows if r["state"] and r["state"].status == "FAILED"),
+    }
+
+    context = {
+        "today": today,
+        "today_rows": today_rows,
+        "problem_states": problem_states,
+        "history": history,
+        "heartbeat": heartbeat,
+        "heartbeat_stale": heartbeat_stale,
+        "counts": counts,
+        "bot_online": _check_bot_health() if "_check_bot_health" in globals() else False,
+    }
+    return render(request, "superadmin/system_health.html", context)
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_POST
+def system_health_retry(request, state_id):
+    """Re-arm a FAILED / stuck-SENDING state for retry."""
+    state = get_object_or_404(DailyReportState, pk=state_id)
+
+    if state.status not in ("FAILED", "SENDING"):
+        messages.info(request, f"State is already {state.status} — nothing to retry.")
+        return redirect("superadmin:system_health")
+
+    state.status = "READY"
+    state.attempts = 0
+    state.last_error = ""
+    state.ready_at = timezone.now()
+    state.locked_at = None
+    state.locked_by = ""
+    state.save(update_fields=[
+        "status", "attempts", "last_error",
+        "ready_at", "locked_at", "locked_by",
+    ])
+    messages.success(request, "State re-armed. It will be sent on the next tick.")
+    return redirect("superadmin:system_health")
+
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_POST
+def system_health_reevaluate(request, constituency_id, report_date):
+    """Force re-evaluation for a specific constituency/date."""
+    from home.services.daily_report import reevaluate_constituency_report
+    from datetime import datetime as _dt
+
+    c = get_object_or_404(Constituency, pk=constituency_id)
+
+    try:
+        d = _dt.strptime(report_date, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        d = timezone.localdate()
+
+    state = reevaluate_constituency_report(c, d)
+    if state:
+        messages.success(
+            request,
+            f"Re-evaluated {c.name}: {state.submitted_wards}/{state.total_wards} "
+            f"wards — {state.status}"
+        )
+    else:
+        messages.warning(request, "Nothing to evaluate (no active phase or no wards).")
+
+    return redirect("superadmin:system_health")

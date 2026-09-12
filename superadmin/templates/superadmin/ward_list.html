@@ -2,131 +2,118 @@
 {% block title %}Wards | KIEMS Admin{% endblock %}
 
 {% block content %}
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+<div class="page-header">
     <div>
-        <h2 style="font-size:24px; font-weight:700;">Wards</h2>
-        <p style="color:#8e8e93; font-size:14px;">
+        <h2 class="page-title">Wards</h2>
+        <p class="page-subtitle">
             {{ total_count }} total
-            {% if filtered_count != total_count %} · {{ filtered_count }} shown{% endif %}
+            {% if filtered_count != total_count %} &bull; {{ filtered_count }} shown{% endif %}
         </p>
     </div>
-    <a href="{% url 'superadmin:ward_create' %}"
-       style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
-        <span style="font-size:20px; line-height:1;">+</span> Add Ward
+    <a href="{% url 'superadmin:ward_create' %}" class="btn-primary">
+        <i class="bi bi-plus-lg"></i> Add Ward
     </a>
 </div>
 
-<form method="get"
-      style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:flex-end;">
-    <div style="display:flex; flex-direction:column; gap:4px;">
-        <label style="font-size:11px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Search</label>
-        <input type="text" name="q" value="{{ q }}" placeholder="Ward name or code…"
-               style="padding:9px 12px; border:0.5px solid rgba(0,0,0,0.1); border-radius:8px; font-size:14px; min-width:220px; background:#fff;">
+<form method="get" class="filter-bar">
+    <div class="filter-group">
+        <label class="filter-label">Search</label>
+        <input type="text" name="q" value="{{ q }}" placeholder="Ward name or code..." class="filter-input">
     </div>
-    <div style="display:flex; flex-direction:column; gap:4px;">
-        <label style="font-size:11px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Constituency</label>
-        <select name="constituency"
-                style="padding:9px 12px; border:0.5px solid rgba(0,0,0,0.1); border-radius:8px; font-size:14px; min-width:220px; background:#fff;">
+    <div class="filter-group">
+        <label class="filter-label">Constituency</label>
+        <select name="constituency" class="filter-select">
             <option value="">All constituencies</option>
             {% for c in constituencies %}
-                <option value="{{ c.pk }}"
-                    {% if selected_constituency == c.pk|stringformat:"s" %}selected{% endif %}>
+                <option value="{{ c.pk }}" {% if selected_constituency == c.pk|stringformat:"s" %}selected{% endif %}>
                     {{ c.name }}
                 </option>
             {% endfor %}
         </select>
     </div>
-    <button type="submit"
-            style="background:#90EE90; border:none; padding:10px 18px; border-radius:8px; font-weight:600; cursor:pointer;">
-        Filter
-    </button>
-    <a href="{% url 'superadmin:ward_list' %}"
-       style="background:#fff; border:0.5px solid rgba(0,0,0,0.1); padding:10px 18px; border-radius:8px; font-weight:600; text-decoration:none; color:#3a3a3c;">
-        Clear
-    </a>
+    <div class="filter-actions">
+        <button type="submit" class="btn-filter">Filter</button>
+        <a href="{% url 'superadmin:ward_list' %}" class="btn-clear">Clear</a>
+    </div>
 </form>
 
-<div style="background:#fff; border-radius:12px; border:0.5px solid rgba(0,0,0,0.08); overflow:hidden;">
-    <table style="width:100%; border-collapse:collapse;">
-        <thead style="background:#f9f9fb;">
+<div class="table-card">
+    <table class="data-table">
+        <thead>
             <tr>
-                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Name</th>
-                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Code</th>
-                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Constituency</th>
-                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">VRAs</th>
-                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Clerks</th>
-                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Kits</th>
-                <th style="padding:14px 20px; text-align:right; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Actions</th>
+                <th>Name</th>
+                <th>Code</th>
+                <th>Constituency</th>
+                <th>VRAs</th>
+                <th>Clerks</th>
+                <th>Kits</th>
+                <th style="text-align: right;">Actions</th>
             </tr>
         </thead>
         <tbody>
             {% for ward in wards %}
-            <tr style="border-bottom:0.5px solid rgba(0,0,0,0.06);">
-                <td style="padding:14px 20px; font-weight:600;">{{ ward.name }}</td>
-                <td style="padding:14px 20px; color:#8e8e93; font-family:monospace; font-size:13px;">
-                    {{ ward.code|default:"—" }}
-                </td>
-                <td style="padding:14px 20px;">
+            <tr>
+                <td class="font-medium">{{ ward.name }}</td>
+                <td class="text-mono">{{ ward.code|default:"—" }}</td>
+                <td>
                     {% if ward.constituency %}
-                        <span style="background:#e3f2fd; color:#1565c0; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">
+                        <span class="count-badge count-constituency">
                             {{ ward.constituency.name }}
                         </span>
                     {% else %}
-                        <span style="color:#8e8e93;">—</span>
+                        <span class="text-muted">—</span>
                     {% endif %}
                 </td>
-                <td style="padding:14px 20px;">
-                    <span style="background:#e8f5e9; color:#2e7d32; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">
+                <td>
+                    <span class="count-badge count-vras">
                         {{ ward.vra_count }}
                     </span>
                 </td>
-                <td style="padding:14px 20px;">
-                    <span style="background:#f5e8ff; color:#7b2cbf; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">
+                <td>
+                    <span class="count-badge count-clerks">
                         {{ ward.clerk_count }}
                     </span>
                 </td>
-                <td style="padding:14px 20px;">
-                    <span style="background:#fff8e1; color:#f57f17; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">
+                <td>
+                    <span class="count-badge count-kits">
                         {{ ward.kit_count }}
                     </span>
                 </td>
-                <td style="padding:14px 20px; text-align:right; white-space:nowrap;">
-                    <a href="{% url 'superadmin:ward_edit' ward.id %}"
-                       style="color:#5856d6; text-decoration:none; margin-right:12px;">Edit</a>
-                    <form method="post" action="{% url 'superadmin:ward_delete' ward.id %}"
-                          style="display:inline;"
-                          onsubmit="return confirm('Delete ward {{ ward.name|escapejs }}? This cannot be undone.');">
-                        {% csrf_token %}
-                        <button type="submit"
-                                style="background:none; border:none; color:#ff3b30; cursor:pointer; padding:0; font-size:14px;">
-                            Delete
-                        </button>
-                    </form>
+                <td style="text-align: right;">
+                    <div class="action-group">
+                        <a href="{% url 'superadmin:ward_edit' ward.id %}" class="btn-action btn-edit">Edit</a>
+                        <form method="post" action="{% url 'superadmin:ward_delete' ward.id %}"
+                              style="display: inline;"
+                              onsubmit="return confirm('Delete ward {{ ward.name|escapejs }}? This action cannot be undone.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-action btn-delete">
+                                Delete
+                            </button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="7" style="padding:60px 20px; text-align:center; color:#8e8e93;">
-                    <div style="font-size:48px; margin-bottom:16px;">🗺️</div>
-                    <h3 style="color:#000; margin-bottom:8px;">
+                <td colspan="7" class="empty-state">
+                    <div class="empty-icon"><i class="bi bi-geo-alt"></i></div>
+                    <h3>
                         {% if q or selected_constituency %}No Wards Match Your Filters{% else %}No Wards Found{% endif %}
                     </h3>
-                    <p style="margin-bottom:16px;">
+                    <p>
                         {% if q or selected_constituency %}
-                            Try adjusting your search or clearing filters.
+                            Try adjusting your search criteria or clear the filters.
                         {% else %}
                             Get started by adding your first ward.
                         {% endif %}
                     </p>
                     {% if q or selected_constituency %}
-                        <a href="{% url 'superadmin:ward_list' %}"
-                           style="background:#fff; border:0.5px solid rgba(0,0,0,0.1); padding:10px 20px; border-radius:8px; text-decoration:none; color:#3a3a3c; font-weight:600;">
+                        <a href="{% url 'superadmin:ward_list' %}" class="btn-clear" style="margin-top: 12px;">
                             Clear Filters
                         </a>
                     {% else %}
-                        <a href="{% url 'superadmin:ward_create' %}"
-                           style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600;">
-                            + Add Ward
+                        <a href="{% url 'superadmin:ward_create' %}" class="btn-primary" style="margin-top: 12px;">
+                            <i class="bi bi-plus-lg"></i> Add Ward
                         </a>
                     {% endif %}
                 </td>
@@ -135,4 +122,269 @@
         </tbody>
     </table>
 </div>
+
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .page-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1c1c1e;
+        line-height: 1.2;
+    }
+
+    .page-subtitle {
+        color: #8e8e93;
+        font-size: 12px;
+        margin-top: 2px;
+    }
+
+    .btn-primary {
+        background: #90EE90;
+        padding: 7px 14px;
+        border-radius: 6px;
+        text-decoration: none;
+        color: #000000;
+        font-weight: 600;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: background-color 0.15s ease;
+    }
+
+    .btn-primary:hover {
+        background: #7cdb7c;
+    }
+
+    .filter-bar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+        align-items: flex-end;
+        background: #ffffff;
+        padding: 12px;
+        border-radius: 8px;
+        border: 0.5px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .filter-label {
+        font-size: 10px;
+        font-weight: 700;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .filter-input, .filter-select {
+        padding: 6px 10px;
+        border: 0.5px solid rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
+        font-size: 12px;
+        background: #ffffff;
+        color: #1c1c1e;
+        height: 32px;
+    }
+
+    .filter-input, .filter-select {
+        min-width: 200px;
+    }
+
+    .filter-input:focus, .filter-select:focus {
+        outline: none;
+        border-color: #248a3d;
+        box-shadow: 0 0 0 3px rgba(144, 238, 144, 0.2);
+    }
+
+    .filter-actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    .btn-filter {
+        background: #90EE90;
+        border: none;
+        padding: 0 14px;
+        height: 32px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #000;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+
+    .btn-filter:hover {
+        background: #7cdb7c;
+    }
+
+    .btn-clear {
+        background: #ffffff;
+        border: 0.5px solid rgba(0, 0, 0, 0.15);
+        padding: 0 12px;
+        height: 32px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        text-decoration: none;
+        color: #3a3a3c;
+        display: inline-flex;
+        align-items: center;
+        transition: background-color 0.15s ease;
+    }
+
+    .btn-clear:hover {
+        background: #f2f2f7;
+    }
+
+    .table-card {
+        background: #ffffff;
+        border-radius: 8px;
+        border: 0.5px solid rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+
+    .data-table thead {
+        background: #fafafa;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .data-table th {
+        padding: 10px 14px;
+        text-align: left;
+        font-size: 10px;
+        font-weight: 700;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .data-table td {
+        padding: 10px 14px;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.05);
+        color: #1c1c1e;
+        vertical-align: middle;
+    }
+
+    .data-table tbody tr:hover {
+        background-color: #f9f9fb;
+    }
+
+    .font-medium {
+        font-weight: 600;
+    }
+
+    .text-mono {
+        font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        color: #636366;
+        font-size: 11px;
+    }
+
+    .text-muted {
+        color: #8e8e93;
+    }
+
+    .count-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .count-constituency {
+        background: #e3f2fd;
+        color: #1565c0;
+    }
+
+    .count-vras {
+        background: #e8f5e9;
+        color: #2e7d32;
+    }
+
+    .count-clerks {
+        background: #f3e5f5;
+        color: #7b1fa2;
+    }
+
+    .count-kits {
+        background: #fff8e1;
+        color: #f57f17;
+    }
+
+    .action-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-action {
+        font-size: 12px;
+        font-weight: 600;
+        text-decoration: none;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+    }
+
+    .btn-edit {
+        color: #007aff;
+    }
+
+    .btn-edit:hover {
+        text-decoration: underline;
+    }
+
+    .btn-delete {
+        color: #ff3b30;
+    }
+
+    .btn-delete:hover {
+        text-decoration: underline;
+    }
+
+    .empty-state {
+        padding: 48px 20px !important;
+        text-align: center;
+        color: #8e8e93;
+    }
+
+    .empty-icon {
+        font-size: 32px;
+        color: #aeaeb2;
+        margin-bottom: 8px;
+    }
+
+    .empty-state h3 {
+        color: #1c1c1e;
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+
+    .empty-state p {
+        font-size: 12px;
+    }
+</style>
 {% endblock %}

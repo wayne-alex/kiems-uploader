@@ -1,438 +1,530 @@
 {% extends "superadmin/base.html" %}
-{% block title %}Dashboard Analytics | KIEMS Portal{% endblock %}
+{% block title %}Dashboard | KIEMS SuperAdmin{% endblock %}
 
 {% block extra_css %}
 <style>
+    :root {
+        --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --border-color: #e5e7eb;
+        --bg-subtle: #f9fafb;
+        --text-muted: #6b7280;
+        --text-dark: #111827;
+    }
+
+    body {
+        font-family: var(--font-sans);
+        color: var(--text-dark);
+        background-color: #f3f4f6;
+    }
+
+    /* Header */
     .dashboard-header {
-        margin-bottom: 32px;
-        padding-bottom: 16px;
+        margin-bottom: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
     }
-
     .dashboard-header h2 {
-        font-size: 28px;
+        font-size: 20px;
         font-weight: 700;
-        letter-spacing: -0.5px;
-        color: #000000;
-        margin-bottom: 8px;
+        letter-spacing: -0.3px;
+        margin: 0 0 2px 0;
+        color: var(--text-dark);
     }
-
     .dashboard-header p {
-        font-size: 15px;
-        color: #8e8e93;
+        font-size: 12px;
+        color: var(--text-muted);
         margin: 0;
     }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 16px;
-        margin-bottom: 32px;
+    .dashboard-header .phase-badge {
+        font-size: 11px;
+        background: #fff;
+        border: 1px solid var(--border-color);
+        padding: 4px 10px;
+        border-radius: 6px;
+        color: var(--text-muted);
+    }
+    .dashboard-header .phase-badge strong {
+        color: var(--text-dark);
     }
 
+    /* Stats Layout */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+        margin-bottom: 16px;
+    }
     .stat-card {
-        background: #ffffff;
-        border-radius: 12px;
-        padding: 20px;
-        border: 0.5px solid rgba(0, 0, 0, 0.08);
+        background: #fff;
+        border-radius: 8px;
+        padding: 12px 14px;
+        border: 1px solid var(--border-color);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        transition: all 0.2s ease;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+    .stat-card .stat-label {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+    .stat-card .stat-value {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.4px;
+        line-height: 1.1;
+        color: var(--text-dark);
+    }
+    .stat-card .stat-value-small {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 4px;
+        font-weight: 400;
     }
 
-    .stat-card:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    }
+    /* Subtle Accent Colors */
+    .stat-card.green .stat-value  { color: #15803d; }
+    .stat-card.orange .stat-value { color: #d97706; }
+    .stat-card.red .stat-value    { color: #dc2626; }
+    .stat-card.blue .stat-value   { color: #2563eb; }
+    .stat-card.purple .stat-value { color: #7c3aed; }
 
-    .stat-meta {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
+    /* Compact Pipeline Row */
+    .pipeline-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
         margin-bottom: 16px;
     }
-
-    .stat-label {
-        font-size: 12px;
-        font-weight: 600;
-        color: #8e8e93;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-    }
-
-    .stat-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
+    .pipeline-card {
+        background: #fff;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 8px 12px;
         display: flex;
         align-items: center;
-        justify-content: center;
-        background-color: rgba(144, 238, 144, 0.12);
+        justify-content: space-between;
     }
 
-    .stat-icon svg {
-        width: 20px;
-        height: 20px;
-        color: #7fe07f;
-    }
-
-    .stat-icon.danger {
-        background-color: rgba(255, 59, 48, 0.12);
-    }
-
-    .stat-icon.danger svg {
-        color: #ff3b30;
-    }
-
-    .stat-icon.info {
-        background-color: rgba(88, 86, 214, 0.12);
-    }
-
-    .stat-icon.info svg {
-        color: #5856d6;
-    }
-
-    .stat-value {
-        font-size: 32px;
-        font-weight: 700;
-        color: #000000;
-        letter-spacing: -0.5px;
-        line-height: 1;
-    }
-
-    .stat-value-small {
-        font-size: 12px;
-        color: #8e8e93;
-        font-weight: 500;
-        margin-top: 6px;
-    }
-
-    .chart-grid {
-        display: grid;
-        grid-template-columns: 2fr 1fr;
-        gap: 24px;
-        margin-bottom: 24px;
-    }
-
-    @media (max-width: 1200px) {
-        .chart-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    .dashboard-card {
-        background: #ffffff;
-        border-radius: 12px;
-        border: 0.5px solid rgba(0, 0, 0, 0.08);
+    /* Panels */
+    .card-panel {
+        background: #fff;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.03);
         overflow: hidden;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        margin-bottom: 16px;
     }
-
-    .card-header {
-        padding: 20px;
-        border-bottom: 0.5px solid rgba(0, 0, 0, 0.06);
+    .card-panel-head {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border-color);
+        background: #fff;
         display: flex;
         align-items: center;
         justify-content: space-between;
     }
-
-    .card-title {
-        font-size: 16px;
-        font-weight: 600;
-        color: #000000;
-    }
-
-    .card-action {
+    .card-panel-head h3 {
         font-size: 13px;
-        color: #7fe07f;
-        text-decoration: none;
         font-weight: 600;
+        margin: 0;
+        color: var(--text-dark);
+    }
+    .card-panel-head .sub {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+    .card-panel-head a {
+        font-size: 11px;
+        color: #2563eb;
+        font-weight: 500;
+        text-decoration: none;
+    }
+    .card-panel-head a:hover { text-decoration: underline; }
+
+    /* Compact Tables */
+    .table-custom {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+    .table-custom th {
+        text-align: left;
+        padding: 8px 12px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        background: var(--bg-subtle);
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+    }
+    .table-custom td {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border-color);
+        vertical-align: middle;
+    }
+    .table-custom tbody tr:last-child td { border-bottom: none; }
+    .table-custom tbody tr:hover td { background: var(--bg-subtle); }
+
+    /* Badges & Pills */
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.2px;
+    }
+    .status-pill.PENDING { background: #fef3c7; color: #92400e; }
+    .status-pill.READY   { background: #dbeafe; color: #1e40af; }
+    .status-pill.SENDING { background: #f3e8ff; color: #6b21a8; }
+    .status-pill.SENT    { background: #dcfce7; color: #166534; }
+    .status-pill.FAILED  { background: #fee2e2; color: #991b1b; }
+    .status-pill.NO_ACTIVITY { background: #f3f4f6; color: #4b5563; }
+
+    .status-dot {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: currentColor;
     }
 
-    .card-action:hover {
-        color: #6fd86f;
-    }
-
-    .card-body {
-        padding: 20px;
-    }
-
-    .chart-container {
-        position: relative;
-        height: 300px;
-    }
-
-    .data-list {
-        list-style: none;
-    }
-
-    .data-row {
+    /* Modern Progress Bar */
+    .progress-wrapper {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        padding: 12px 0;
-        border-bottom: 0.5px solid rgba(0, 0, 0, 0.06);
+        gap: 8px;
+    }
+    .progress {
+        width: 70px;
+        height: 5px;
+        background: #e5e7eb;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .progress span {
+        display: block;
+        height: 100%;
+        background: #16a34a;
+        border-radius: 3px;
+    }
+    .progress.warn span { background: #d97706; }
+
+    /* Grid Layouts */
+    .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+    @media (max-width: 900px) {
+        .two-col, .pipeline-grid { grid-template-columns: 1fr; }
     }
 
-    .data-row:last-child {
-        border-bottom: none;
-    }
-
-    .data-label {
-        font-size: 14px;
-        font-weight: 500;
-    }
-
-    .data-meta {
+    .empty-dense {
+        padding: 20px;
+        color: var(--text-muted);
         font-size: 12px;
-        color: #8e8e93;
+        text-align: center;
     }
 
-    .status-badge {
-        padding: 4px 12px;
-        border-radius: 6px;
-        font-size: 11px;
+    .group-chip {
+        display: inline-flex;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 10px;
         font-weight: 600;
     }
-
-    .status-badge.synced {
-        background: rgba(52, 199, 89, 0.15);
-        color: #34c759;
-    }
-
-    .status-badge.pending {
-        background: rgba(255, 149, 0, 0.15);
-        color: #ff9500;
-    }
-
-    .status-badge.failed {
-        background: rgba(255, 59, 48, 0.15);
-        color: #ff3b30;
-    }
-
-    .empty-state {
-        padding: 40px 20px;
-        text-align: center;
-        color: #a1a1a6;
-    }
-
-    .empty-state-icon {
-        font-size: 40px;
-        margin-bottom: 12px;
-    }
-
-    @media (max-width: 768px) {
-        .stats-grid {
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        }
-        .stat-value {
-            font-size: 24px;
-        }
-    }
+    .group-chip.ok { background: #dcfce7; color: #166534; }
+    .group-chip.missing { background: #fee2e2; color: #991b1b; }
 </style>
 {% endblock %}
 
 {% block content %}
+
 <div class="dashboard-header">
-    <h2>Analytics Dashboard</h2>
-    <p>Real-time overview of {{ active_phase.name|default:"Election Activity" }}</p>
+    <div>
+        <h2>SuperAdmin Dashboard</h2>
+        <p>Cross-constituency live overview</p>
+    </div>
     {% if active_phase %}
-    <div style="font-size: 13px; color: #a1a1a6; margin-top: 6px;">
-        Phase: <strong>{{ active_phase.name }}</strong>
-        ({{ active_phase.start_date|date:"M d, Y" }} - {{ active_phase.end_date|date:"M d, Y" }})
+    <div class="phase-badge">
+        Active phase: <strong>{{ active_phase.name }}</strong>
+        <span>({{ active_phase.start_date|date:"d M Y" }} &ndash; {{ active_phase.end_date|date:"d M Y" }})</span>
     </div>
     {% endif %}
 </div>
 
-<!-- Key Metrics -->
+<!-- Global stats -->
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="stat-meta">
-            <span class="stat-label">Total Registered</span>
-            <div class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                    <circle cx="9" cy="7" r="4"/>
-                    <polyline points="16 11 18 13 22 9"/>
-                </svg>
-            </div>
-        </div>
-        <div class="stat-value">{{ metrics.total_registered|default:0 }}</div>
-        <div class="stat-value-small">Across all wards</div>
+        <span class="stat-label">Constituencies</span>
+        <span class="stat-value">{{ metrics.total_constituencies }}</span>
+        <span class="stat-value-small">{{ metrics.active_constituencies }} active</span>
     </div>
-
-    <div class="stat-card">
-        <div class="stat-meta">
-            <span class="stat-label">Active Kits</span>
-            <div class="stat-icon info">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="4" y="2" width="16" height="20" rx="2" ry="2"/>
-                    <line x1="12" y1="18" x2="12.01" y2="18"/>
-                </svg>
-            </div>
-        </div>
-        <div class="stat-value">{{ metrics.total_kits }}</div>
-        <div class="stat-value-small">{{ metrics.inactive_kits }} inactive </div>
+    <div class="stat-card blue">
+        <span class="stat-label">Registered (All-Time)</span>
+        <span class="stat-value">{{ metrics.total_registered }}</span>
+        <span class="stat-value-small">{{ metrics.total_entries }} entries</span>
     </div>
-
-    <div class="stat-card">
-        <div class="stat-meta">
-            <span class="stat-label">Sync Health</span>
-            <div class="stat-icon {% if metrics.sync_health_percentage > 80 %}info{% else %}danger{% endif %}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21.21 15.89A6 6 0 1 1 8 2.83"/>
-                    <polyline points="23 4 23 10 17 10"/>
-                </svg>
-            </div>
-        </div>
-        <div class="stat-value">{{ metrics.sync_health_percentage }}%</div>
-        <div class="stat-value-small">{{ metrics.synced_count }} synced · {{ metrics.unsynced_count }} pending</div>
+    <div class="stat-card green">
+        <span class="stat-label">Today's Registrations</span>
+        <span class="stat-value">{{ today_activity.registered }}</span>
+        <span class="stat-value-small">{{ today_activity.entries }} entries today</span>
     </div>
-
+    <div class="stat-card purple">
+        <span class="stat-label">Today's Transfers</span>
+        <span class="stat-value">{{ today_activity.transferred }}</span>
+        <span class="stat-value-small">{{ today_activity.updated }} updated</span>
+    </div>
+    <div class="stat-card orange">
+        <span class="stat-label">Active Kits</span>
+        <span class="stat-value">{{ metrics.total_kits }}</span>
+        <span class="stat-value-small">{{ metrics.inactive_kits }} inactive</span>
+    </div>
     <div class="stat-card">
-        <div class="stat-meta">
-            <span class="stat-label">Clerks </span>
-            <div class="stat-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                    <circle cx="9" cy="7" r="4"/>
-                    <circle cx="17" cy="9" r="2"/>
-                </svg>
-            </div>
-        </div>
-        <div class="stat-value">{{ metrics.total_clerks }}</div>
+        <span class="stat-label">Wards</span>
+        <span class="stat-value">{{ metrics.total_wards }}</span>
+        <span class="stat-value-small">all constituencies</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-label">Active VRAs</span>
+        <span class="stat-value">{{ metrics.total_vras }}</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-label">Active Clerks</span>
+        <span class="stat-value">{{ metrics.total_clerks }}</span>
+    </div>
+</div>
+
+<!-- Today pipeline snapshot -->
+<div class="pipeline-grid">
+    <div class="pipeline-card">
+        <span class="stat-label">Pending</span>
+        <span class="stat-value orange" style="font-size: 16px;">{{ report_state_counts.PENDING }}</span>
+    </div>
+    <div class="pipeline-card">
+        <span class="stat-label">Ready</span>
+        <span class="stat-value blue" style="font-size: 16px;">{{ report_state_counts.READY }}</span>
+    </div>
+    <div class="pipeline-card">
+        <span class="stat-label">Sending</span>
+        <span class="stat-value purple" style="font-size: 16px;">{{ report_state_counts.SENDING }}</span>
+    </div>
+    <div class="pipeline-card">
+        <span class="stat-label">Sent</span>
+        <span class="stat-value green" style="font-size: 16px;">{{ report_state_counts.SENT }}</span>
+    </div>
+    <div class="pipeline-card">
+        <span class="stat-label">Failed</span>
+        <span class="stat-value red" style="font-size: 16px;">{{ report_state_counts.FAILED }}</span>
+    </div>
+</div>
+
+<!-- Constituency grid -->
+<div class="card-panel">
+    <div class="card-panel-head">
+        <h3>Per-Constituency &mdash; Today</h3>
+        <span class="sub">{{ constituency_rows|length }} constituencies</span>
+    </div>
+    <div style="overflow-x: auto;">
+        <table class="table-custom">
+            <thead>
+                <tr>
+                    <th>Constituency</th>
+                    <th>Wards</th>
+                    <th>Kits</th>
+                    <th>Submitted</th>
+                    <th>Registered Today</th>
+                    <th>Transferred</th>
+                    <th>Group</th>
+                    <th>Pipeline</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in constituency_rows %}
+                <tr>
+                    <td>
+                        <strong>{{ row.constituency.name }}</strong>
+                        {% if row.constituency.code %}
+                            <span style="font-family: monospace; font-size: 10px; color: var(--text-muted); margin-left: 4px;">
+                                {{ row.constituency.code }}
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td>{{ row.wards }}</td>
+                    <td>{{ row.kits }}</td>
+                    <td>
+                        <div class="progress-wrapper">
+                            <div class="progress {% if row.submitted_wards < row.total_wards %}warn{% endif %}">
+                                <span style="width: {% if row.total_wards %}{% widthratio row.submitted_wards row.total_wards 100 %}{% else %}0{% endif %}%;"></span>
+                            </div>
+                            <span style="font-size: 11px; color: var(--text-muted);">
+                                {{ row.submitted_wards }}/{{ row.total_wards }}
+                            </span>
+                        </div>
+                    </td>
+                    <td><strong>{{ row.registered_today }}</strong></td>
+                    <td>{{ row.transferred_today }}</td>
+                    <td>
+                        {% if row.has_group %}
+                            <span class="group-chip ok" title="{{ row.group_name }}">OK</span>
+                        {% else %}
+                            <span class="group-chip missing">Missing</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="status-pill {{ row.state_status }}">
+                            <span class="status-dot"></span>
+                            {{ row.state_status|title }}
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" class="empty-dense">No active constituencies</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 
 <!-- Charts -->
-<div class="chart-grid">
-    <div class="dashboard-card">
-        <div class="card-header">
-            <h3 class="card-title">Daily Activity (Last 30 Days)</h3>
+<div class="two-col">
+    <div class="card-panel">
+        <div class="card-panel-head">
+            <h3>Top Constituencies by Wards</h3>
         </div>
-        <div class="card-body">
-            <div class="chart-container">
-                <canvas id="dailyChart"></canvas>
-            </div>
+        <div style="padding: 12px; height: 180px;">
+            <canvas id="wardsChart"></canvas>
         </div>
     </div>
-
-    <div class="dashboard-card">
-        <div class="card-header">
-            <h3 class="card-title">Sync Status</h3>
+    <div class="card-panel">
+        <div class="card-panel-head">
+            <h3>Top Constituencies by Kits</h3>
         </div>
-        <div class="card-body">
-            <div class="chart-container">
-                <canvas id="syncChart"></canvas>
-            </div>
+        <div style="padding: 12px; height: 180px;">
+            <canvas id="kitsChart"></canvas>
         </div>
     </div>
 </div>
 
-<!-- Recent Activity -->
-<div class="dashboard-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-    <div class="dashboard-card">
-        <div class="card-header">
-            <h3 class="card-title">Recent Submissions</h3>
-            <a href="{% url 'superadmin:entry_list' %}" class="card-action">View All</a>
+<!-- Recent activity -->
+<div class="two-col">
+    <div class="card-panel">
+        <div class="card-panel-head">
+            <h3>Recent Submissions</h3>
+            <a href="{% url 'superadmin:entry_list' %}">View all</a>
         </div>
-        <div class="card-body" style="padding: 0 20px;">
+        <div>
             {% if recent_entries %}
-            <ul class="data-list">
-                {% for entry in recent_entries %}
-                <li class="data-row">
-                    <div>
-                        <div class="data-label">{{ entry.kiems_kit.kit_code }}</div>
-                        <div class="data-meta">{{ entry.kiems_kit.ward.name|default:"No Ward" }}</div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div>+{{ entry.new_registered }} new</div>
-                        <div class="data-meta">{{ entry.created_at|timesince }} ago</div>
-                    </div>
-                </li>
-                {% endfor %}
-            </ul>
+            <table class="table-custom">
+                <tbody>
+                    {% for e in recent_entries %}
+                    <tr>
+                        <td>
+                            <strong>{{ e.kiems_kit.kit_name }}</strong><br>
+                            <span style="font-size: 11px; color: var(--text-muted);">
+                                {{ e.ward.name }}
+                                {% if e.ward.constituency %} &bull; {{ e.ward.constituency.name }}{% endif %}
+                            </span>
+                        </td>
+                        <td style="text-align: right;">
+                            <strong>+{{ e.total_registered }}</strong><br>
+                            <span style="font-size: 10px; color: var(--text-muted);">
+                                {{ e.created_at|timesince }} ago
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% else %}
-            <div class="empty-state">
-                <div class="empty-state-icon">📋</div>
-                <div>No recent submissions</div>
-            </div>
+            <div class="empty-dense">No recent submissions</div>
             {% endif %}
         </div>
     </div>
 
-    <div class="dashboard-card">
-        <div class="card-header">
-            <h3 class="card-title">Recent Audit Activity</h3>
-            <a href="" class="card-action">View All</a>
+    <div class="card-panel">
+        <div class="card-panel-head">
+            <h3>Recent Audit Activity</h3>
         </div>
-        <div class="card-body" style="padding: 0 20px;">
+        <div>
             {% if recent_audits %}
-            <ul class="data-list">
-                {% for audit in recent_audits %}
-                <li class="data-row">
-                    <div>
-                        <div class="data-label">{{ audit.get_action_display }} - {{ audit.object_repr }}</div>
-                        <div class="data-meta">by {{ audit.user.username|default:"System" }}</div>
-                    </div>
-                    <div class="data-meta">{{ audit.created_at|timesince }} ago</div>
-                </li>
-                {% endfor %}
-            </ul>
+            <table class="table-custom">
+                <tbody>
+                    {% for a in recent_audits %}
+                    <tr>
+                        <td>
+                            <strong>{{ a.get_action_display }}</strong> &mdash; {{ a.model_name }}<br>
+                            <span style="font-size: 11px; color: var(--text-muted);">
+                                by {{ a.actor.username|default:"system" }}
+                                {% if a.constituency %} &bull; {{ a.constituency.name }}{% endif %}
+                            </span>
+                        </td>
+                        <td style="text-align: right; font-size: 10px; color: var(--text-muted);">
+                            {{ a.created_at|timesince }} ago
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% else %}
-            <div class="empty-state">
-                <div class="empty-state-icon">🔒</div>
-                <div>No recent audit activity</div>
-            </div>
+            <div class="empty-dense">No recent audit activity</div>
             {% endif %}
         </div>
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Daily Activity Chart
-    fetch('{% url "superadmin:chart_data" %}?type=daily&days=30')
-        .then(r => r.json())
-        .then(data => {
-            new Chart(document.getElementById('dailyChart'), {
-                type: 'line',
-                data: data,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'top'
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-        });
+document.addEventListener('DOMContentLoaded', function () {
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+            y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 } } }
+        }
+    };
 
-    // Sync Status Chart
-    fetch('{% url "superadmin:chart_data" %}?type=sync')
-        .then(r => r.json())
-        .then(data => {
-            new Chart(document.getElementById('syncChart'), {
-                type: 'doughnut',
-                data: data,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
-        });
+    // Wards Chart
+    new Chart(document.getElementById('wardsChart'), {
+        type: 'bar',
+        data: {
+            labels: [{% for w in wards_by_constituency %}"{{ w.constituency__name|escapejs }}",{% endfor %}],
+            datasets: [{
+                label: 'Wards',
+                data: [{% for w in wards_by_constituency %}{{ w.total }},{% endfor %}],
+                backgroundColor: '#16a34a',
+                borderRadius: 4,
+            }]
+        },
+        options: chartOptions
+    });
+
+    // Kits Chart
+    new Chart(document.getElementById('kitsChart'), {
+        type: 'bar',
+        data: {
+            labels: [{% for k in kits_by_constituency %}"{{ k.ward__constituency__name|escapejs }}",{% endfor %}],
+            datasets: [{
+                label: 'Kits',
+                data: [{% for k in kits_by_constituency %}{{ k.total }},{% endfor %}],
+                backgroundColor: '#2563eb',
+                borderRadius: 4,
+            }]
+        },
+        options: chartOptions
+    });
 });
 </script>
 {% endblock %}

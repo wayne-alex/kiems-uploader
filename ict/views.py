@@ -2,27 +2,23 @@ import csv
 import io
 import json
 import os
-from datetime import timedelta
 
 import openpyxl
-import requests
-from django.contrib import messages
 from django.contrib.auth import logout, login as auth_login
-from django.db.models import Count, Q, Sum
-from django.http import JsonResponse, HttpResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.db import IntegrityError
+from django.db.models import Q, Sum
+from django.http import HttpResponse
 from django.template.loader import render_to_string
-from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
 
 from home.models import (
-    Ward, VRA, Clerk, KIEMSKit, Device, DeviceBurnLog,
-    DailyKIEMSEntry, AuditLog, WhatsAppGroup, WhatsAppSetting, DailyReportState, Constituency, Phase, CronHeartbeat, )
+    VRA, Clerk, Device, DeviceBurnLog,
+    AuditLog, WhatsAppSetting, Phase, )
 from .decorators import ict_required
 from .forms import (
     WardForm, VRAForm, ClerkForm, KIEMSKitForm,
-    DailyEntryOfficeForm, WhatsAppSettingForm, ICTOfficerLoginForm,
+    DailyEntryOfficeForm, WhatsAppSettingForm, ICTOfficerLoginForm, DailyEntryCreateForm,
 )
 
 
@@ -460,17 +456,23 @@ def device_delete(request, pk):
 
 # ---------- Daily Entries ----------
 
+# ---------- Daily Entries ----------
+
 @ict_required
 def entry_list(request):
     """
-    Daily entries for the logged-in ICT officer's constituency,
-    with SuperAdmin-style filters + today's stats + entry-type stats.
+    Daily entries for the ICT officer's constituency.
+
+    This view is REGISTRATION-only. Venue pre-maps are excluded because
+    they carry no numbers and belong to the planning workflow, not the
+    daily reporting workflow.
     """
     c = request.constituency
 
     qs = (
-        DailyKIEMSEntry.objects.filter(ward__constituency=c)
-        .select_related("ward", "vra", "clerk", "kiems_kit", "phase")
+        DailyKIEMSEntry.objects
+        .filter(ward__constituency=c, entry_type="REGISTRATION")
+        .select_related("ward", "vra", "kiems_kit", "phase")
     )
 
     # ---- Filters ----
@@ -479,7 +481,6 @@ def entry_list(request):
     ward_id = request.GET.get("ward")
     kit_id = request.GET.get("kit")
     vra_id = request.GET.get("vra")
-    entry_type = request.GET.get("entry_type")  # 'REGISTRATION' | 'VENUE' | ''
 
     if date_from:
         qs = qs.filter(entry_date__gte=date_from)
@@ -491,8 +492,6 @@ def entry_list(request):
         qs = qs.filter(kiems_kit_id=kit_id)
     if vra_id:
         qs = qs.filter(vra_id=vra_id)
-    if entry_type in ("REGISTRATION", "VENUE"):
-        qs = qs.filter(entry_type=entry_type)
 
     # ---- Totals for filtered set ----
     totals = qs.aggregate(
@@ -503,20 +502,12 @@ def entry_list(request):
         updated=Sum("total_updated"),
     )
 
-    # Entry type stats
-    entry_type_stats = {
-        "venue_count": qs.filter(entry_type="VENUE").count(),
-        "registration_count": qs.filter(entry_type="REGISTRATION").count(),
-        "venue_registered": qs.filter(entry_type="VENUE").aggregate(Sum("total_registered"))[
-                                "total_registered__sum"] or 0,
-        "registration_registered": qs.filter(entry_type="REGISTRATION").aggregate(Sum("total_registered"))[
-                                       "total_registered__sum"] or 0,
-    }
-
-    # ---- Today's stats (constituency-wide, unfiltered) ----
-    today = timezone.now().date()
+    # ---- Today's stats (constituency-wide, unfiltered, registrations only) ----
+    today = timezone.localdate()
     today_entries = DailyKIEMSEntry.objects.filter(
-        ward__constituency=c, entry_date=today
+        ward__constituency=c,
+        entry_date=today,
+        entry_type="REGISTRATION",
     )
     today_stats = {
         "total_entries": today_entries.count(),
@@ -530,14 +521,13 @@ def entry_list(request):
 
     # ---- Dropdown options ----
     wards = Ward.objects.filter(constituency=c).order_by("name")
-    kits = KIEMSKit.objects.filter(ward__constituency=c).order_by("kit_name")
+    kits = KIEMSKit.objects.filter(ward__constituency=c, status=True).order_by("kit_name")
     vras = VRA.objects.filter(ward__constituency=c, active=True).order_by("name")
 
     return render(request, "ict/entries/list.html", {
         "entries": qs.order_by("-entry_date", "ward__name")[:500],
         "totals": totals,
         "today_stats": today_stats,
-        "entry_type_stats": entry_type_stats,
         "constituency": c,
         "wards": wards,
         "kits": kits,
@@ -547,15 +537,98 @@ def entry_list(request):
         "ward_id": ward_id or "",
         "kit_id": kit_id or "",
         "vra_id": vra_id or "",
-        "entry_type": entry_type or "",
-        "is_filtered": any([date_from, date_to, ward_id, kit_id, vra_id, entry_type]),
+        "is_filtered": any([date_from, date_to, ward_id, kit_id, vra_id]),
+    })
+
+
+@ict_required
+def entry_create(request):
+    """
+    Office: create a manual REGISTRATION entry from the daily-entries page.
+    """
+    c = request.constituency
+
+    active_phase = Phase.objects.filter(active=True).first()
+    if not active_phase:
+        messages.error(
+            request,
+            "No active phase. Ask the SuperAdmin to activate one before creating entries."
+        )
+        return redirect("ict:entry_list")
+
+    if request.method == "POST":
+        form = DailyEntryCreateForm(request.POST, constituency=c)
+        if form.is_valid():
+            entry = form.save(commit=False)
+
+            # Required FKs the form doesn't expose
+            entry.phase = active_phase
+            entry.entry_type = "REGISTRATION"
+
+            # Ward must match the kit's ward (form already validates, but re-assert)
+            if entry.kiems_kit and entry.kiems_kit.ward_id:
+                entry.ward = entry.kiems_kit.ward
+
+            entry.office_updated_by = request.user.username
+            entry.office_updated_at = timezone.now()
+
+            try:
+                entry.save()
+            except IntegrityError as e:
+                # Duplicate from the unique constraint on (kit, phase, date, vra)
+                messages.error(
+                    request,
+                    "An entry for this kit, VRA, and date already exists. "
+                    "Edit the existing entry instead."
+                )
+                return render(request, "ict/entries/form_new.html", {
+                    "form": form,
+                    "constituency": c,
+                    "wards": Ward.objects.filter(constituency=c).order_by("name"),
+                    "kits": KIEMSKit.objects.filter(ward__constituency=c, status=True).order_by("kit_name"),
+                    "vras": VRA.objects.filter(ward__constituency=c, active=True).order_by("name"),
+                    "today": timezone.localdate(),
+                    "active_phase": active_phase,
+                })
+
+            _log(request, "CREATE", "DailyKIEMSEntry", entry,
+                 f"Manual entry {entry.entry_date} · {entry.ward.name} · {entry.kiems_kit.kit_name}")
+
+            try:
+                from home.services.daily_report import reevaluate_constituency_report
+                reevaluate_constituency_report(entry.ward.constituency, entry.entry_date)
+            except Exception as e:
+                print(f"state reeval failed: {e}")
+
+            messages.success(request, "Entry created.")
+            return redirect("ict:entry_list")
+    else:
+        form = DailyEntryCreateForm(constituency=c)
+
+    return render(request, "ict/entries/form_new.html", {
+        "form": form,
+        "constituency": c,
+        "wards": Ward.objects.filter(constituency=c).order_by("name"),
+        "kits": KIEMSKit.objects.filter(ward__constituency=c, status=True).order_by("kit_name"),
+        "vras": VRA.objects.filter(ward__constituency=c, active=True).order_by("name"),
+        "today": timezone.localdate(),
+        "active_phase": active_phase,
     })
 
 
 @ict_required
 def entry_edit(request, pk):
+    """
+    Office edit of an existing REGISTRATION entry.
+    Only registration entries are editable through this view.
+    """
     c = request.constituency
-    entry = get_object_or_404(DailyKIEMSEntry, pk=pk, ward__constituency=c)
+    entry = get_object_or_404(
+        DailyKIEMSEntry,
+        pk=pk,
+        ward__constituency=c,
+        entry_type="REGISTRATION",
+    )
     if request.method == "POST":
         form = DailyEntryOfficeForm(request.POST, instance=entry)
         if form.is_valid():
@@ -575,36 +648,30 @@ def entry_edit(request, pk):
     })
 
 
+# ==================== EXPORTS ====================
+
 @ict_required
 @require_GET
 def entry_export_excel(request):
-    """Export filtered entries to Excel (.xlsx)."""
+    """Export filtered REGISTRATION entries to Excel (.xlsx)."""
     c = request.constituency
 
-    qs = DailyKIEMSEntry.objects.filter(
-        ward__constituency=c
-    ).select_related("ward", "vra", "clerk", "kiems_kit", "phase")
+    qs = (
+        DailyKIEMSEntry.objects
+        .filter(ward__constituency=c, entry_type="REGISTRATION")
+        .select_related("ward", "vra", "kiems_kit", "phase")
+    )
 
-    # Apply the same filters as the list view
-    date_from = request.GET.get("date_from")
-    date_to = request.GET.get("date_to")
-    ward_id = request.GET.get("ward")
-    kit_id = request.GET.get("kit")
-    vra_id = request.GET.get("vra")
-    entry_type = request.GET.get("entry_type")
-
-    if date_from:
-        qs = qs.filter(entry_date__gte=date_from)
-    if date_to:
-        qs = qs.filter(entry_date__lte=date_to)
-    if ward_id:
-        qs = qs.filter(ward_id=ward_id)
-    if kit_id:
-        qs = qs.filter(kiems_kit_id=kit_id)
-    if vra_id:
-        qs = qs.filter(vra_id=vra_id)
-    if entry_type in ("REGISTRATION", "VENUE"):
-        qs = qs.filter(entry_type=entry_type)
+    for param, field in [
+        ("date_from", "entry_date__gte"),
+        ("date_to", "entry_date__lte"),
+        ("ward", "ward_id"),
+        ("kit", "kiems_kit_id"),
+        ("vra", "vra_id"),
+    ]:
+        val = request.GET.get(param)
+        if val:
+            qs = qs.filter(**{field: val})
 
     qs = qs.order_by("entry_date", "ward__name", "kiems_kit__kit_name")
 
@@ -613,13 +680,12 @@ def entry_export_excel(request):
     ws.title = "Daily Entries"
 
     headers = [
-        "Date", "Ward", "Kit", "Kit Serial", "VRA", "Clerk", "Venue", "Type",
+        "Date", "Ward", "Kit", "Kit Serial", "VRA", "Venue",
         "Male", "Female", "Total", "Transferred", "Updated",
         "Uploaded", "Edit Count",
     ]
     ws.append(headers)
 
-    # Style header row
     from openpyxl.styles import Font, PatternFill
     for cell in ws[1]:
         cell.font = Font(bold=True, color="FFFFFF")
@@ -632,9 +698,7 @@ def entry_export_excel(request):
             e.kiems_kit.kit_name if e.kiems_kit else "",
             e.kiems_kit.serial_no if e.kiems_kit else "",
             e.vra.name if e.vra else "",
-            e.clerk.name if e.clerk else "",
             e.venue or "",
-            "Registration" if e.entry_type == "REGISTRATION" else "Venue Mapping",
             e.registered_male,
             e.registered_female,
             e.total_registered,
@@ -644,7 +708,6 @@ def entry_export_excel(request):
             e.edit_count,
         ])
 
-    # Auto column widths
     for i, h in enumerate(headers, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = max(12, len(h) + 4)
 
@@ -662,11 +725,14 @@ def entry_export_excel(request):
 @ict_required
 @require_GET
 def entry_export_csv(request):
-    """Export filtered entries to CSV."""
+    """Export filtered REGISTRATION entries to CSV."""
     c = request.constituency
-    qs = DailyKIEMSEntry.objects.filter(
-        ward__constituency=c
-    ).select_related("ward", "vra", "clerk", "kiems_kit")
+
+    qs = (
+        DailyKIEMSEntry.objects
+        .filter(ward__constituency=c, entry_type="REGISTRATION")
+        .select_related("ward", "vra", "kiems_kit")
+    )
 
     for param, field in [
         ("date_from", "entry_date__gte"),
@@ -679,10 +745,6 @@ def entry_export_csv(request):
         if val:
             qs = qs.filter(**{field: val})
 
-    et = request.GET.get("entry_type")
-    if et in ("REGISTRATION", "VENUE"):
-        qs = qs.filter(entry_type=et)
-
     timestamp = timezone.localtime().strftime("%Y%m%d_%H%M%S")
     filename = f"{c.name.replace(' ', '_')}_Entries_{timestamp}.csv"
 
@@ -691,58 +753,52 @@ def entry_export_csv(request):
 
     writer = csv.writer(response)
     writer.writerow([
-        "Date", "Ward", "Kit", "Serial", "VRA", "Clerk", "Venue", "Type",
+        "Date", "Ward", "Kit", "Serial", "VRA", "Venue",
         "Male", "Female", "Total", "Transferred", "Updated",
     ])
     for e in qs.order_by("-entry_date"):
         writer.writerow([
-            e.entry_date, e.ward.name, e.kiems_kit.kit_name, e.kiems_kit.serial_no,
-            e.vra.name, e.clerk.name if e.clerk else "",
-            e.venue, e.entry_type,
-            e.registered_male, e.registered_female, e.total_registered,
-            e.total_transferred, e.total_updated,
+            e.entry_date,
+            e.ward.name,
+            e.kiems_kit.kit_name,
+            e.kiems_kit.serial_no,
+            e.vra.name,
+            e.venue,
+            e.registered_male,
+            e.registered_female,
+            e.total_registered,
+            e.total_transferred,
+            e.total_updated,
         ])
     return response
 
 
+# ==================== PDF REPORT ====================
+
 import json as _json
-from django.conf import settings
 
 
 def _entry_report_context(request):
-    """
-    Build the context your `ict/entries/report_pdf.html` template expects.
-    Applies the same filters as the entry_list view.
-    """
+    """Context for `ict/entries/report_pdf.html` (and the ReportLab fallback)."""
     c = request.constituency
 
     qs = (
-        DailyKIEMSEntry.objects.filter(ward__constituency=c)
+        DailyKIEMSEntry.objects
+        .filter(ward__constituency=c, entry_type="REGISTRATION")
         .select_related("ward", "phase", "kiems_kit")
     )
 
-    # ---- Filters (mirror entry_list) ----
-    date_from = request.GET.get("date_from")
-    date_to = request.GET.get("date_to")
-    ward_id = request.GET.get("ward")
-    kit_id = request.GET.get("kit")
-    vra_id = request.GET.get("vra")
-    entry_type = request.GET.get("entry_type")
+    for param, field in [
+        ("date_from", "entry_date__gte"),
+        ("date_to", "entry_date__lte"),
+        ("ward", "ward_id"),
+        ("kit", "kiems_kit_id"),
+        ("vra", "vra_id"),
+    ]:
+        val = request.GET.get(param)
+        if val:
+            qs = qs.filter(**{field: val})
 
-    if date_from:
-        qs = qs.filter(entry_date__gte=date_from)
-    if date_to:
-        qs = qs.filter(entry_date__lte=date_to)
-    if ward_id:
-        qs = qs.filter(ward_id=ward_id)
-    if kit_id:
-        qs = qs.filter(kiems_kit_id=kit_id)
-    if vra_id:
-        qs = qs.filter(vra_id=vra_id)
-    if entry_type in ("REGISTRATION", "VENUE"):
-        qs = qs.filter(entry_type=entry_type)
-
-    # ---- Grand totals ----
     totals = qs.aggregate(
         registered=Sum("total_registered"),
         male=Sum("registered_male"),
@@ -750,46 +806,42 @@ def _entry_report_context(request):
         transferred=Sum("total_transferred"),
     )
 
-    # ---- Ward summary ----
-    ward_summary = (
-        qs.values("ward__name")
-        .annotate(
+    ward_summary = list(
+        qs.values("ward__name").annotate(
             count=Count("id"),
             male=Sum("registered_male"),
             female=Sum("registered_female"),
             registered=Sum("total_registered"),
             transferred=Sum("total_transferred"),
-        )
-        .order_by("-registered")
+        ).order_by("-registered")
     )
 
-    # ---- Phase summary ----
-    phase_summary = (
-        qs.values("phase__name")
-        .annotate(
+    phase_summary = list(
+        qs.values("phase__name").annotate(
             count=Count("id"),
             male=Sum("registered_male"),
             female=Sum("registered_female"),
             registered=Sum("total_registered"),
             transferred=Sum("total_transferred"),
-        )
-        .order_by("-registered")
+        ).order_by("-registered")
     )
 
-    # ---- Kit summary (top 20) ----
-    kit_summary = (
-        qs.values("kiems_kit__kit_name")
-        .annotate(
+    kit_summary = list(
+        qs.values("kiems_kit__kit_name").annotate(
             count=Count("id"),
             male=Sum("registered_male"),
             female=Sum("registered_female"),
             registered=Sum("total_registered"),
-        )
-        .order_by("-registered")[:20]
+        ).order_by("-registered")[:20]
     )
 
-    # ---- Scope string for the subtitle under the title ----
     parts = []
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
+    ward_id = request.GET.get("ward")
+    kit_id = request.GET.get("kit")
+    vra_id = request.GET.get("vra")
+
     if date_from and date_to:
         parts.append(f"{date_from} to {date_to}")
     elif date_from:
@@ -811,12 +863,8 @@ def _entry_report_context(request):
         v = VRA.objects.filter(pk=vra_id, ward__constituency=c).first()
         if v:
             parts.append(f"VRA: {v.name}")
-    if entry_type == "REGISTRATION":
-        parts.append("Type: Registration")
-    elif entry_type == "VENUE":
-        parts.append("Type: Venue Mapping")
 
-    scope = "  •  ".join(parts)
+    parts.append("Type: Registration")
 
     return {
         "constituency": c,
@@ -825,10 +873,10 @@ def _entry_report_context(request):
         "total_male": totals["male"] or 0,
         "total_female": totals["female"] or 0,
         "total_transferred": totals["transferred"] or 0,
-        "ward_summary": list(ward_summary),
-        "phase_summary": list(phase_summary),
-        "kit_summary": list(kit_summary),
-        "scope": scope,
+        "ward_summary": ward_summary,
+        "phase_summary": phase_summary,
+        "kit_summary": kit_summary,
+        "scope": "  •  ".join(parts),
         "generated_at": timezone.localtime().strftime("%d %b %Y, %H:%M"),
         "brand_logo_url": "https://verify.iebc.or.ke/images/1.png",
     }
@@ -850,7 +898,7 @@ def entry_download_report(request):
         payload = _json.dumps({
             "name": f"{ctx['constituency'].name}_Daily_Report.pdf",
             "html": html_string,
-            "margin": "20px",
+            "margin": "0px",
             "paperSize": "Letter",
             "orientation": "Portrait",
             "printBackground": "true",
@@ -875,18 +923,23 @@ def entry_download_report(request):
             raise RuntimeError("Failed to download PDF")
 
         response = HttpResponse(pdf.content, content_type="application/pdf")
-        filename = f"{ctx['constituency'].name.replace(' ', '_')}_Daily_Report_{timezone.localtime().strftime('%Y%m%d')}.pdf"
+        filename = (
+            f"{ctx['constituency'].name.replace(' ', '_')}"
+            f"_Daily_Report_{timezone.localtime().strftime('%Y%m%d')}.pdf"
+        )
         response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
 
     except Exception as e:
-        # Fallback to ReportLab
         messages.warning(request, f"Falling back to local PDF: {e}")
         return _entry_pdf_reportlab(request, ctx)
 
 
 def _entry_pdf_reportlab(request, ctx):
-    """Local PDF fallback using ReportLab."""
+    """
+    Local PDF fallback using ReportLab.
+    Reads from the same ctx as `_entry_report_context`.
+    """
     try:
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import letter
@@ -901,31 +954,37 @@ def _entry_pdf_reportlab(request, ctx):
     filename = f"{ctx['constituency'].name.replace(' ', '_')}_Daily_Report.pdf"
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
-    doc = SimpleDocTemplate(response, pagesize=letter,
-                            rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    doc = SimpleDocTemplate(
+        response, pagesize=letter,
+        rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36,
+    )
     styles = getSampleStyleSheet()
     story = []
 
-    # Title
     story.append(Paragraph(
         f"{ctx['constituency'].name} Constituency — Daily Report",
         ParagraphStyle("T", parent=styles["Title"], fontSize=16,
-                       textColor=colors.HexColor("#16a34a"), alignment=TA_CENTER, spaceAfter=4)
+                       textColor=colors.HexColor("#16a34a"),
+                       alignment=TA_CENTER, spaceAfter=4)
     ))
     story.append(Paragraph(
         f"Generated: {ctx['generated_at']}",
         ParagraphStyle("S", parent=styles["Normal"], fontSize=9,
-                       textColor=colors.HexColor("#6b7280"), alignment=TA_CENTER, spaceAfter=14)
+                       textColor=colors.HexColor("#6b7280"),
+                       alignment=TA_CENTER, spaceAfter=14)
     ))
 
-    # Totals table
-    t = ctx["totals"]
     totals_data = [
-        ["Male", "Female", "Total", "Transferred", "Updated"],
-        [str(t["male"] or 0), str(t["female"] or 0), str(t["total"] or 0),
-         str(t["transferred"] or 0), str(t["updated"] or 0)],
+        ["Total Entries", "Registered", "Male", "Female", "Transferred"],
+        [
+            str(ctx["total_entries"]),
+            str(ctx["total_registered"]),
+            str(ctx["total_male"]),
+            str(ctx["total_female"]),
+            str(ctx["total_transferred"]),
+        ],
     ]
-    tt = Table(totals_data, colWidths=[100, 100, 100, 110, 100])
+    tt = Table(totals_data, colWidths=[100, 100, 80, 80, 100])
     tt.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#16a34a")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -942,15 +1001,17 @@ def _entry_pdf_reportlab(request, ctx):
     story.append(tt)
     story.append(Spacer(1, 16))
 
-    # Ward summary
-    if ctx["by_ward"]:
+    if ctx["ward_summary"]:
         story.append(Paragraph("Summary by Ward", styles["Heading4"]))
         ward_data = [["Ward", "Entries", "Male", "Female", "Total", "Transferred"]]
-        for w in ctx["by_ward"]:
+        for w in ctx["ward_summary"]:
             ward_data.append([
-                w["ward__name"] or "Unknown", str(w["entries"]),
-                str(w["male"] or 0), str(w["female"] or 0),
-                str(w["total"] or 0), str(w["transferred"] or 0),
+                w["ward__name"] or "Unknown",
+                str(w["count"]),
+                str(w["male"] or 0),
+                str(w["female"] or 0),
+                str(w["registered"] or 0),
+                str(w["transferred"] or 0),
             ])
         wt = Table(ward_data, colWidths=[140, 60, 60, 60, 70, 80])
         wt.setStyle(TableStyle([
@@ -967,23 +1028,24 @@ def _entry_pdf_reportlab(request, ctx):
         story.append(wt)
         story.append(Spacer(1, 16))
 
-    # Kit summary
-    if ctx["by_kit"]:
+    if ctx["kit_summary"]:
         story.append(Paragraph("Top Kits by Registration", styles["Heading4"]))
-        kit_data = [["Kit", "Ward", "Entries", "Male", "Female", "Total"]]
-        for k in ctx["by_kit"]:
+        kit_data = [["Kit", "Entries", "Male", "Female", "Total"]]
+        for k in ctx["kit_summary"]:
             kit_data.append([
-                k["kiems_kit__kit_name"] or "—", k["ward__name"] or "—",
-                str(k["entries"]), str(k["male"] or 0),
-                str(k["female"] or 0), str(k["total"] or 0),
+                k["kiems_kit__kit_name"] or "—",
+                str(k["count"]),
+                str(k["male"] or 0),
+                str(k["female"] or 0),
+                str(k["registered"] or 0),
             ])
-        kt = Table(kit_data, colWidths=[120, 100, 60, 60, 60, 70])
+        kt = Table(kit_data, colWidths=[160, 70, 70, 70, 80])
         kt.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#16a34a")),
             ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
             ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("ALIGN", (0, 1), (-1, -1), "CENTER"),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#dddddd")),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9f9f9")]),
             ("TOPPADDING", (0, 0), (-1, -1), 5),
@@ -1002,18 +1064,29 @@ def entry_download_report_preview(request):
     return render(request, "ict/entries/report_pdf.html", ctx)
 
 
+# ==================== CSV IMPORT ====================
+
+from datetime import datetime as _dt
+
+
 @ict_required
 @require_POST
 def entry_import_csv(request):
     """
     Import daily entries from CSV.
     Required columns: date, ward_id, kit_id, vra_id, male, female
-    Optional: transferred, updated, venue, entry_type
+    Optional: transferred, updated, venue
     """
     c = request.constituency
+
     csv_file = request.FILES.get("csv_file")
     if not csv_file:
         messages.error(request, "No CSV file uploaded.")
+        return redirect("ict:entry_list")
+
+    active_phase = Phase.objects.filter(active=True).first()
+    if not active_phase:
+        messages.error(request, "No active phase — import aborted.")
         return redirect("ict:entry_list")
 
     try:
@@ -1022,9 +1095,8 @@ def entry_import_csv(request):
 
         success = 0
         errors = []
-        today = timezone.now().date()
 
-        for i, row in enumerate(reader, start=2):  # row 1 = header
+        for i, row in enumerate(reader, start=2):
             try:
                 date_str = (row.get("date") or "").strip()
                 ward_id = (row.get("ward_id") or "").strip()
@@ -1035,10 +1107,15 @@ def entry_import_csv(request):
                 transferred = int(row.get("transferred") or 0)
                 updated = int(row.get("updated") or 0)
                 venue = (row.get("venue") or "").strip()
-                etype = (row.get("entry_type") or "REGISTRATION").strip().upper()
 
                 if not (date_str and ward_id and kit_id and vra_id):
                     errors.append(f"Row {i}: missing required fields")
+                    continue
+
+                try:
+                    entry_date_obj = _dt.strptime(date_str, "%Y-%m-%d").date()
+                except ValueError:
+                    errors.append(f"Row {i}: invalid date '{date_str}'")
                     continue
 
                 ward = Ward.objects.filter(pk=ward_id, constituency=c).first()
@@ -1049,9 +1126,11 @@ def entry_import_csv(request):
                     errors.append(f"Row {i}: ward/kit/vra not in your constituency")
                     continue
 
-                entry, created = DailyKIEMSEntry.objects.update_or_create(
+                # Force REGISTRATION — venue rows come from the clerk tool
+                DailyKIEMSEntry.objects.update_or_create(
                     kiems_kit=kit,
-                    entry_date=date_str,
+                    phase=active_phase,
+                    entry_date=entry_date_obj,
                     vra=vra,
                     defaults={
                         "ward": ward,
@@ -1061,7 +1140,7 @@ def entry_import_csv(request):
                         "total_registered": male + female,
                         "total_transferred": transferred,
                         "total_updated": updated,
-                        "entry_type": etype if etype in ("REGISTRATION", "VENUE") else "REGISTRATION",
+                        "entry_type": "REGISTRATION",
                     },
                 )
                 success += 1
@@ -1082,7 +1161,6 @@ def entry_import_csv(request):
 
     return redirect("ict:entry_list")
 
-
 @ict_required
 def notification_list(request):
     c = request.constituency
@@ -1101,7 +1179,7 @@ def notification_list(request):
     return render(request, "ict/notifications/list.html", {
         "constituency": c,
         "constituency_group": constituency_group,
-        "selected_group": constituency_group,   # keep name for template compat
+        "selected_group": constituency_group,  # keep name for template compat
         "personal_setting": setting,
         "wards": Ward.objects.filter(constituency=c).order_by("name"),
         "today": timezone.now().date(),
@@ -1224,7 +1302,7 @@ def whatsapp_groups_live(request):
                     defaults={
                         "name": gname,
                         "is_active": True,
-                        "constituency": None,   # unclaimed until picked
+                        "constituency": None,  # unclaimed until picked
                     },
                 )
                 if not created and obj.name != gname:
@@ -1239,8 +1317,8 @@ def whatsapp_groups_live(request):
             WhatsAppGroup.objects
             .filter(is_active=True)
             .filter(
-                Q(constituency=c)                 # mine
-                | Q(constituency__isnull=True)    # unclaimed or global
+                Q(constituency=c)  # mine
+                | Q(constituency__isnull=True)  # unclaimed or global
             )
             .select_related("constituency")
             .order_by("name")
@@ -1323,9 +1401,9 @@ def whatsapp_select_group(request):
             # refuse unless the user is a superuser — this prevents
             # accidentally stealing another constituency's group.
             if (
-                group.constituency_id
-                and group.constituency_id != c.id
-                and not request.user.is_superuser
+                    group.constituency_id
+                    and group.constituency_id != c.id
+                    and not request.user.is_superuser
             ):
                 return JsonResponse({
                     "success": False,
@@ -1591,19 +1669,12 @@ def ict_login(request):
         "next": next_url,
     })
 
+
 # ==================== SYSTEM STATUS ====================
 
-import time
-import requests
-from django.conf import settings
-
 from home.services.daily_report import (
-    reap_stuck_sending_states,
-    send_ready_reports,
-    reevaluate_constituency_report,
-    constituency_kit_progress, run_daily_report_tick,  # <- add this helper in daily_report.py (see below)
+    run_daily_report_tick,  # <- add this helper in daily_report.py (see below)
 )
-
 
 # --- Simple in-process cache for the bot health check ---
 _BOT_HEALTH_CACHE = {"ts": 0, "ok": False}
@@ -1797,7 +1868,7 @@ def system_status_retry(request, state_id):
     state.status = "READY"
     state.attempts = 0
     state.last_error = ""
-    state.ready_at = timezone.now()       # <- re-arm ready_at too
+    state.ready_at = timezone.now()  # <- re-arm ready_at too
     state.locked_at = None
     state.locked_by = ""
     state.save(update_fields=[
@@ -1936,16 +2007,16 @@ def _collect_health_snapshot(request):
 
     # --- Summary counts ---
     counts = {
-        "pending":  sum(1 for r in today_rows if r["status"] in ("PENDING", "NO_ACTIVITY")),
-        "ready":    sum(1 for r in today_rows if r["status"] == "READY"),
-        "sending":  sum(1 for r in today_rows if r["status"] == "SENDING"),
-        "sent":     sum(1 for r in today_rows if r["status"] == "SENT"),
-        "failed":   sum(1 for r in today_rows if r["status"] == "FAILED"),
+        "pending": sum(1 for r in today_rows if r["status"] in ("PENDING", "NO_ACTIVITY")),
+        "ready": sum(1 for r in today_rows if r["status"] == "READY"),
+        "sending": sum(1 for r in today_rows if r["status"] == "SENDING"),
+        "sent": sum(1 for r in today_rows if r["status"] == "SENT"),
+        "failed": sum(1 for r in today_rows if r["status"] == "FAILED"),
     }
 
     # --- Aggregate enrolment totals for context ---
     active_wards = Ward.objects.filter(constituency_id__in=visible_ids, active=True).count()
-    active_kits  = KIEMSKit.objects.filter(
+    active_kits = KIEMSKit.objects.filter(
         ward__constituency_id__in=visible_ids, ward__active=True, status=True
     ).count()
     active_devices = Device.objects.filter(
@@ -2061,7 +2132,10 @@ def system_health_report_download(request):
         filename = f"system_health_{ctx['report_date_iso']}.html"
         resp["Content-Disposition"] = f'attachment; filename="{filename}"'
         return resp
+
+
 import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -2117,7 +2191,6 @@ def cron_send_reports(request):
     return JsonResponse({"ok": True, "summary": summary})
 
 
-
 # ============================================================
 # MAIN VIEW
 # ============================================================
@@ -2158,9 +2231,9 @@ def system_status(request):
     # If none, mark as missing.
     groups_by_constituency = {}
     for g in (
-        WhatsAppGroup.objects
-        .filter(constituency_id__in=visible_ids, is_active=True)
-        .order_by("name")
+            WhatsAppGroup.objects
+                    .filter(constituency_id__in=visible_ids, is_active=True)
+                    .order_by("name")
     ):
         # First one wins
         if g.constituency_id not in groups_by_constituency:
@@ -2356,7 +2429,7 @@ def system_status_retry(request, state_id):
     state.status = "READY"
     state.attempts = 0
     state.last_error = ""
-    state.ready_at = timezone.now()   # re-arm ready_at so the tick picks it up
+    state.ready_at = timezone.now()  # re-arm ready_at so the tick picks it up
     state.locked_at = None
     state.locked_by = ""
     state.save(update_fields=[
@@ -2409,10 +2482,9 @@ from django.conf import settings
 from django.db.models import Count
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.utils import timezone
-from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.http import require_POST
 
 from datetime import timedelta
 
@@ -2428,7 +2500,6 @@ from home.services.daily_report import (
 )
 
 logger = logging.getLogger(__name__)
-
 
 # ------------------------------------------------------------
 # Bot health with a short in-process cache
@@ -2513,9 +2584,9 @@ def system_status(request):
     # If none, mark as missing.
     groups_by_constituency = {}
     for g in (
-        WhatsAppGroup.objects
-        .filter(constituency_id__in=visible_ids, is_active=True)
-        .order_by("name")
+            WhatsAppGroup.objects
+                    .filter(constituency_id__in=visible_ids, is_active=True)
+                    .order_by("name")
     ):
         # First one wins
         if g.constituency_id not in groups_by_constituency:
@@ -2711,7 +2782,7 @@ def system_status_retry(request, state_id):
     state.status = "READY"
     state.attempts = 0
     state.last_error = ""
-    state.ready_at = timezone.now()   # re-arm ready_at so the tick picks it up
+    state.ready_at = timezone.now()  # re-arm ready_at so the tick picks it up
     state.locked_at = None
     state.locked_by = ""
     state.save(update_fields=[

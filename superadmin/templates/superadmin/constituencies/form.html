@@ -2,60 +2,63 @@
 {% block title %}{{ title }} | KIEMS Admin{% endblock %}
 
 {% block content %}
-<div style="max-width:600px; margin:0 auto;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-        <h2 style="font-size:24px; font-weight:700;">{{ title }}</h2>
-        <a href="{% url 'superadmin:constituency_list' %}"
-           style="color:#5856d6; text-decoration:none;">← Back</a>
+<div class="form-container">
+    <div class="page-header">
+        <h2 class="page-title">{{ title }}</h2>
+        <a href="{% url 'superadmin:constituency_list' %}" class="btn-back">
+            <i class="bi bi-arrow-left"></i> Back to List
+        </a>
     </div>
 
-    <div style="background:#fff; border-radius:12px; border:0.5px solid rgba(0,0,0,0.08); padding:24px;">
+    <div class="form-card">
         <form method="post" autocomplete="off">
             {% csrf_token %}
 
             {% if form.non_field_errors %}
-                <div style="background:#ffebee; color:#c62828; padding:10px 14px; border-radius:10px; margin-bottom:16px; font-size:13px;">
+                <div class="alert-danger">
                     {{ form.non_field_errors }}
                 </div>
             {% endif %}
 
-            <div style="margin-bottom:16px;">
-                <label style="display:block; font-size:13px; font-weight:600; color:#3a3a3c; margin-bottom:4px;">
+            <div class="form-group">
+                <label class="form-label" for="{{ form.name.id_for_label }}">
                     {{ form.name.label }}
                 </label>
                 {{ form.name }}
                 {% if form.name.errors %}
-                    <div style="color:#c62828; font-size:12px; margin-top:4px;">{{ form.name.errors }}</div>
+                    <div class="form-error">{{ form.name.errors }}</div>
                 {% endif %}
             </div>
 
-            <div style="margin-bottom:16px;">
-                <label style="display:block; font-size:13px; font-weight:600; color:#3a3a3c; margin-bottom:4px;">
+            <div class="form-group">
+                <label class="form-label" for="{{ form.code.id_for_label }}">
                     {{ form.code.label }}
                 </label>
                 {{ form.code }}
                 {% if form.code.help_text %}
-                    <div style="font-size:12px; color:#8e8e93; margin-top:4px;">{{ form.code.help_text }}</div>
+                    <div class="form-help">{{ form.code.help_text }}</div>
                 {% endif %}
                 {% if form.code.errors %}
-                    <div style="color:#c62828; font-size:12px; margin-top:4px;">{{ form.code.errors }}</div>
+                    <div class="form-error">{{ form.code.errors }}</div>
                 {% endif %}
             </div>
 
-            <div style="margin-bottom:24px; display:flex; align-items:center; gap:10px;">
-                <label style="display:flex; align-items:center; gap:10px; font-size:14px; font-weight:600; color:#3a3a3c; cursor:pointer;">
+            <div class="form-group checkbox-group">
+                <label class="checkbox-label" for="{{ form.active.id_for_label }}">
                     {{ form.active }}
-                    {{ form.active.label }}
+                    <span>{{ form.active.label }}</span>
                 </label>
+                {% if form.active.help_text %}
+                    <div class="form-help checkbox-help">
+                        {{ form.active.help_text }}
+                    </div>
+                {% endif %}
+                {% if form.active.errors %}
+                    <div class="form-error">{{ form.active.errors }}</div>
+                {% endif %}
             </div>
-            {% if form.active.help_text %}
-                <div style="font-size:12px; color:#8e8e93; margin:-16px 0 20px 28px;">
-                    {{ form.active.help_text }}
-                </div>
-            {% endif %}
 
-            <button type="submit"
-                    style="width:100%; padding:14px; background:#90EE90; border:none; border-radius:12px; font-size:17px; font-weight:600; cursor:pointer;">
+            <button type="submit" class="btn-submit">
                 {% if form.instance.pk %}Update{% else %}Create{% endif %} Constituency
             </button>
         </form>
@@ -63,27 +66,152 @@
 </div>
 
 <style>
-    .form-input {
-        width:100%;
-        padding:12px 16px;
-        border:0.5px solid rgba(0,0,0,0.08);
-        border-radius:10px;
-        font-size:16px;
-        background:#f9f9fb;
-        transition:all 0.2s;
-        font-family:inherit;
+    .form-container {
+        max-width: 520px;
+        margin: 0 auto;
     }
-    .form-input:focus {
-        outline:none;
-        border-color:#90EE90;
-        background:#fff;
-        box-shadow:0 0 0 3px rgba(144,238,144,0.15);
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
     }
+
+    .page-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1c1c1e;
+        line-height: 1.2;
+    }
+
+    .btn-back {
+        color: #007aff;
+        text-decoration: none;
+        font-size: 12px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: opacity 0.15s ease;
+    }
+
+    .btn-back:hover {
+        opacity: 0.8;
+        text-decoration: underline;
+    }
+
+    .form-card {
+        background: #ffffff;
+        border-radius: 8px;
+        border: 0.5px solid rgba(0, 0, 0, 0.08);
+        padding: 20px;
+    }
+
+    .alert-danger {
+        background: #ffebee;
+        color: #c62828;
+        padding: 8px 12px;
+        border-radius: 6px;
+        margin-bottom: 14px;
+        font-size: 12px;
+        border: 0.5px solid rgba(198, 40, 40, 0.2);
+    }
+
+    .form-group {
+        margin-bottom: 14px;
+    }
+
+    .checkbox-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+
+    .form-input,
+    input[type="text"],
+    select {
+        width: 100%;
+        padding: 7px 10px;
+        border: 0.5px solid rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
+        font-size: 12px;
+        background: #ffffff;
+        color: #1c1c1e;
+        height: 34px;
+        box-sizing: border-box;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .form-input:focus,
+    input[type="text"]:focus,
+    select:focus {
+        outline: none;
+        border-color: #248a3d;
+        box-shadow: 0 0 0 3px rgba(144, 238, 144, 0.2);
+    }
+
+    .checkbox-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1c1c1e;
+        cursor: pointer;
+        user-select: none;
+    }
+
     input[type="checkbox"] {
-        width:18px;
-        height:18px;
-        accent-color:#90EE90;
-        cursor:pointer;
+        width: 16px;
+        height: 16px;
+        accent-color: #248a3d;
+        cursor: pointer;
+        margin: 0;
+    }
+
+    .form-help {
+        font-size: 11px;
+        color: #8e8e93;
+        margin-top: 4px;
+    }
+
+    .checkbox-help {
+        margin-top: 2px;
+        margin-left: 24px;
+    }
+
+    .form-error {
+        color: #ff3b30;
+        font-size: 11px;
+        margin-top: 4px;
+        font-weight: 500;
+    }
+
+    .btn-submit {
+        width: 100%;
+        padding: 8px 16px;
+        height: 36px;
+        background: #90EE90;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #000000;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+
+    .btn-submit:hover {
+        background: #7cdb7c;
     }
 </style>
 {% endblock %}

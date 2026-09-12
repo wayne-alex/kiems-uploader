@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate
 
 from home.models import (
     Ward, VRA, Clerk, KIEMSKit, DailyKIEMSEntry,
-    WhatsAppGroup, WhatsAppSetting,
+    WhatsAppGroup, WhatsAppSetting, Phase,
 )
 
 
@@ -147,4 +147,100 @@ class ICTOfficerLoginForm(forms.Form):
 
             self.user = user
 
+        return cleaned
+
+
+class DailyEntryCreateForm(forms.ModelForm):
+    """
+    Office: create a manual REGISTRATION entry.
+    - Ward is derived from the chosen kit — you don't pick both.
+    - VRA is required (each row belongs to one VRA).
+    - Clerk is optional and not shown by default.
+    - Transferred and Updated are optional.
+    """
+
+    ward = forms.ModelChoiceField(
+        queryset=Ward.objects.none(),
+        widget=forms.Select(attrs={"class": "form-control", "id": "id_ward"}),
+    )
+    kiems_kit = forms.ModelChoiceField(
+        queryset=KIEMSKit.objects.none(),
+        widget=forms.Select(attrs={"class": "form-control", "id": "id_kiems_kit"}),
+    )
+    vra = forms.ModelChoiceField(
+        queryset=VRA.objects.none(),
+        widget=forms.Select(attrs={"class": "form-control", "id": "id_vra"}),
+    )
+
+    class Meta:
+        model = DailyKIEMSEntry
+        fields = [
+            "entry_date",
+            "ward",
+            "kiems_kit",
+            "vra",
+            "venue",
+            "registered_male",
+            "registered_female",
+            "total_transferred",
+            "total_updated",
+        ]
+        widgets = {
+            "entry_date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+            "venue": forms.TextInput(attrs={"class": "form-control", "placeholder": "Venue name"}),
+            "registered_male": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "registered_female": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "total_transferred": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "total_updated": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+        }
+
+    def __init__(self, *args, constituency=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if constituency:
+            self.fields["ward"].queryset = Ward.objects.filter(
+                constituency=constituency, active=True
+            ).order_by("name")
+            self.fields["kiems_kit"].queryset = KIEMSKit.objects.filter(
+                ward__constituency=constituency, status=True
+            ).order_by("kit_name")
+            self.fields["vra"].queryset = VRA.objects.filter(
+                ward__constituency=constituency, active=True
+            ).order_by("name")
+
+    def clean(self):
+        cleaned = super().clean()
+        kit = cleaned.get("kiems_kit")
+        ward = cleaned.get("ward")
+        vra = cleaned.get("vra")
+
+        if kit and ward and kit.ward_id != ward.id:
+            self.add_error("kiems_kit", "Kit does not belong to the selected ward.")
+        if kit and vra and vra.ward_id != kit.ward_id:
+            self.add_error("vra", "VRA does not belong to the kit's ward.")
+
+        # Require at least one number
+        male = cleaned.get("registered_male") or 0
+        female = cleaned.get("registered_female") or 0
+        transferred = cleaned.get("total_transferred") or 0
+        if male == 0 and female == 0 and transferred == 0:
+            raise forms.ValidationError(
+                "Enter at least one of: male, female, or transferred."
+            )
+
+        # Prevent duplicate (kit, date, vra)
+        phase = Phase.objects.filter(active=True).first()
+        if phase and kit and vra and cleaned.get("entry_date"):
+            exists = DailyKIEMSEntry.objects.filter(
+                kiems_kit=kit,
+                phase=phase,
+                entry_date=cleaned["entry_date"],
+                vra=vra,
+                entry_type="REGISTRATION",
+            )
+            if self.instance.pk:
+                exists = exists.exclude(pk=self.instance.pk)
+            if exists.exists():
+                raise forms.ValidationError(
+                    "A registration already exists for this kit, VRA, and date."
+                )
         return cleaned

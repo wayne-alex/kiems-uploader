@@ -1,0 +1,253 @@
+{% extends "ict/base.html" %}
+
+{% block title %}New Entry &mdash; {{ constituency.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container { display: flex; flex-direction: column; gap: 16px; }
+    .form-header {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; flex-wrap: wrap;
+    }
+    .form-grid {
+        display: grid; grid-template-columns: 2fr 1fr; gap: 16px;
+    }
+    @media (max-width: 800px) { .form-grid { grid-template-columns: 1fr; } }
+
+    .panel-card {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius-md); padding: 18px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    .form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+    .form-row label {
+        font-size: 12px; font-weight: 600; color: var(--text);
+        letter-spacing: 0.2px;
+    }
+    .form-row .form-control {
+        width: 100%; padding: 9px 11px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-strong);
+        background: var(--surface); color: var(--text);
+        font-size: 13.5px; font-family: inherit; outline: none;
+    }
+    .form-row .form-control:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px var(--primary-soft);
+    }
+    .form-row .err {
+        color: var(--danger); font-size: 11.5px; margin-top: 3px;
+    }
+    .form-hint {
+        font-size: 11.5px; color: var(--text-muted); margin-top: 3px;
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    @media (max-width: 640px) {
+        .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    .number-input {
+        font-family: 'JetBrains Mono', monospace;
+        text-align: center;
+    }
+
+    .section-title {
+        font-size: 11px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.5px; color: var(--text-muted);
+        margin: 4px 0 10px; padding-bottom: 6px;
+        border-bottom: 1px solid var(--border);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+
+    <div class="form-header">
+        <div>
+            <h2 style="font-size: 20px; font-weight: 700;">New Registration Entry</h2>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+                Manually record a day's numbers for a ward / kit / VRA
+            </p>
+        </div>
+        <a href="{% url 'ict:entry_list' %}" class="btn btn-outline btn-sm">
+            <i class="bi bi-arrow-left"></i> Back to List
+        </a>
+    </div>
+
+    <form method="post" class="form-grid">
+        {% csrf_token %}
+
+        <!-- LEFT: Main fields -->
+        <div class="panel-card">
+            {% if form.non_field_errors %}
+                <div style="background:#fef2f2; color:#b91c1c; padding:10px 12px; border-radius:8px; margin-bottom:14px; font-size:12.5px;">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            <div class="section-title">Assignment</div>
+
+            <div class="grid-2">
+                <div class="form-row">
+                    <label for="{{ form.entry_date.id_for_label }}">Date</label>
+                    {{ form.entry_date }}
+                    {% if form.entry_date.errors %}<div class="err">{{ form.entry_date.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="form-row">
+                    <label for="{{ form.ward.id_for_label }}">Ward</label>
+                    {{ form.ward }}
+                    {% if form.ward.errors %}<div class="err">{{ form.ward.errors.0 }}</div>{% endif %}
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-row">
+                    <label for="{{ form.kiems_kit.id_for_label }}">KIEMS Kit</label>
+                    {{ form.kiems_kit }}
+                    {% if form.kiems_kit.errors %}<div class="err">{{ form.kiems_kit.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="form-row">
+                    <label for="{{ form.vra.id_for_label }}">VRA</label>
+                    {{ form.vra }}
+                    {% if form.vra.errors %}<div class="err">{{ form.vra.errors.0 }}</div>{% endif %}
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label for="{{ form.venue.id_for_label }}">Venue</label>
+                {{ form.venue }}
+                {% if form.venue.errors %}<div class="err">{{ form.venue.errors.0 }}</div>{% endif %}
+                <div class="form-hint">Optional. The venue where the kit was stationed.</div>
+            </div>
+
+            <div class="section-title" style="margin-top: 20px;">Numbers</div>
+
+            <div class="grid-2">
+                <div class="form-row">
+                    <label for="{{ form.registered_male.id_for_label }}">Male</label>
+                    {{ form.registered_male }}
+                    {% if form.registered_male.errors %}<div class="err">{{ form.registered_male.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="form-row">
+                    <label for="{{ form.registered_female.id_for_label }}">Female</label>
+                    {{ form.registered_female }}
+                    {% if form.registered_female.errors %}<div class="err">{{ form.registered_female.errors.0 }}</div>{% endif %}
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-row">
+                    <label for="{{ form.total_transferred.id_for_label }}">Transferred</label>
+                    {{ form.total_transferred }}
+                    {% if form.total_transferred.errors %}<div class="err">{{ form.total_transferred.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="form-row">
+                    <label for="{{ form.total_updated.id_for_label }}">Updated</label>
+                    {{ form.total_updated }}
+                    {% if form.total_updated.errors %}<div class="err">{{ form.total_updated.errors.0 }}</div>{% endif %}
+                </div>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top: 20px;">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-check-lg"></i> Create Entry
+                </button>
+                <a href="{% url 'ict:entry_list' %}" class="btn btn-outline btn-sm">Cancel</a>
+            </div>
+        </div>
+
+        <!-- RIGHT: Live preview -->
+        <div>
+            <div class="panel-card">
+                <div class="section-title">Live Preview</div>
+                <div id="preview-box" style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+                    Pick a ward, kit and VRA, then enter numbers to see a live total.
+                </div>
+                <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);">
+                    <div style="display: flex; justify-content: space-between; padding: 4px 0;">
+                        <span style="color: var(--text-muted); font-size: 12.5px;">Total registered</span>
+                        <span id="preview-total" style="font-weight: 700; font-family: 'JetBrains Mono', monospace;">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+<script>
+const WARD_KIT_MAP = {
+    {% for w in wards %}"{{ w.pk }}": [{% for k in kits %}{% if k.ward_id == w.pk %}"{{ k.pk }}",{% endif %}{% endfor %}],{% endfor %}
+};
+const KIT_VRA_MAP = {
+    {% for k in kits %}"{{ k.pk }}": [{% for v in vras %}{% if v.ward_id == k.ward_id %}"{{ v.pk }}",{% endif %}{% endfor %}],{% endfor %}
+};
+
+function refilterKits() {
+    const wardId = document.getElementById('id_ward').value;
+    const kitSel = document.getElementById('id_kiems_kit');
+    const allowed = WARD_KIT_MAP[wardId] || [];
+    [...kitSel.options].forEach(o => {
+        if (!o.value) return;
+        o.hidden = !allowed.includes(o.value);
+    });
+    if (kitSel.value && !allowed.includes(kitSel.value)) kitSel.value = '';
+    refilterVras();
+}
+function refilterVras() {
+    const kitId = document.getElementById('id_kiems_kit').value;
+    const vraSel = document.getElementById('id_vra');
+    const allowed = KIT_VRA_MAP[kitId] || [];
+    [...vraSel.options].forEach(o => {
+        if (!o.value) return;
+        o.hidden = !allowed.includes(o.value);
+    });
+    if (vraSel.value && !allowed.includes(vraSel.value)) vraSel.value = '';
+}
+document.getElementById('id_ward').addEventListener('change', refilterKits);
+document.getElementById('id_kiems_kit').addEventListener('change', refilterVras);
+</script>
+<script>
+(function () {
+    const m = document.getElementById('id_registered_male');
+    const f = document.getElementById('id_registered_female');
+    const t = document.getElementById('id_total_transferred');
+    const u = document.getElementById('id_total_updated');
+    const total = document.getElementById('preview-total');
+    const box = document.getElementById('preview-box');
+
+    function recalc() {
+        const male = parseInt(m.value) || 0;
+        const female = parseInt(f.value) || 0;
+        const transfer = parseInt(t.value) || 0;
+        const updated = parseInt(u.value) || 0;
+        total.textContent = (male + female);
+
+        const ward = document.getElementById('id_ward');
+        const kit = document.getElementById('id_kiems_kit');
+        const vra = document.getElementById('id_vra');
+
+        const wardName = ward.options[ward.selectedIndex]?.text || '—';
+        const kitName = kit.options[kit.selectedIndex]?.text || '—';
+        const vraName = vra.options[vra.selectedIndex]?.text || '—';
+
+        box.innerHTML =
+            `<div><strong>${wardName}</strong> · <span style="font-family: monospace;">${kitName}</span></div>` +
+            `<div style="margin-top: 4px;">VRA: ${vraName}</div>` +
+            `<div style="margin-top: 6px;">Male ${male} · Female ${female}` +
+            (transfer ? ` · Transferred ${transfer}` : '') +
+            (updated ? ` · Updated ${updated}` : '') +
+            `</div>`;
+    }
+
+    [m, f, t, u].forEach(el => el.addEventListener('input', recalc));
+    ['id_ward', 'id_kiems_kit', 'id_vra'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', recalc);
+    });
+
+    recalc();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,585 @@
+{% extends "superadmin/base.html" %}
+{% block title %}System Health | KIEMS SuperAdmin{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sh-container { display: flex; flex-direction: column; gap: 18px; }
+
+    /* Header */
+    .sh-header {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; flex-wrap: wrap;
+    }
+    .sh-header h2 {
+        font-size: 22px; font-weight: 700; letter-spacing: -0.3px;
+    }
+    .sh-header p {
+        font-size: 12.5px; color: #8e8e93; margin-top: 3px;
+    }
+    .sh-header-actions {
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+
+    /* Health pills */
+    .health-pill {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 6px 12px; border-radius: 20px;
+        font-size: 12px; font-weight: 700;
+        background: #fff; border: 1px solid rgba(0,0,0,0.08);
+    }
+    .health-pill.online {
+        color: #15803d;
+        border-color: rgba(31,157,85,0.3);
+        background: #dcfce7;
+    }
+    .health-pill.offline {
+        color: #b91c1c;
+        border-color: rgba(229,72,77,0.3);
+        background: #fee2e2;
+    }
+    .health-pill.warn {
+        color: #b45309;
+        border-color: rgba(181,117,10,0.3);
+        background: #fef3c7;
+    }
+    .health-dot {
+        width: 7px; height: 7px; border-radius: 50%;
+        background: currentColor;
+    }
+    .health-pill.online .health-dot {
+        animation: pulse-green 1.8s infinite;
+    }
+    @keyframes pulse-green {
+        0%   { box-shadow: 0 0 0 0 rgba(31,157,85,0.7); }
+        70%  { box-shadow: 0 0 0 6px rgba(31,157,85,0); }
+        100% { box-shadow: 0 0 0 0 rgba(31,157,85,0); }
+    }
+
+    /* Auto-refresh indicator */
+    .auto-refresh {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 11px; color: #8e8e93;
+        background: #f3f4f6; padding: 3px 10px;
+        border-radius: 20px; font-weight: 600;
+    }
+    .auto-refresh .dot {
+        width: 6px; height: 6px; border-radius: 50%;
+        background: #2563eb;
+        animation: pulse-green 1.8s infinite;
+    }
+
+    /* Counts */
+    .sh-counts {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px;
+    }
+    .count-card {
+        background: #fff; border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 12px; padding: 12px 14px;
+        display: flex; flex-direction: column; gap: 2px;
+    }
+    .count-card .label {
+        font-size: 10.5px; color: #8e8e93;
+        font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .count-card .value {
+        font-size: 22px; font-weight: 700; letter-spacing: -0.3px;
+        font-family: 'Space Grotesk', 'Inter', sans-serif;
+    }
+    .count-card.pending .value { color: #b45309; }
+    .count-card.ready   .value { color: #1d4ed8; }
+    .count-card.sending .value { color: #6b21a8; }
+    .count-card.sent    .value { color: #15803d; }
+    .count-card.failed  .value { color: #b91c1c; }
+
+    /* Panel */
+    .panel {
+        background: #fff; border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 12px; overflow: hidden;
+    }
+    .panel-head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 18px; border-bottom: 1px solid rgba(0,0,0,0.06);
+        flex-wrap: wrap; gap: 8px;
+    }
+    .panel-head h3 {
+        font-size: 14px; font-weight: 700; margin: 0;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .panel-head h3 i { color: #8e8e93; font-size: 15px; }
+    .panel-head .sub { font-size: 11.5px; color: #8e8e93; }
+
+    /* Table */
+    .table-scroll { overflow-x: auto; }
+    .tbl {
+        width: 100%; border-collapse: collapse; font-size: 12.5px;
+    }
+    .tbl th {
+        text-align: left; padding: 10px 14px;
+        font-size: 10.5px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.5px;
+        color: #8e8e93; background: #fafafa;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        white-space: nowrap;
+    }
+    .tbl td {
+        padding: 11px 14px; border-bottom: 1px solid rgba(0,0,0,0.05);
+        color: #111; vertical-align: middle;
+    }
+    .tbl tbody tr:last-child td { border-bottom: none; }
+    .tbl tbody tr:hover td { background: #fafafa; }
+
+    /* Status pill */
+    .pill {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 10px; border-radius: 12px;
+        font-size: 10.5px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.3px;
+        white-space: nowrap;
+    }
+    .pill.PENDING { background: #fef3c7; color: #b45309; }
+    .pill.READY   { background: #dbeafe; color: #1d4ed8; }
+    .pill.SENDING { background: #f3e8ff; color: #6b21a8; }
+    .pill.SENT    { background: #dcfce7; color: #15803d; }
+    .pill.FAILED  { background: #fee2e2; color: #b91c1c; }
+    .pill.NO_ACTIVITY { background: #f3f4f6; color: #6b7280; }
+    .pill .dot {
+        width: 5px; height: 5px; border-radius: 50%;
+        background: currentColor;
+    }
+    .pill.SENDING .dot { animation: pulse-green 1.5s infinite; }
+
+    /* Group chip */
+    .group-chip {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 2px 8px; border-radius: 10px;
+        font-size: 10.5px; font-weight: 700;
+    }
+    .group-chip.ok      { background: #dcfce7; color: #15803d; }
+    .group-chip.missing { background: #fee2e2; color: #b91c1c; }
+
+    /* Progress */
+    .prog-wrap { display: flex; flex-direction: column; gap: 3px; min-width: 140px; }
+    .prog-row { display: flex; align-items: center; gap: 8px; }
+    .prog {
+        flex: 1; height: 6px; background: #f3f4f6;
+        border-radius: 4px; overflow: hidden; min-width: 80px;
+    }
+    .prog span {
+        display: block; height: 100%; background: #16a34a; border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+    .prog span.warn { background: #d97706; }
+    .prog-label {
+        font-size: 11px; color: #8e8e93;
+        font-weight: 600; white-space: nowrap;
+    }
+    .prog-label strong { color: #111; }
+
+    /* Row actions */
+    .row-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+    .btn-tiny {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 5px 10px; border-radius: 6px;
+        font-size: 11.5px; font-weight: 600;
+        text-decoration: none; border: none; cursor: pointer;
+        background: #f3f4f6; color: #111;
+        transition: all 0.15s ease;
+        white-space: nowrap;
+    }
+    .btn-tiny:hover { background: #e5e7eb; }
+    .btn-tiny.primary { background: #16a34a; color: #fff; }
+    .btn-tiny.primary:hover { background: #15803d; }
+    .btn-tiny.danger { background: #fee2e2; color: #b91c1c; }
+    .btn-tiny.danger:hover { background: #fecaca; }
+
+    /* Misc */
+    .code {
+        font-family: 'JetBrains Mono', monospace; font-size: 11px;
+        background: #f3f4f6; padding: 2px 6px;
+        border-radius: 4px; color: #6b7280;
+    }
+    .err-snippet {
+        font-size: 11.5px; color: #6b7280; max-width: 320px;
+        display: inline-block; overflow: hidden;
+        text-overflow: ellipsis; white-space: nowrap;
+        vertical-align: middle;
+    }
+    .empty {
+        padding: 32px 16px; text-align: center; color: #8e8e93;
+        font-size: 12.5px;
+    }
+    .empty i { font-size: 26px; display: block; margin-bottom: 6px; opacity: 0.4; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sh-container">
+
+    <!-- ============= HEADER ============= -->
+    <div class="sh-header">
+        <div>
+            <h2>System Health</h2>
+            <p>
+                Cross-constituency pipeline monitor &mdash; {{ today|date:"l, d M Y" }}
+            </p>
+        </div>
+
+        <div class="sh-header-actions">
+            <span class="auto-refresh" title="Page refreshes every 30 seconds">
+                <span class="dot"></span>
+                Auto-refresh 30s
+            </span>
+
+            <!-- Bot status -->
+            <span class="health-pill {% if bot_online %}online{% else %}offline{% endif %}">
+                <span class="health-dot"></span>
+                Bot {% if bot_online %}Online{% else %}Offline{% endif %}
+            </span>
+
+            <!-- Cron heartbeat -->
+            {% if heartbeat %}
+                <span class="health-pill {% if heartbeat_stale %}warn{% else %}online{% endif %}"
+                      title="Last run: {{ heartbeat.last_run_at|date:'H:i:s' }} ({{ heartbeat.total_runs }} total)">
+                    <span class="health-dot"></span>
+                    Cron {% if heartbeat_stale %}stale{% else %}live{% endif %}
+                    &middot; {{ heartbeat.last_run_at|timesince }} ago
+                </span>
+            {% else %}
+                <span class="health-pill offline">
+                    <span class="health-dot"></span>
+                    Cron not running
+                </span>
+            {% endif %}
+
+            <a href="{% url 'superadmin:entry_list' %}"
+               class="btn-tiny"
+               style="padding: 7px 14px;">
+                <i class="bi bi-journal-text"></i> Entries
+            </a>
+        </div>
+    </div>
+
+    <!-- ============= COUNTS ============= -->
+    <div class="sh-counts">
+        <div class="count-card pending">
+            <span class="label">Pending</span>
+            <span class="value">{{ counts.pending }}</span>
+        </div>
+        <div class="count-card ready">
+            <span class="label">Ready</span>
+            <span class="value">{{ counts.ready }}</span>
+        </div>
+        <div class="count-card sending">
+            <span class="label">Sending</span>
+            <span class="value">{{ counts.sending }}</span>
+        </div>
+        <div class="count-card sent">
+            <span class="label">Sent</span>
+            <span class="value">{{ counts.sent }}</span>
+        </div>
+        <div class="count-card failed">
+            <span class="label">Failed</span>
+            <span class="value">{{ counts.failed }}</span>
+        </div>
+    </div>
+
+    <!-- ============= TODAY GRID ============= -->
+    <div class="panel">
+        <div class="panel-head">
+            <h3>
+                <i class="bi bi-calendar-check"></i>
+                Today &mdash; {{ today|date:"d M Y" }}
+            </h3>
+            <span class="sub">
+                {{ today_rows|length }} constituenc{{ today_rows|length|pluralize:"y,ies" }}
+            </span>
+        </div>
+
+        {% if today_rows %}
+        <div class="table-scroll">
+            <table class="tbl">
+                <thead>
+                    <tr>
+                        <th>Constituency</th>
+                        <th>Progress</th>
+                        <th>Group</th>
+                        <th>Pipeline</th>
+                        <th>Ready At</th>
+                        <th>Sent At</th>
+                        <th style="text-align:right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in today_rows %}
+                    <tr>
+                        <td>
+                            <strong>{{ row.constituency.name }}</strong>
+                            {% if row.constituency.code %}
+                                <span class="code">{{ row.constituency.code }}</span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <div class="prog-wrap">
+                                <div class="prog-row">
+                                    <div class="prog">
+                                        <span class="{% if row.ward_pct < 50 %}warn{% endif %}"
+                                              style="width: {{ row.ward_pct }}%;"></span>
+                                    </div>
+                                    <span class="prog-label">
+                                        Wards <strong>{{ row.submitted_wards }}/{{ row.total_wards }}</strong>
+                                    </span>
+                                </div>
+                                {% if row.total_kits %}
+                                <div class="prog-row">
+                                    <div class="prog">
+                                        <span class="{% if row.kit_pct < 50 %}warn{% endif %}"
+                                              style="width: {{ row.kit_pct }}%;"></span>
+                                    </div>
+                                    <span class="prog-label">
+                                        Kits <strong>{{ row.submitted_kits }}/{{ row.total_kits }}</strong>
+                                    </span>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <td>
+                            {% if row.has_group %}
+                                <span class="group-chip ok" title="{{ row.group_name }}">
+                                    <i class="bi bi-check-circle-fill"></i> OK
+                                </span>
+                            {% else %}
+                                <span class="group-chip missing">
+                                    <i class="bi bi-exclamation-circle-fill"></i> Missing
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if row.state %}
+                                <span class="pill {{ row.state.status }}">
+                                    <span class="dot"></span>
+                                    {{ row.state.get_status_display|default:row.state.status }}
+                                </span>
+                            {% else %}
+                                <span class="pill NO_ACTIVITY">
+                                    <span class="dot"></span>
+                                    No activity
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td style="font-size: 12px; color: #8e8e93;">
+                            {% if row.state and row.state.ready_at %}
+                                {{ row.state.ready_at|date:"H:i:s" }}
+                            {% else %}&mdash;{% endif %}
+                        </td>
+
+                        <td style="font-size: 12px; color: #8e8e93;">
+                            {% if row.state and row.state.sent_at %}
+                                {{ row.state.sent_at|date:"H:i:s" }}
+                            {% else %}&mdash;{% endif %}
+                        </td>
+
+                        <td>
+                            <div class="row-actions">
+                                {% if row.state and row.state.status == "FAILED" %}
+                                <form method="post"
+                                      action="{% url 'superadmin:system_health_retry' row.state.pk %}"
+                                      style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn-tiny danger"
+                                            onclick="return confirm('Retry this failed report?');">
+                                        <i class="bi bi-arrow-repeat"></i> Retry
+                                    </button>
+                                </form>
+                                {% endif %}
+
+                                <form method="post"
+                                      action="{% url 'superadmin:system_health_reevaluate' row.constituency.pk today|date:'Y-m-d' %}"
+                                      style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn-tiny">
+                                        <i class="bi bi-arrow-clockwise"></i> Re-eval
+                                    </button>
+                                </form>
+
+                                <a href="{% url 'superadmin:entry_list' %}?constituency={{ row.constituency.pk }}"
+                                   class="btn-tiny"
+                                   title="View entries for this constituency">
+                                    <i class="bi bi-journal-text"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty">
+            <i class="bi bi-inbox"></i>
+            No active constituencies
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ============= PROBLEM STATES ============= -->
+    {% if problem_states %}
+    <div class="panel">
+        <div class="panel-head">
+            <h3>
+                <i class="bi bi-exclamation-triangle" style="color: #dc2626;"></i>
+                Attention Required
+                <span class="sub">({{ problem_states|length }})</span>
+            </h3>
+        </div>
+
+        <div class="table-scroll">
+            <table class="tbl">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Constituency</th>
+                        <th>Status</th>
+                        <th>Attempts</th>
+                        <th>Last Error</th>
+                        <th style="text-align:right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in problem_states %}
+                    <tr>
+                        <td><strong>{{ s.report_date|date:"d M Y" }}</strong></td>
+                        <td>{{ s.constituency.name }}</td>
+                        <td>
+                            <span class="pill {{ s.status }}">
+                                <span class="dot"></span>
+                                {{ s.get_status_display|default:s.status }}
+                            </span>
+                        </td>
+                        <td style="font-weight: 700;">{{ s.attempts }}</td>
+                        <td>
+                            {% if s.last_error %}
+                                <span class="err-snippet" title="{{ s.last_error }}">
+                                    {{ s.last_error|truncatechars:90 }}
+                                </span>
+                            {% else %}
+                                &mdash;
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="row-actions">
+                                <form method="post"
+                                      action="{% url 'superadmin:system_health_retry' s.pk %}"
+                                      style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn-tiny danger"
+                                            onclick="return confirm('Re-arm this state for retry?');">
+                                        <i class="bi bi-arrow-repeat"></i> Retry
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ============= HISTORY ============= -->
+    <div class="panel">
+        <div class="panel-head">
+            <h3>
+                <i class="bi bi-clock-history"></i>
+                Recent History
+                <span class="sub">(last 14 days)</span>
+            </h3>
+        </div>
+
+        {% if history %}
+        <div class="table-scroll">
+            <table class="tbl">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Constituency</th>
+                        <th>Status</th>
+                        <th>Wards</th>
+                        <th>Sent At</th>
+                        <th>Hash</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in history %}
+                    <tr>
+                        <td>{{ s.report_date|date:"d M Y" }}</td>
+                        <td>{{ s.constituency.name }}</td>
+                        <td>
+                            <span class="pill {{ s.status }}">
+                                <span class="dot"></span>
+                                {{ s.get_status_display|default:s.status }}
+                            </span>
+                        </td>
+                        <td style="color: #8e8e93; font-size: 12px;">
+                            {{ s.submitted_wards }}/{{ s.total_wards }}
+                        </td>
+                        <td style="font-size: 12px; color: #8e8e93;">
+                            {% if s.sent_at %}
+                                {{ s.sent_at|date:"d M, H:i" }}
+                            {% else %}&mdash;{% endif %}
+                        </td>
+                        <td>
+                            {% if s.message_hash %}
+                                <span class="code" title="{{ s.message_hash }}">
+                                    {{ s.message_hash|slice:":8" }}&hellip;
+                                </span>
+                            {% else %}&mdash;{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty">
+            <i class="bi bi-clock"></i>
+            No report history yet
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-refresh every 30s; pause when tab hidden or user is typing.
+    (function () {
+        const REFRESH_MS = 30000;
+        let userInteracting = false;
+
+        document.addEventListener("focusin", (e) => {
+            if (e.target.matches("input, select, textarea, button")) {
+                userInteracting = true;
+            }
+        });
+        document.addEventListener("focusout", () => {
+            userInteracting = false;
+        });
+
+        setInterval(() => {
+            if (document.hidden) return;
+            if (userInteracting) return;
+            window.location.reload();
+        }, REFRESH_MS);
+    })();
+</script>
+{% endblock %}

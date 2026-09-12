@@ -1,45 +1,54 @@
 {% extends "superadmin/base.html" %}
+
 {% block title %}Phases | KIEMS Admin{% endblock %}
 
 {% block content %}
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+<!-- Page Header -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
     <div>
-        <h2 style="font-size:24px; font-weight:700;">Election Phases</h2>
-        <p style="color:#8e8e93; font-size:14px;">Manage all election phases and timelines</p>
+        <h2 style="font-size:20px; font-weight:700; letter-spacing:-0.3px; color:#1c1c1e;">Election Phases</h2>
+        <p style="color:#8e8e93; font-size:13px; margin-top:2px;">Manage election phases and timelines</p>
     </div>
-    <a href="{% url 'superadmin:phase_create' %}" style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
-        <span style="font-size:20px; line-height:1;">+</span> Add Phase
+    <a href="{% url 'superadmin:phase_create' %}" style="background:#90EE90; padding:8px 16px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; font-size:13px; display:inline-flex; align-items:center; gap:6px; transition: opacity 0.2s;">
+        <i class="bi bi-plus-lg" style="font-size:14px;"></i> Add Phase
     </a>
 </div>
 
-<div style="display:grid; gap:12px;">
+<!-- Phase List Grid -->
+<div style="display:grid; gap:8px;">
     {% for phase in phases %}
-    <div style="background:#fff; border-radius:12px; border:0.5px solid rgba(0,0,0,0.08); padding:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-        <div>
-            <div style="display:flex; align-items:center; gap:12px;">
-                <span style="font-size:18px; font-weight:600;">{{ phase.name }}</span>
+    <div style="background:#fff; border-radius:10px; border:0.5px solid rgba(0,0,0,0.08); padding:12px 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:15px; font-weight:600; color:#1c1c1e;">{{ phase.name }}</span>
                 {% if phase.active %}
-                <span style="background:#34c759; color:#fff; font-size:11px; font-weight:600; padding:2px 12px; border-radius:12px;">Active</span>
+                <span style="background:rgba(52, 199, 89, 0.15); color:#248a3d; font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; text-transform:uppercase; letter-spacing:0.3px;">Active</span>
                 {% endif %}
             </div>
-            <div style="font-size:13px; color:#8e8e93; margin-top:4px;">
-                {{ phase.start_date|date:"M d, Y" }} → {{ phase.end_date|date:"M d, Y" }}
+            <div style="font-size:12px; color:#8e8e93; display:flex; align-items:center; gap:6px;">
+                <i class="bi bi-calendar3" style="font-size:11px;"></i>
+                <span>{{ phase.start_date|date:"M d, Y" }} &ndash; {{ phase.end_date|date:"M d, Y" }}</span>
             </div>
         </div>
-        <div style="display:flex; gap:8px;">
-            <a href="{% url 'superadmin:phase_edit' phase.id %}" style="background:#5856d6; padding:6px 14px; border-radius:6px; color:#fff; text-decoration:none; font-size:13px;">✎ Edit</a>
+
+        <div style="display:flex; gap:6px; align-items:center;">
+            <a href="{% url 'superadmin:phase_edit' phase.id %}" style="background:#f2f2f7; color:#007aff; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:500; display:inline-flex; align-items:center; gap:5px; transition: background 0.2s;">
+                <i class="bi bi-pencil" style="font-size:12px;"></i> Edit
+            </a>
             <form method="post" action="{% url 'superadmin:phase_delete' phase.id %}" style="display:inline;" onsubmit="return confirm('Delete this phase?')">
                 {% csrf_token %}
-                <button type="submit" style="background:#ff3b30; padding:6px 14px; border-radius:6px; color:#fff; border:none; cursor:pointer; font-size:13px;">✕ Delete</button>
+                <button type="submit" style="background:#ffe5e5; color:#ff3b30; padding:6px 12px; border-radius:6px; border:none; cursor:pointer; font-size:12px; font-weight:500; display:inline-flex; align-items:center; gap:5px; transition: background 0.2s;">
+                    <i class="bi bi-trash" style="font-size:12px;"></i> Delete
+                </button>
             </form>
         </div>
     </div>
     {% empty %}
-    <div style="text-align:center; padding:60px 20px; color:#8e8e93;">
-        <div style="font-size:48px; margin-bottom:16px;">📅</div>
-        <h3 style="color:#000; margin-bottom:8px;">No Phases Found</h3>
-        <p style="margin-bottom:20px;">Create your first election phase</p>
-        <a href="{% url 'superadmin:phase_create' %}" style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600;">+ Create Phase</a>
+    <div style="text-align:center; padding:40px 16px; color:#8e8e93; background:#fff; border-radius:10px; border:0.5px solid rgba(0,0,0,0.08);">
+        <i class="bi bi-calendar-x" style="font-size:32px; color:#c6c6c8; display:block; margin-bottom:8px;"></i>
+        <h3 style="color:#1c1c1e; font-size:15px; font-weight:600; margin-bottom:4px;">No Phases Found</h3>
+        <p style="font-size:13px; margin-bottom:16px;">Create your first election phase to get started.</p>
+        <a href="{% url 'superadmin:phase_create' %}" style="background:#90EE90; padding:8px 16px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; font-size:13px; display:inline-block;">+ Create Phase</a>
     </div>
     {% endfor %}
 </div>

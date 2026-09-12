@@ -35,6 +35,7 @@
         padding: 7px 10px; border-radius: var(--radius-sm);
         border: 1px solid var(--border-strong); font-size: 12.5px;
         background: var(--surface); color: var(--text); outline: none; width: 100%;
+        font-family: inherit;
     }
     .filter-control:focus { border-color: var(--primary); }
 
@@ -57,6 +58,7 @@
     .stat-card.green .value { color: #10b981; }
     .stat-card.orange .value { color: #f59e0b; }
     .stat-card.purple .value { color: #8b5cf6; }
+    .stat-card.blue .value   { color: #0284c7; }
 
     /* Table */
     .panel-card {
@@ -70,6 +72,7 @@
         font-size: 10px; font-weight: 700; text-transform: uppercase;
         letter-spacing: 0.5px; color: var(--text-muted);
         background: var(--surface-alt); border-bottom: 1px solid var(--border);
+        white-space: nowrap;
     }
     .table-custom td {
         padding: 9px 12px; border-bottom: 1px solid var(--border);
@@ -77,16 +80,25 @@
     }
     .table-custom tbody tr:hover td { background: var(--primary-soft); }
     .code-tag {
-        font-family: monospace; font-size: 11px;
+        font-family: 'JetBrains Mono', monospace; font-size: 11px;
         background: var(--surface-alt); padding: 2px 6px;
         border-radius: 4px; border: 1px solid var(--border);
     }
-    .type-pill {
-        display: inline-block; font-size: 10px; font-weight: 700;
-        padding: 2px 8px; border-radius: 20px; text-transform: uppercase;
+    .num-cell { font-family: 'JetBrains Mono', monospace; }
+    .num-cell.male   { color: #1e5fa8; font-weight: 600; }
+    .num-cell.female { color: #b23a32; font-weight: 600; }
+    .num-cell.total  { color: var(--primary); font-weight: 700; }
+    .num-cell.transfer { color: #7c3aed; font-weight: 600; }
+    .num-cell.muted { color: var(--text-muted); }
+
+    /* Empty */
+    .empty-box {
+        text-align: center; padding: 44px 16px; color: var(--text-muted);
     }
-    .type-registration { background: #dcfce7; color: #15803d; }
-    .type-venue { background: #dbeafe; color: #1d4ed8; }
+    .empty-box i {
+        font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.4;
+    }
+    .empty-box p { font-size: 13px; margin-bottom: 14px; }
 
     /* Modal */
     .modal-backdrop {
@@ -116,9 +128,12 @@
     <div class="page-header-actions">
         <div class="page-title">
             <h2>Daily Entries</h2>
-            <p>Registration records and statistics for {{ constituency.name }}</p>
+            <p>Registration records for {{ constituency.name }}</p>
         </div>
         <div class="action-group-top">
+            <a href="{% url 'ict:entry_create' %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-lg"></i> New Entry
+            </a>
             <button type="button" class="btn btn-outline btn-sm" onclick="toggleModal('importModal')">
                 <i class="bi bi-file-earmark-arrow-up"></i> Import CSV
             </button>
@@ -131,8 +146,8 @@
                 <i class="bi bi-file-earmark-text"></i> Export CSV
             </a>
             <a href="{% url 'ict:entry_download_report' %}?{{ request.GET.urlencode }}"
-               class="btn btn-primary btn-sm">
-                <i class="bi bi-download"></i> Generate Report (PDF)
+               class="btn btn-outline btn-sm">
+                <i class="bi bi-download"></i> Daily Report (PDF)
             </a>
         </div>
     </div>
@@ -176,14 +191,6 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="filter-field">
-                    <label>Entry Type</label>
-                    <select name="entry_type" class="filter-control">
-                        <option value="">All Types</option>
-                        <option value="REGISTRATION" {% if entry_type == "REGISTRATION" %}selected{% endif %}>Registration</option>
-                        <option value="VENUE" {% if entry_type == "VENUE" %}selected{% endif %}>Venue Mapping</option>
-                    </select>
-                </div>
                 <div style="display:flex; gap:6px;">
                     <button type="submit" class="btn btn-primary btn-sm" style="flex:1;">
                         <i class="bi bi-funnel"></i> Filter
@@ -206,7 +213,7 @@
             <span class="label">Active Kits Today</span>
             <span class="value">{{ today_stats.unique_kits|default:0 }}</span>
         </div>
-        <div class="stat-card">
+        <div class="stat-card blue">
             <span class="label">Male Today</span>
             <span class="value">{{ today_stats.registered_male|default:0 }}</span>
         </div>
@@ -218,12 +225,16 @@
             <span class="label">Total Today</span>
             <span class="value">{{ today_stats.total_registered|default:0 }}</span>
         </div>
+        <div class="stat-card purple">
+            <span class="label">Transferred Today</span>
+            <span class="value">{{ today_stats.total_transferred|default:0 }}</span>
+        </div>
     </div>
 
     <!-- Filtered totals -->
     {% if is_filtered %}
     <div class="stat-grid">
-        <div class="stat-card">
+        <div class="stat-card blue">
             <span class="label">Filtered Male</span>
             <span class="value">{{ totals.male|default:0 }}</span>
         </div>
@@ -257,12 +268,11 @@
                         <th>Ward</th>
                         <th>Kit</th>
                         <th>VRA</th>
-                        <th>Clerk</th>
                         <th>Venue</th>
-                        <th>Type</th>
-                        <th style="text-align:right;">M</th>
-                        <th style="text-align:right;">F</th>
+                        <th style="text-align:right;">Male</th>
+                        <th style="text-align:right;">Female</th>
                         <th style="text-align:right;">Total</th>
+                        <th style="text-align:right;">Transferred</th>
                         <th style="text-align:right;">Actions</th>
                     </tr>
                 </thead>
@@ -273,18 +283,13 @@
                         <td>{{ e.ward.name }}</td>
                         <td><span class="code-tag">{{ e.kiems_kit.kit_name }}</span></td>
                         <td>{{ e.vra.name }}</td>
-                        <td>{{ e.clerk.name|default:"—" }}</td>
-                        <td style="color:var(--text-muted);">{{ e.venue|truncatechars:22|default:"—" }}</td>
-                        <td>
-                            {% if e.entry_type == "VENUE" %}
-                                <span class="type-pill type-venue">Venue</span>
-                            {% else %}
-                                <span class="type-pill type-registration">Reg</span>
-                            {% endif %}
+                        <td style="color:var(--text-muted);">{{ e.venue|truncatechars:24|default:"—" }}</td>
+                        <td style="text-align:right;" class="num-cell male">{{ e.registered_male }}</td>
+                        <td style="text-align:right;" class="num-cell female">{{ e.registered_female }}</td>
+                        <td style="text-align:right;" class="num-cell total">{{ e.total_registered }}</td>
+                        <td style="text-align:right;" class="num-cell {% if e.total_transferred %}transfer{% else %}muted{% endif %}">
+                            {{ e.total_transferred|default:0 }}
                         </td>
-                        <td style="text-align:right;">{{ e.registered_male }}</td>
-                        <td style="text-align:right;">{{ e.registered_female }}</td>
-                        <td style="text-align:right; font-weight:700; color:var(--primary);">{{ e.total_registered }}</td>
                         <td style="text-align:right;">
                             <div class="action-btns" style="justify-content:flex-end; gap:4px;">
                                 <a href="{% url 'ict:entry_edit' e.pk %}" class="btn btn-outline btn-sm" title="Office Edit">
@@ -297,9 +302,12 @@
                 </tbody>
             </table>
             {% else %}
-            <div style="text-align:center; padding:36px 16px; color:var(--text-muted);">
-                <i class="bi bi-journal-text" style="font-size:28px; opacity:0.4;"></i>
-                <p style="margin-top:6px; font-size:13px;">No daily entries found for the selected criteria.</p>
+            <div class="empty-box">
+                <i class="bi bi-journal-text"></i>
+                <p>No registration entries found for the selected criteria.</p>
+                <a href="{% url 'ict:entry_create' %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-plus-lg"></i> Create first entry
+                </a>
             </div>
             {% endif %}
         </div>
@@ -326,7 +334,7 @@
                 Required columns:
                 <code>date, ward_id, kit_id, vra_id, male, female</code>.<br>
                 Optional:
-                <code>transferred, updated, venue, entry_type</code>.
+                <code>transferred, updated, venue</code>.
             </p>
             <div style="display:flex; gap:8px; justify-content:flex-end;">
                 <button type="button" class="btn btn-outline btn-sm" onclick="toggleModal('importModal')">Cancel</button>

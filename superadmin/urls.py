@@ -58,6 +58,7 @@ urlpatterns = [
 
     # WhatsApp Bot URLs
     path('whatsapp/', views.whatsapp_status, name='whatsapp_status'),
+    path("whatsapp/groups/", views.whatsapp_group_admin, name="whatsapp_group_admin"),
     path('api/whatsapp/status/', views.whatsapp_bot_status, name='whatsapp_bot_status'),
     path('api/whatsapp/groups/', views.whatsapp_groups, name='whatsapp_groups'),
     path('api/whatsapp/settings/', views.whatsapp_save_settings, name='whatsapp_settings'),
@@ -83,7 +84,7 @@ urlpatterns = [
     path('api/entry/<int:pk>/detail/', views.entry_detail_api, name='entry_detail_api'),
     path('api/kit-details/', views.get_kit_details, name='get_kit_details'),
 
-# Constituencies
+    # Constituencies
     path("constituencies/", views.constituency_list, name="constituency_list"),
     path("constituencies/add/", views.constituency_create, name="constituency_create"),
     path("constituencies/<int:pk>/edit/", views.constituency_edit, name="constituency_edit"),
@@ -96,4 +97,10 @@ urlpatterns = [
     path("ict-officers/<int:pk>/edit/", views.ict_officer_edit, name="ict_officer_edit"),
     path("ict-officers/<int:pk>/toggle/", views.ict_officer_toggle, name="ict_officer_toggle"),
     path("ict-officers/<int:pk>/delete/", views.ict_officer_delete, name="ict_officer_delete"),
+
+    #     System
+    path("system-health/", views.system_health, name="system_health"),
+    path("system-health/<uuid:state_id>/retry/", views.system_health_retry, name="system_health_retry"),
+    path("system-health/reevaluate/<int:constituency_id>/<str:report_date>/",
+         views.system_health_reevaluate, name="system_health_reevaluate"),
 ]

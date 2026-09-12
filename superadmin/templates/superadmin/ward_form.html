@@ -2,36 +2,61 @@
 {% block title %}{{ title }} | KIEMS Admin{% endblock %}
 
 {% block content %}
-<div style="max-width:600px; margin:0 auto;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-        <h2 style="font-size:24px; font-weight:700;">{{ title }}</h2>
-        <a href="{% url 'superadmin:ward_list' %}" style="color:#5856d6; text-decoration:none;">← Back</a>
+<div class="form-container">
+    <div class="page-header">
+        <h2 class="page-title">{{ title }}</h2>
+        <a href="{% url 'superadmin:ward_list' %}" class="btn-back">
+            <i class="bi bi-arrow-left"></i> Back to List
+        </a>
     </div>
-    
-    <div style="background:#fff; border-radius:12px; border:0.5px solid rgba(0,0,0,0.08); padding:24px;">
-        <form method="post">
+
+    <div class="form-card">
+        <form method="post" autocomplete="off">
             {% csrf_token %}
-            
-            <div style="margin-bottom:16px;">
-                <label style="display:block; font-size:13px; font-weight:600; color:#3a3a3c; margin-bottom:4px;">Name</label>
+
+            {% if form.non_field_errors %}
+                <div class="alert-danger">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            <div class="form-group">
+                <label class="form-label" for="{{ form.name.id_for_label }}">
+                    {{ form.name.label|default:"Name" }}
+                </label>
                 {{ form.name }}
+                {% if form.name.errors %}
+                    <div class="form-error">{{ form.name.errors }}</div>
+                {% endif %}
             </div>
-            
-            <div style="margin-bottom:24px;">
-                <label style="display:block; font-size:13px; font-weight:600; color:#3a3a3c; margin-bottom:4px;">Code</label>
+
+            <div class="form-group">
+                <label class="form-label" for="{{ form.code.id_for_label }}">
+                    {{ form.code.label|default:"Code" }}
+                </label>
                 {{ form.code }}
+                {% if form.code.help_text %}
+                    <div class="form-help">{{ form.code.help_text }}</div>
+                {% endif %}
+                {% if form.code.errors %}
+                    <div class="form-error">{{ form.code.errors }}</div>
+                {% endif %}
             </div>
-            <div style="margin-bottom:16px;">
-    <label style="display:block; font-size:13px; font-weight:600; color:#3a3a3c; margin-bottom:4px;">
-        Constituency
-    </label>
-    {{ form.constituency }}
-    {% if form.constituency.errors %}
-        <div style="color:#c62828; font-size:12px; margin-top:4px;">{{ form.constituency.errors }}</div>
-    {% endif %}
-</div>
-            
-            <button type="submit" style="width:100%; padding:14px; background:#90EE90; border:none; border-radius:12px; font-size:17px; font-weight:600; cursor:pointer;">
+
+            <div class="form-group">
+                <label class="form-label" for="{{ form.constituency.id_for_label }}">
+                    {{ form.constituency.label|default:"Constituency" }}
+                </label>
+                {{ form.constituency }}
+                {% if form.constituency.help_text %}
+                    <div class="form-help">{{ form.constituency.help_text }}</div>
+                {% endif %}
+                {% if form.constituency.errors %}
+                    <div class="form-error">{{ form.constituency.errors }}</div>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="btn-submit">
                 {% if form.instance.pk %}Update{% else %}Create{% endif %} Ward
             </button>
         </form>
@@ -39,20 +64,125 @@
 </div>
 
 <style>
-    .form-input {
-        width:100%;
-        padding:12px 16px;
-        border:0.5px solid rgba(0,0,0,0.08);
-        border-radius:10px;
-        font-size:16px;
-        background:#f9f9fb;
-        transition:all 0.2s;
+    .form-container {
+        max-width: 520px;
+        margin: 0 auto;
     }
-    .form-input:focus {
-        outline:none;
-        border-color:#90EE90;
-        background:#fff;
-        box-shadow:0 0 0 3px rgba(144,238,144,0.15);
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .page-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1c1c1e;
+        line-height: 1.2;
+    }
+
+    .btn-back {
+        color: #007aff;
+        text-decoration: none;
+        font-size: 12px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: opacity 0.15s ease;
+    }
+
+    .btn-back:hover {
+        opacity: 0.8;
+        text-decoration: underline;
+    }
+
+    .form-card {
+        background: #ffffff;
+        border-radius: 8px;
+        border: 0.5px solid rgba(0, 0, 0, 0.08);
+        padding: 20px;
+    }
+
+    .alert-danger {
+        background: #ffebee;
+        color: #c62828;
+        padding: 8px 12px;
+        border-radius: 6px;
+        margin-bottom: 14px;
+        font-size: 12px;
+        border: 0.5px solid rgba(198, 40, 40, 0.2);
+    }
+
+    .form-group {
+        margin-bottom: 14px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+
+    .form-input,
+    input[type="text"],
+    select {
+        width: 100%;
+        padding: 7px 10px;
+        border: 0.5px solid rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
+        font-size: 12px;
+        background: #ffffff;
+        color: #1c1c1e;
+        height: 34px;
+        box-sizing: border-box;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .form-input:focus,
+    input[type="text"]:focus,
+    select:focus {
+        outline: none;
+        border-color: #248a3d;
+        box-shadow: 0 0 0 3px rgba(144, 238, 144, 0.2);
+    }
+
+    .form-help {
+        font-size: 11px;
+        color: #8e8e93;
+        margin-top: 4px;
+    }
+
+    .form-error {
+        color: #ff3b30;
+        font-size: 11px;
+        margin-top: 4px;
+        font-weight: 500;
+    }
+
+    .btn-submit {
+        width: 100%;
+        padding: 8px 16px;
+        height: 36px;
+        background: #90EE90;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #000000;
+        cursor: pointer;
+        margin-top: 6px;
+        transition: background-color 0.15s ease;
+    }
+
+    .btn-submit:hover {
+        background: #7cdb7c;
     }
 </style>
 {% endblock %}

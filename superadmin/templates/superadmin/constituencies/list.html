@@ -2,114 +2,101 @@
 {% block title %}Constituencies | KIEMS Admin{% endblock %}
 
 {% block content %}
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+<div class="page-header">
     <div>
-        <h2 style="font-size:24px; font-weight:700;">Constituencies</h2>
-        <p style="color:#8e8e93; font-size:14px;">
-            {{ total_count }} total · manage all constituencies
+        <h2 class="page-title">Constituencies</h2>
+        <p class="page-subtitle">
+            {{ total_count }} total &bull; Manage all administrative constituencies
         </p>
     </div>
-    <a href="{% url 'superadmin:constituency_create' %}"
-       style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
-        <span style="font-size:20px; line-height:1;">+</span> Add Constituency
+    <a href="{% url 'superadmin:constituency_create' %}" class="btn-primary">
+        <i class="bi bi-plus-lg"></i> Add Constituency
     </a>
 </div>
 
-<form method="get"
-      style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:flex-end;">
-    <div style="display:flex; flex-direction:column; gap:4px;">
-        <label style="font-size:11px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Search</label>
-        <input type="text" name="q" value="{{ q }}" placeholder="Name or code…"
-               style="padding:9px 12px; border:0.5px solid rgba(0,0,0,0.1); border-radius:8px; font-size:14px; min-width:220px; background:#fff;">
+<form method="get" class="filter-bar">
+    <div class="filter-group">
+        <label class="filter-label">Search</label>
+        <input type="text" name="q" value="{{ q }}" placeholder="Name or code..." class="filter-input">
     </div>
-    <div style="display:flex; flex-direction:column; gap:4px;">
-        <label style="font-size:11px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Status</label>
-        <select name="status"
-                style="padding:9px 12px; border:0.5px solid rgba(0,0,0,0.1); border-radius:8px; font-size:14px; background:#fff;">
-            <option value="">All</option>
+    <div class="filter-group">
+        <label class="filter-label">Status</label>
+        <select name="status" class="filter-select">
+            <option value="">All Statuses</option>
             <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
             <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
         </select>
     </div>
-    <button type="submit"
-            style="background:#90EE90; border:none; padding:10px 18px; border-radius:8px; font-weight:600; cursor:pointer;">
-        Filter
-    </button>
-    <a href="{% url 'superadmin:constituency_list' %}"
-       style="background:#fff; border:0.5px solid rgba(0,0,0,0.1); padding:10px 18px; border-radius:8px; font-weight:600; text-decoration:none; color:#3a3a3c;">
-        Clear
-    </a>
+    <div class="filter-actions">
+        <button type="submit" class="btn-filter">Filter</button>
+        <a href="{% url 'superadmin:constituency_list' %}" class="btn-clear">Clear</a>
+    </div>
 </form>
 
-<div style="background:#fff; border-radius:12px; border:0.5px solid rgba(0,0,0,0.08); overflow:hidden;">
-    <table style="width:100%; border-collapse:collapse;">
-        <thead style="background:#f9f9fb;">
+<div class="table-card">
+    <table class="data-table">
+        <thead>
             <tr>
-                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Name</th>
-                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Code</th>
-                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Wards</th>
-                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">ICT Officers</th>
-                <th style="padding:14px 20px; text-align:left; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Status</th>
-                <th style="padding:14px 20px; text-align:right; font-size:12px; font-weight:600; color:#8e8e93; text-transform:uppercase;">Actions</th>
+                <th>Name</th>
+                <th>Code</th>
+                <th>Wards</th>
+                <th>ICT Officers</th>
+                <th>Status</th>
+                <th style="text-align: right;">Actions</th>
             </tr>
         </thead>
         <tbody>
             {% for c in constituencies %}
-            <tr style="border-bottom:0.5px solid rgba(0,0,0,0.06);">
-                <td style="padding:14px 20px; font-weight:600;">{{ c.name }}</td>
-                <td style="padding:14px 20px; color:#8e8e93; font-family:monospace; font-size:13px;">
-                    {{ c.code|default:"—" }}
-                </td>
-                <td style="padding:14px 20px;">
-                    <span style="background:#e3f2fd; color:#1565c0; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">
+            <tr>
+                <td class="font-medium">{{ c.name }}</td>
+                <td class="text-mono">{{ c.code|default:"—" }}</td>
+                <td>
+                    <span class="count-badge count-wards">
                         {{ c.ward_count }}
                     </span>
                 </td>
-                <td style="padding:14px 20px;">
-                    <span style="background:#f5e8ff; color:#7b2cbf; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">
+                <td>
+                    <span class="count-badge count-officers">
                         {{ c.officer_count }}
                     </span>
                 </td>
-                <td style="padding:14px 20px;">
+                <td>
                     {% if c.active %}
-                        <span style="background:#e8f5e9; color:#2e7d32; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">Active</span>
+                        <span class="status-badge status-active">Active</span>
                     {% else %}
-                        <span style="background:#f0f0f2; color:#6b6b70; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700;">Inactive</span>
+                        <span class="status-badge status-inactive">Inactive</span>
                     {% endif %}
                 </td>
-                <td style="padding:14px 20px; text-align:right;">
-                    <a href="{% url 'superadmin:constituency_edit' c.id %}"
-                       style="color:#5856d6; text-decoration:none; margin-right:12px;">Edit</a>
+                <td style="text-align: right;">
+                    <div class="action-group">
+                        <a href="{% url 'superadmin:constituency_edit' c.id %}" class="btn-action btn-edit">Edit</a>
 
-                    <form method="post" action="{% url 'superadmin:constituency_toggle' c.id %}"
-                          style="display:inline; margin-right:12px;">
-                        {% csrf_token %}
-                        <button type="submit"
-                                style="background:none; border:none; cursor:pointer; color:#ff9500; padding:0; font-size:14px;">
-                            {% if c.active %}Deactivate{% else %}Activate{% endif %}
-                        </button>
-                    </form>
+                        <form method="post" action="{% url 'superadmin:constituency_toggle' c.id %}" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-action btn-toggle">
+                                {% if c.active %}Deactivate{% else %}Activate{% endif %}
+                            </button>
+                        </form>
 
-                    <form method="post" action="{% url 'superadmin:constituency_delete' c.id %}"
-                          style="display:inline;"
-                          onsubmit="return confirm('Delete constituency {{ c.name|escapejs }}? This cannot be undone.');">
-                        {% csrf_token %}
-                        <button type="submit"
-                                style="background:none; border:none; color:#ff3b30; cursor:pointer; padding:0; font-size:14px;">
-                            Delete
-                        </button>
-                    </form>
+                        <form method="post" action="{% url 'superadmin:constituency_delete' c.id %}"
+                              style="display: inline;"
+                              onsubmit="return confirm('Delete constituency {{ c.name|escapejs }}? This action cannot be undone.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-action btn-delete">
+                                Delete
+                            </button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="6" style="padding:60px 20px; text-align:center; color:#8e8e93;">
-                    <div style="font-size:48px; margin-bottom:16px;">🏛️</div>
-                    <h3 style="color:#000; margin-bottom:8px;">No Constituencies Found</h3>
-                    <p style="margin-bottom:16px;">Get started by adding your first constituency.</p>
-                    <a href="{% url 'superadmin:constituency_create' %}"
-                       style="background:#90EE90; padding:10px 20px; border-radius:8px; text-decoration:none; color:#000; font-weight:600;">
-                        + Add Constituency
+                <td colspan="6" class="empty-state">
+                    <div class="empty-icon"><i class="bi bi-buildings"></i></div>
+                    <h3>No Constituencies Found</h3>
+                    <p>Get started by adding your first administrative constituency.</p>
+                    <a href="{% url 'superadmin:constituency_create' %}" class="btn-primary" style="margin-top: 12px;">
+                        <i class="bi bi-plus-lg"></i> Add Constituency
                     </a>
                 </td>
             </tr>
@@ -117,4 +104,283 @@
         </tbody>
     </table>
 </div>
+
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .page-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1c1c1e;
+        line-height: 1.2;
+    }
+
+    .page-subtitle {
+        color: #8e8e93;
+        font-size: 12px;
+        margin-top: 2px;
+    }
+
+    .btn-primary {
+        background: #90EE90;
+        padding: 7px 14px;
+        border-radius: 6px;
+        text-decoration: none;
+        color: #000000;
+        font-weight: 600;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: background-color 0.15s ease;
+    }
+
+    .btn-primary:hover {
+        background: #7cdb7c;
+    }
+
+    .filter-bar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+        align-items: flex-end;
+        background: #ffffff;
+        padding: 12px;
+        border-radius: 8px;
+        border: 0.5px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .filter-label {
+        font-size: 10px;
+        font-weight: 700;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .filter-input, .filter-select {
+        padding: 6px 10px;
+        border: 0.5px solid rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
+        font-size: 12px;
+        background: #ffffff;
+        color: #1c1c1e;
+        height: 32px;
+    }
+
+    .filter-input {
+        min-width: 200px;
+    }
+
+    .filter-input:focus, .filter-select:focus {
+        outline: none;
+        border-color: #248a3d;
+        box-shadow: 0 0 0 3px rgba(144, 238, 144, 0.2);
+    }
+
+    .filter-actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    .btn-filter {
+        background: #90EE90;
+        border: none;
+        padding: 0 14px;
+        height: 32px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #000;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+
+    .btn-filter:hover {
+        background: #7cdb7c;
+    }
+
+    .btn-clear {
+        background: #ffffff;
+        border: 0.5px solid rgba(0, 0, 0, 0.15);
+        padding: 0 12px;
+        height: 32px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        text-decoration: none;
+        color: #3a3a3c;
+        display: inline-flex;
+        align-items: center;
+        transition: background-color 0.15s ease;
+    }
+
+    .btn-clear:hover {
+        background: #f2f2f7;
+    }
+
+    .table-card {
+        background: #ffffff;
+        border-radius: 8px;
+        border: 0.5px solid rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+
+    .data-table thead {
+        background: #fafafa;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .data-table th {
+        padding: 10px 14px;
+        text-align: left;
+        font-size: 10px;
+        font-weight: 700;
+        color: #8e8e93;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .data-table td {
+        padding: 10px 14px;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.05);
+        color: #1c1c1e;
+        vertical-align: middle;
+    }
+
+    .data-table tbody tr:hover {
+        background-color: #f9f9fb;
+    }
+
+    .font-medium {
+        font-weight: 600;
+    }
+
+    .text-mono {
+        font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        color: #636366;
+        font-size: 11px;
+    }
+
+    .count-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .count-wards {
+        background: #e3f2fd;
+        color: #1565c0;
+    }
+
+    .count-officers {
+        background: #f3e5f5;
+        color: #7b1fa2;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .status-active {
+        background: #e8f5e9;
+        color: #2e7d32;
+    }
+
+    .status-inactive {
+        background: #f2f2f7;
+        color: #8e8e93;
+    }
+
+    .action-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-action {
+        font-size: 12px;
+        font-weight: 600;
+        text-decoration: none;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+    }
+
+    .btn-edit {
+        color: #007aff;
+    }
+
+    .btn-edit:hover {
+        text-decoration: underline;
+    }
+
+    .btn-toggle {
+        color: #ff9500;
+    }
+
+    .btn-toggle:hover {
+        text-decoration: underline;
+    }
+
+    .btn-delete {
+        color: #ff3b30;
+    }
+
+    .btn-delete:hover {
+        text-decoration: underline;
+    }
+
+    .empty-state {
+        padding: 48px 20px !important;
+        text-align: center;
+        color: #8e8e93;
+    }
+
+    .empty-icon {
+        font-size: 32px;
+        color: #aeaeb2;
+        margin-bottom: 8px;
+    }
+
+    .empty-state h3 {
+        color: #1c1c1e;
+        font-size: 15px;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+
+    .empty-state p {
+        font-size: 12px;
+    }
+</style>
 {% endblock %}
