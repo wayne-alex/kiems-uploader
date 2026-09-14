@@ -1,25 +1,46 @@
 import csv
+import hmac
 import io
 import json
+import logging
 import os
+import time
+from datetime import datetime, timedelta
 
 import openpyxl
+import requests
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth import logout, login as auth_login
 from django.db import IntegrityError
-from django.db.models import Q, Sum
-from django.http import HttpResponse
+from django.db.models import Q, Sum, Count
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
 from django.template.loader import render_to_string
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
 
 from home.models import (
-    VRA, Clerk, Device, DeviceBurnLog,
-    AuditLog, WhatsAppSetting, Phase, )
+    VRA, Clerk, Device, DeviceBurnLog, AuditLog, WhatsAppSetting, Phase,
+    Ward, KIEMSKit, DailyKIEMSEntry, Constituency, WhatsAppGroup,
+    CronHeartbeat, DailyReportState,
+)
+from home.services.daily_report import (
+    reap_stuck_sending_states,
+    send_ready_reports,
+    reevaluate_constituency_report,
+    run_daily_report_tick,
+)
 from .decorators import ict_required
 from .forms import (
     WardForm, VRAForm, ClerkForm, KIEMSKitForm,
     DailyEntryOfficeForm, WhatsAppSettingForm, ICTOfficerLoginForm, DailyEntryCreateForm,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ---------- Helpers ----------
@@ -35,6 +56,45 @@ def _log(request, action, model_name, instance, description=""):
         description=description,
         ip_address=request.META.get("REMOTE_ADDR"),
     )
+
+
+def _coerce_date(value):
+    """Accept a date object, a 'YYYY-MM-DD' string, or None -> today."""
+    if value is None:
+        return timezone.localdate()
+    if hasattr(value, "year") and hasattr(value, "month"):
+        return value
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return timezone.localdate()
+
+
+def _bot_url():
+    return getattr(settings, "WHATSAPP_BOT_URL", "http://localhost:3000")
+
+
+_BOT_HEALTH_CACHE = {"ts": 0.0, "ok": False}
+_BOT_HEALTH_TTL_SECONDS = 5
+
+
+def _check_bot_health():
+    """Ping the WhatsApp bot, cached for 5s to survive rapid page refreshes."""
+    now = time.time()
+    if now - _BOT_HEALTH_CACHE["ts"] < _BOT_HEALTH_TTL_SECONDS:
+        return _BOT_HEALTH_CACHE["ok"]
+
+    ok = False
+    try:
+        r = requests.get(f"{_bot_url()}/status", timeout=3)
+        if r.status_code == 200:
+            ok = bool(r.json().get("isReady", False))
+    except Exception:
+        ok = False
+
+    _BOT_HEALTH_CACHE["ts"] = now
+    _BOT_HEALTH_CACHE["ok"] = ok
+    return ok
 
 
 # ---------- Dashboard ----------
@@ -350,7 +410,7 @@ def device_detail(request, pk):
 
 @ict_required
 def device_authorize(request, pk):
-    """Authorize a device → is_burned=True."""
+    """Authorize a device: sets is_burned=True."""
     c = request.constituency
     device = get_object_or_404(
         Device.objects.filter(
@@ -380,7 +440,7 @@ def device_authorize(request, pk):
 
 @ict_required
 def device_revoke(request, pk):
-    """Revoke a device's authorization → is_burned=False."""
+    """Revoke a device's authorization: sets is_burned=False."""
     c = request.constituency
     device = get_object_or_404(
         Device.objects.filter(
@@ -431,11 +491,9 @@ def device_delete(request, pk):
             device.clerk.device_token = None
             device.clerk.save(update_fields=["device_token"])
 
-        # Delete logs first (FK cascade would do it anyway, but explicit is clear)
         DeviceBurnLog.objects.filter(device=device).delete()
         device.delete()
 
-        # Audit trail (device row is gone, so we log against the pk string)
         AuditLog.objects.create(
             actor=request.user,
             constituency=c,
@@ -447,14 +505,11 @@ def device_delete(request, pk):
             ip_address=request.META.get("REMOTE_ADDR"),
         )
 
-        messages.success(request, f"Device {fingerprint[:12]}… deleted.")
+        messages.success(request, f"Device {fingerprint[:12]} deleted.")
         return redirect("ict:device_list")
 
-    # GET fallback (shouldn't normally happen; templates use POST forms)
     return redirect("ict:device_detail", pk=device.pk)
 
-
-# ---------- Daily Entries ----------
 
 # ---------- Daily Entries ----------
 
@@ -475,7 +530,6 @@ def entry_list(request):
         .select_related("ward", "vra", "kiems_kit", "phase")
     )
 
-    # ---- Filters ----
     date_from = request.GET.get("date_from")
     date_to = request.GET.get("date_to")
     ward_id = request.GET.get("ward")
@@ -493,7 +547,6 @@ def entry_list(request):
     if vra_id:
         qs = qs.filter(vra_id=vra_id)
 
-    # ---- Totals for filtered set ----
     totals = qs.aggregate(
         male=Sum("registered_male"),
         female=Sum("registered_female"),
@@ -502,7 +555,6 @@ def entry_list(request):
         updated=Sum("total_updated"),
     )
 
-    # ---- Today's stats (constituency-wide, unfiltered, registrations only) ----
     today = timezone.localdate()
     today_entries = DailyKIEMSEntry.objects.filter(
         ward__constituency=c,
@@ -519,7 +571,6 @@ def entry_list(request):
         "total_updated": today_entries.aggregate(Sum("total_updated"))["total_updated__sum"] or 0,
     }
 
-    # ---- Dropdown options ----
     wards = Ward.objects.filter(constituency=c).order_by("name")
     kits = KIEMSKit.objects.filter(ward__constituency=c, status=True).order_by("kit_name")
     vras = VRA.objects.filter(ward__constituency=c, active=True).order_by("name")
@@ -543,9 +594,7 @@ def entry_list(request):
 
 @ict_required
 def entry_create(request):
-    """
-    Office: create a manual REGISTRATION entry from the daily-entries page.
-    """
+    """Office: create a manual REGISTRATION entry from the daily-entries page."""
     c = request.constituency
 
     active_phase = Phase.objects.filter(active=True).first()
@@ -561,11 +610,9 @@ def entry_create(request):
         if form.is_valid():
             entry = form.save(commit=False)
 
-            # Required FKs the form doesn't expose
             entry.phase = active_phase
             entry.entry_type = "REGISTRATION"
 
-            # Ward must match the kit's ward (form already validates, but re-assert)
             if entry.kiems_kit and entry.kiems_kit.ward_id:
                 entry.ward = entry.kiems_kit.ward
 
@@ -574,8 +621,7 @@ def entry_create(request):
 
             try:
                 entry.save()
-            except IntegrityError as e:
-                # Duplicate from the unique constraint on (kit, phase, date, vra)
+            except IntegrityError:
                 messages.error(
                     request,
                     "An entry for this kit, VRA, and date already exists. "
@@ -592,13 +638,12 @@ def entry_create(request):
                 })
 
             _log(request, "CREATE", "DailyKIEMSEntry", entry,
-                 f"Manual entry {entry.entry_date} · {entry.ward.name} · {entry.kiems_kit.kit_name}")
+                 f"Manual entry {entry.entry_date} - {entry.ward.name} - {entry.kiems_kit.kit_name}")
 
             try:
-                from home.services.daily_report import reevaluate_constituency_report
                 reevaluate_constituency_report(entry.ward.constituency, entry.entry_date)
             except Exception as e:
-                print(f"state reeval failed: {e}")
+                logger.warning("State reevaluation failed after manual entry: %s", e)
 
             messages.success(request, "Entry created.")
             return redirect("ict:entry_list")
@@ -618,10 +663,7 @@ def entry_create(request):
 
 @ict_required
 def entry_edit(request, pk):
-    """
-    Office edit of an existing REGISTRATION entry.
-    Only registration entries are editable through this view.
-    """
+    """Office edit of an existing REGISTRATION entry."""
     c = request.constituency
     entry = get_object_or_404(
         DailyKIEMSEntry,
@@ -650,18 +692,13 @@ def entry_edit(request, pk):
 
 # ==================== EXPORTS ====================
 
-@ict_required
-@require_GET
-def entry_export_excel(request):
-    """Export filtered REGISTRATION entries to Excel (.xlsx)."""
-    c = request.constituency
-
+def _export_filtered_entries(request, constituency):
+    """Shared filter logic for both export formats."""
     qs = (
         DailyKIEMSEntry.objects
-        .filter(ward__constituency=c, entry_type="REGISTRATION")
-        .select_related("ward", "vra", "kiems_kit", "phase")
+        .filter(ward__constituency=constituency, entry_type="REGISTRATION")
+        .select_related("ward", "vra", "kiems_kit")
     )
-
     for param, field in [
         ("date_from", "entry_date__gte"),
         ("date_to", "entry_date__lte"),
@@ -672,44 +709,109 @@ def entry_export_excel(request):
         val = request.GET.get(param)
         if val:
             qs = qs.filter(**{field: val})
+    return qs
 
-    qs = qs.order_by("entry_date", "ward__name", "kiems_kit__kit_name")
+
+@ict_required
+@require_GET
+def entry_export_excel(request):
+    """
+    Export filtered REGISTRATION entries to Excel in the same
+    ward -> kit -> M/F -> date-columns layout as the manual tracking sheet.
+    """
+    c = request.constituency
+    entries = list(_export_filtered_entries(request, c))
+    if not entries:
+        messages.warning(request, "No entries match this filter.")
+        return redirect("ict:entry_list")
+
+    all_dates = sorted({e.entry_date for e in entries})
+    by_cell = {(e.ward_id, e.kiems_kit_id, e.entry_date): e for e in entries}
+
+    ward_ids = {e.ward_id for e in entries}
+    wards = Ward.objects.filter(constituency=c, id__in=ward_ids).order_by("name")
+
+    kits_by_ward = {}
+    for w in wards:
+        kit_ids = {e.kiems_kit_id for e in entries if e.ward_id == w.id}
+        kits_by_ward[w.id] = list(
+            KIEMSKit.objects.filter(ward=w, id__in=kit_ids).order_by("kit_name")
+        )
 
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Daily Entries"
 
-    headers = [
-        "Date", "Ward", "Kit", "Kit Serial", "VRA", "Venue",
-        "Male", "Female", "Total", "Transferred", "Updated",
-        "Uploaded", "Edit Count",
-    ]
-    ws.append(headers)
+    header_fill = PatternFill("solid", fgColor="16A34A")
+    header_font = Font(bold=True, color="FFFFFF")
+    total_fill = PatternFill("solid", fgColor="E5E7EB")
+    total_font = Font(bold=True)
+    center = Alignment(horizontal="center", vertical="center")
+    thin = Side(style="thin", color="DDDDDD")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    from openpyxl.styles import Font, PatternFill
-    for cell in ws[1]:
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor="16A34A")
+    FIXED_COLS = 3  # Ward | Kit | M/F
+    DATE_START_COL = FIXED_COLS + 1
+    last_col = DATE_START_COL + len(all_dates) - 1
 
-    for e in qs:
-        ws.append([
-            e.entry_date.strftime("%Y-%m-%d") if e.entry_date else "",
-            e.ward.name if e.ward else "",
-            e.kiems_kit.kit_name if e.kiems_kit else "",
-            e.kiems_kit.serial_no if e.kiems_kit else "",
-            e.vra.name if e.vra else "",
-            e.venue or "",
-            e.registered_male,
-            e.registered_female,
-            e.total_registered,
-            e.total_transferred,
-            e.total_updated,
-            "Yes" if e.uploaded else "No",
-            e.edit_count,
-        ])
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=last_col)
+    title_cell = ws.cell(row=1, column=1, value=f"{c.name} Constituency \u2014 Daily Registration Report")
+    title_cell.font = Font(bold=True, size=13, color="16A34A")
+    title_cell.alignment = center
 
-    for i, h in enumerate(headers, 1):
-        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = max(12, len(h) + 4)
+    ws.cell(row=2, column=1, value="WARD")
+    ws.cell(row=2, column=2, value="KIT")
+    ws.cell(row=2, column=3, value="M/F")
+    for i, d in enumerate(all_dates):
+        ws.cell(row=2, column=DATE_START_COL + i, value=d.strftime("%d-%b")).alignment = center
+    for col_idx in range(1, last_col + 1):
+        cell = ws.cell(row=2, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center
+        cell.border = border
+
+    row = 3
+    for w in wards:
+        ward_start_row = row
+        for kit in kits_by_ward.get(w.id, []):
+            for label, attr in (("M", "registered_male"), ("F", "registered_female")):
+                ws.cell(row=row, column=2, value=f"{kit.kit_name} ({kit.serial_no})")
+                ws.cell(row=row, column=3, value=label).alignment = center
+                for i, d in enumerate(all_dates):
+                    entry = by_cell.get((w.id, kit.id, d))
+                    val = getattr(entry, attr) if entry else None
+                    cell = ws.cell(row=row, column=DATE_START_COL + i, value=val)
+                    cell.alignment = center
+                    cell.border = border
+                row += 1
+
+        if row - 1 >= ward_start_row:
+            ws.merge_cells(start_row=ward_start_row, start_column=1, end_row=row - 1, end_column=1)
+            ward_cell = ws.cell(row=ward_start_row, column=1, value=w.name)
+            ward_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            ward_cell.font = Font(bold=True)
+
+        ws.cell(row=row, column=2, value="TOTAL/DAY")
+        for i, d in enumerate(all_dates):
+            total = sum(
+                (getattr(by_cell.get((w.id, kit.id, d)), "total_registered", 0) or 0)
+                for kit in kits_by_ward.get(w.id, [])
+            )
+            cell = ws.cell(row=row, column=DATE_START_COL + i, value=total or None)
+            cell.font = total_font
+            cell.fill = total_fill
+            cell.alignment = center
+        row += 1
+
+    ws.column_dimensions["A"].width = 14
+    ws.column_dimensions["B"].width = 22
+    ws.column_dimensions["C"].width = 6
+    for i in range(len(all_dates)):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(DATE_START_COL + i)].width = 10
+
+    # Freeze the identifying columns (Ward/Kit/M-F) + the two header rows
+    ws.freeze_panes = ws.cell(row=3, column=DATE_START_COL).coordinate
 
     timestamp = timezone.localtime().strftime("%Y%m%d_%H%M%S")
     filename = f"{c.name.replace(' ', '_')}_Entries_{timestamp}.xlsx"
@@ -725,25 +827,15 @@ def entry_export_excel(request):
 @ict_required
 @require_GET
 def entry_export_csv(request):
-    """Export filtered REGISTRATION entries to CSV."""
+    """
+    Export filtered REGISTRATION entries to CSV using the exact same
+    column layout entry_import_csv expects, so a file exported here can
+    be re-imported without any manual editing.
+    """
     c = request.constituency
-
-    qs = (
-        DailyKIEMSEntry.objects
-        .filter(ward__constituency=c, entry_type="REGISTRATION")
-        .select_related("ward", "vra", "kiems_kit")
+    qs = _export_filtered_entries(request, c).order_by(
+        "entry_date", "ward__name", "kiems_kit__kit_name"
     )
-
-    for param, field in [
-        ("date_from", "entry_date__gte"),
-        ("date_to", "entry_date__lte"),
-        ("ward", "ward_id"),
-        ("kit", "kiems_kit_id"),
-        ("vra", "vra_id"),
-    ]:
-        val = request.GET.get(param)
-        if val:
-            qs = qs.filter(**{field: val})
 
     timestamp = timezone.localtime().strftime("%Y%m%d_%H%M%S")
     filename = f"{c.name.replace(' ', '_')}_Entries_{timestamp}.csv"
@@ -753,30 +845,25 @@ def entry_export_csv(request):
 
     writer = csv.writer(response)
     writer.writerow([
-        "Date", "Ward", "Kit", "Serial", "VRA", "Venue",
-        "Male", "Female", "Total", "Transferred", "Updated",
+        "date", "ward_id", "kit_id", "vra_id",
+        "male", "female", "transferred", "updated", "venue",
     ])
-    for e in qs.order_by("-entry_date"):
+    for e in qs:
         writer.writerow([
-            e.entry_date,
-            e.ward.name,
-            e.kiems_kit.kit_name,
-            e.kiems_kit.serial_no,
-            e.vra.name,
-            e.venue,
+            e.entry_date.strftime("%Y-%m-%d"),
+            e.ward_id,
+            e.kiems_kit_id,
+            e.vra_id,
             e.registered_male,
             e.registered_female,
-            e.total_registered,
             e.total_transferred,
             e.total_updated,
+            e.venue or "",
         ])
     return response
 
 
 # ==================== PDF REPORT ====================
-
-import json as _json
-
 
 def _entry_report_context(request):
     """Context for `ict/entries/report_pdf.html` (and the ReportLab fallback)."""
@@ -788,14 +875,19 @@ def _entry_report_context(request):
         .select_related("ward", "phase", "kiems_kit")
     )
 
-    for param, field in [
-        ("date_from", "entry_date__gte"),
-        ("date_to", "entry_date__lte"),
-        ("ward", "ward_id"),
-        ("kit", "kiems_kit_id"),
-        ("vra", "vra_id"),
+    date_from = request.GET.get("date_from")
+    date_to = request.GET.get("date_to")
+    ward_id = request.GET.get("ward")
+    kit_id = request.GET.get("kit")
+    vra_id = request.GET.get("vra")
+
+    for param, field, val in [
+        ("date_from", "entry_date__gte", date_from),
+        ("date_to", "entry_date__lte", date_to),
+        ("ward", "ward_id", ward_id),
+        ("kit", "kiems_kit_id", kit_id),
+        ("vra", "vra_id", vra_id),
     ]:
-        val = request.GET.get(param)
         if val:
             qs = qs.filter(**{field: val})
 
@@ -836,12 +928,6 @@ def _entry_report_context(request):
     )
 
     parts = []
-    date_from = request.GET.get("date_from")
-    date_to = request.GET.get("date_to")
-    ward_id = request.GET.get("ward")
-    kit_id = request.GET.get("kit")
-    vra_id = request.GET.get("vra")
-
     if date_from and date_to:
         parts.append(f"{date_from} to {date_to}")
     elif date_from:
@@ -863,7 +949,6 @@ def _entry_report_context(request):
         v = VRA.objects.filter(pk=vra_id, ward__constituency=c).first()
         if v:
             parts.append(f"VRA: {v.name}")
-
     parts.append("Type: Registration")
 
     return {
@@ -876,7 +961,7 @@ def _entry_report_context(request):
         "ward_summary": ward_summary,
         "phase_summary": phase_summary,
         "kit_summary": kit_summary,
-        "scope": "  •  ".join(parts),
+        "scope": "  |  ".join(parts),
         "generated_at": timezone.localtime().strftime("%d %b %Y, %H:%M"),
         "brand_logo_url": "https://verify.iebc.or.ke/images/1.png",
     }
@@ -895,7 +980,7 @@ def entry_download_report(request):
         html_string = render_to_string("ict/entries/report_pdf.html", ctx)
 
         api_url = f"{getattr(settings, 'PDF_CO_API_URL', 'https://api.pdf.co/v1')}/pdf/convert/from/html"
-        payload = _json.dumps({
+        payload = json.dumps({
             "name": f"{ctx['constituency'].name}_Daily_Report.pdf",
             "html": html_string,
             "margin": "0px",
@@ -936,10 +1021,7 @@ def entry_download_report(request):
 
 
 def _entry_pdf_reportlab(request, ctx):
-    """
-    Local PDF fallback using ReportLab.
-    Reads from the same ctx as `_entry_report_context`.
-    """
+    """Local PDF fallback using ReportLab. Reads from the same ctx as `_entry_report_context`."""
     try:
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import letter
@@ -962,7 +1044,7 @@ def _entry_pdf_reportlab(request, ctx):
     story = []
 
     story.append(Paragraph(
-        f"{ctx['constituency'].name} Constituency — Daily Report",
+        f"{ctx['constituency'].name} Constituency - Daily Report",
         ParagraphStyle("T", parent=styles["Title"], fontSize=16,
                        textColor=colors.HexColor("#16a34a"),
                        alignment=TA_CENTER, spaceAfter=4)
@@ -1033,7 +1115,7 @@ def _entry_pdf_reportlab(request, ctx):
         kit_data = [["Kit", "Entries", "Male", "Female", "Total"]]
         for k in ctx["kit_summary"]:
             kit_data.append([
-                k["kiems_kit__kit_name"] or "—",
+                k["kiems_kit__kit_name"] or "-",
                 str(k["count"]),
                 str(k["male"] or 0),
                 str(k["female"] or 0),
@@ -1066,9 +1148,6 @@ def entry_download_report_preview(request):
 
 # ==================== CSV IMPORT ====================
 
-from datetime import datetime as _dt
-
-
 @ict_required
 @require_POST
 def entry_import_csv(request):
@@ -1086,7 +1165,7 @@ def entry_import_csv(request):
 
     active_phase = Phase.objects.filter(active=True).first()
     if not active_phase:
-        messages.error(request, "No active phase — import aborted.")
+        messages.error(request, "No active phase - import aborted.")
         return redirect("ict:entry_list")
 
     try:
@@ -1113,7 +1192,7 @@ def entry_import_csv(request):
                     continue
 
                 try:
-                    entry_date_obj = _dt.strptime(date_str, "%Y-%m-%d").date()
+                    entry_date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
                 except ValueError:
                     errors.append(f"Row {i}: invalid date '{date_str}'")
                     continue
@@ -1126,7 +1205,6 @@ def entry_import_csv(request):
                     errors.append(f"Row {i}: ward/kit/vra not in your constituency")
                     continue
 
-                # Force REGISTRATION — venue rows come from the clerk tool
                 DailyKIEMSEntry.objects.update_or_create(
                     kiems_kit=kit,
                     phase=active_phase,
@@ -1161,25 +1239,25 @@ def entry_import_csv(request):
 
     return redirect("ict:entry_list")
 
+
+# ---------- Notifications ----------
+
 @ict_required
 def notification_list(request):
     c = request.constituency
 
-    # The group actually used for routing today
     constituency_group = (
         WhatsAppGroup.objects
         .filter(constituency=c, is_active=True)
         .order_by("name")
         .first()
     )
-
-    # The officer's private preference (may be None or stale)
     setting = WhatsAppSetting.objects.filter(user=request.user).first()
 
     return render(request, "ict/notifications/list.html", {
         "constituency": c,
         "constituency_group": constituency_group,
-        "selected_group": constituency_group,  # keep name for template compat
+        "selected_group": constituency_group,
         "personal_setting": setting,
         "wards": Ward.objects.filter(constituency=c).order_by("name"),
         "today": timezone.now().date(),
@@ -1215,17 +1293,13 @@ def notification_settings(request):
     })
 
 
-def _bot_url():
-    return getattr(settings, "WHATSAPP_BOT_URL", "http://localhost:3000")
-
-
 @ict_required
 @require_GET
 def whatsapp_bot_status(request):
-    """Live bot status (mirrors superadmin:whatsapp_bot_status)."""
+    """Live bot status."""
     try:
         r = requests.get(f"{_bot_url()}/status", timeout=5,
-                         headers={"Content-Type": "application/json"})
+                          headers={"Content-Type": "application/json"})
         if r.status_code == 200:
             data = r.json()
             qr = data.get("qr") if data.get("hasQr") else None
@@ -1256,7 +1330,7 @@ def whatsapp_bot_status(request):
         }, status=503)
     except Exception as e:
         return JsonResponse({"success": False, "isReady": False,
-                             "status": "error", "error": str(e)}, status=500)
+                              "status": "error", "error": str(e)}, status=500)
 
 
 @ict_required
@@ -1270,7 +1344,7 @@ def whatsapp_groups_live(request):
 
     try:
         s = requests.get(f"{_bot_url()}/status", timeout=3,
-                         headers={"Content-Type": "application/json"})
+                          headers={"Content-Type": "application/json"})
         if s.status_code != 200 or not s.json().get("isReady"):
             return JsonResponse({
                 "success": False, "data": [],
@@ -1278,7 +1352,7 @@ def whatsapp_groups_live(request):
             }, status=503)
 
         r = requests.get(f"{_bot_url()}/groups", timeout=10,
-                         headers={"Content-Type": "application/json"})
+                          headers={"Content-Type": "application/json"})
         if r.status_code != 200:
             return JsonResponse({
                 "success": False, "data": [],
@@ -1289,7 +1363,7 @@ def whatsapp_groups_live(request):
         counts = {g["id"]: g.get("participants", 0) for g in raw_groups if g.get("id")}
 
         # Persist any groups the bot knows that we haven't seen yet.
-        # Do NOT auto-scope them to a constituency — leave that to the
+        # Do NOT auto-scope them to a constituency - leave that to the
         # explicit picker, so we don't accidentally claim a shared group.
         for g in raw_groups:
             gid = g.get("id")
@@ -1299,11 +1373,7 @@ def whatsapp_groups_live(request):
             try:
                 obj, created = WhatsAppGroup.objects.get_or_create(
                     group_id=gid,
-                    defaults={
-                        "name": gname,
-                        "is_active": True,
-                        "constituency": None,  # unclaimed until picked
-                    },
+                    defaults={"name": gname, "is_active": True, "constituency": None},
                 )
                 if not created and obj.name != gname:
                     obj.name = gname
@@ -1316,10 +1386,7 @@ def whatsapp_groups_live(request):
         visible = (
             WhatsAppGroup.objects
             .filter(is_active=True)
-            .filter(
-                Q(constituency=c)  # mine
-                | Q(constituency__isnull=True)  # unclaimed or global
-            )
+            .filter(Q(constituency=c) | Q(constituency__isnull=True))
             .select_related("constituency")
             .order_by("name")
         )
@@ -1336,8 +1403,7 @@ def whatsapp_groups_live(request):
         return JsonResponse({"success": True, "data": data})
 
     except requests.exceptions.ConnectionError:
-        return JsonResponse({"success": False, "data": [],
-                             "error": "Bot is offline"}, status=503)
+        return JsonResponse({"success": False, "data": [], "error": "Bot is offline"}, status=503)
     except Exception as e:
         return JsonResponse({"success": False, "data": [], "error": str(e)}, status=500)
 
@@ -1348,13 +1414,12 @@ def whatsapp_select_group(request):
     """
     Set the WhatsApp group that will receive this constituency's messages.
 
-    Behavior:
-      - Assigns the chosen WhatsAppGroup to the officer's constituency.
-      - Any other group that was previously scoped to this constituency
-        is un-scoped (constituency set to NULL) so a constituency never
-        has more than one active target.
-      - Also records the choice in the officer's WhatsAppSetting for UI
-        display, but routing uses WhatsAppGroup.constituency, not this.
+    - Assigns the chosen WhatsAppGroup to the officer's constituency.
+    - Any other group previously scoped to this constituency is un-scoped
+      (constituency set to NULL) so a constituency never has more than
+      one active target.
+    - Also records the choice in the officer's WhatsAppSetting for UI
+      display, but routing uses WhatsAppGroup.constituency, not this.
 
     Accepts JSON {group_id: "..."} or form POST.
     """
@@ -1369,9 +1434,7 @@ def whatsapp_select_group(request):
 
         setting, _ = WhatsAppSetting.objects.get_or_create(user=request.user)
 
-        # --- Clear selection ---
         if not group_id:
-            # Un-scope all of this constituency's groups so nothing routes to them
             WhatsAppGroup.objects.filter(constituency=c).update(constituency=None)
             setting.default_group = None
             setting.save(update_fields=["default_group"])
@@ -1382,14 +1445,11 @@ def whatsapp_select_group(request):
                 "group_name": "",
             })
 
-        # --- Find or create the group ---
         # Match by group_id regardless of current constituency, because the
-        # officer may be re-picking a group that's currently assigned to
-        # another constituency (e.g. reassigning it) or to NULL.
+        # officer may be re-picking a group currently assigned elsewhere.
         group = WhatsAppGroup.objects.filter(group_id=group_id).first()
 
         if group is None:
-            # Brand new — the bot gave us a group we've never seen
             group = WhatsAppGroup.objects.create(
                 group_id=group_id,
                 name=data.get("group_name") or f"Group {group_id[:12]}",
@@ -1397,9 +1457,6 @@ def whatsapp_select_group(request):
                 constituency=c,
             )
         else:
-            # If it's already scoped to a *different* constituency,
-            # refuse unless the user is a superuser — this prevents
-            # accidentally stealing another constituency's group.
             if (
                     group.constituency_id
                     and group.constituency_id != c.id
@@ -1414,19 +1471,14 @@ def whatsapp_select_group(request):
                     ),
                 }, status=409)
 
-            # Un-scope any OTHER group currently claiming this constituency
-            WhatsAppGroup.objects.filter(
-                constituency=c
-            ).exclude(pk=group.pk).update(constituency=None)
+            WhatsAppGroup.objects.filter(constituency=c).exclude(pk=group.pk).update(constituency=None)
 
-            # Assign to this constituency
             group.constituency = c
             if data.get("group_name"):
                 group.name = data["group_name"]
             group.is_active = True
             group.save(update_fields=["constituency", "name", "is_active"])
 
-        # --- Reflect in the officer's UI preference ---
         setting.default_group = group
         setting.save(update_fields=["default_group"])
 
@@ -1523,17 +1575,14 @@ def whatsapp_send_report(request):
     date_str = data.get("date")
     ward_id = data.get("ward_id")
 
-    # Resolve date
     if date_str:
         try:
-            from datetime import datetime as _dt
-            report_date = _dt.strptime(date_str, "%Y-%m-%d").date()
+            report_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:
             report_date = timezone.now().date()
     else:
         report_date = timezone.now().date()
 
-    # Resolve target group
     setting = WhatsAppSetting.objects.filter(user=request.user).first()
     if not setting or not setting.default_group:
         return JsonResponse({
@@ -1541,7 +1590,6 @@ def whatsapp_send_report(request):
             "error": "No target group selected. Pick one above first."
         }, status=400)
 
-    # Build message
     if report_type == "ward":
         if not ward_id:
             return JsonResponse({"success": False, "error": "ward_id required"}, status=400)
@@ -1552,7 +1600,6 @@ def whatsapp_send_report(request):
     else:
         message = _format_constituency_report(c, report_date)
 
-    # Send via bot
     try:
         r = requests.post(
             f"{_bot_url()}/send",
@@ -1588,8 +1635,7 @@ def whatsapp_report_preview(request):
     ward_id = request.GET.get("ward_id")
 
     try:
-        from datetime import datetime as _dt
-        report_date = _dt.strptime(date_str, "%Y-%m-%d").date() if date_str else timezone.now().date()
+        report_date = datetime.strptime(date_str, "%Y-%m-%d").date() if date_str else timezone.now().date()
     except ValueError:
         report_date = timezone.now().date()
 
@@ -1620,14 +1666,14 @@ def audit_log_list(request):
         "logs": qs[:500],
         "actions": AuditLog.ACTIONS,
         "model_names": AuditLog.objects.filter(constituency=c)
-                  .values_list("model_name", flat=True).distinct(),
+        .values_list("model_name", flat=True).distinct(),
         "constituency": c,
         "selected_action": action,
         "selected_model": model_name,
     })
 
 
-# ---------- Logout ----------
+# ---------- Auth ----------
 
 @ict_required
 def ict_logout(request):
@@ -1637,12 +1683,10 @@ def ict_logout(request):
 
 
 def ict_login(request):
-    # Already logged in as an ICT officer? Go straight to dashboard.
     if request.user.is_authenticated:
         profile = getattr(request.user, "ict_profile", None)
         if profile and profile.active:
             return redirect("ict:dashboard")
-        # Superadmin or other user hitting this URL: send them to their portal
         if request.user.is_superuser:
             return redirect("superadmin:dashboard")
 
@@ -1653,11 +1697,9 @@ def ict_login(request):
         if form.is_valid():
             auth_login(request, form.user)
 
-            # "Remember me" → 30 days, otherwise browser-session only
             if not form.cleaned_data.get("remember"):
                 request.session.set_expiry(0)
 
-            # Safe redirect: only allow internal paths
             if next_url and next_url.startswith("/"):
                 return redirect(next_url)
             return redirect("ict:dashboard")
@@ -1670,108 +1712,111 @@ def ict_login(request):
     })
 
 
-# ==================== SYSTEM STATUS ====================
-
-from home.services.daily_report import (
-    run_daily_report_tick,  # <- add this helper in daily_report.py (see below)
-)
-
-# --- Simple in-process cache for the bot health check ---
-_BOT_HEALTH_CACHE = {"ts": 0, "ok": False}
-_BOT_HEALTH_TTL_SECONDS = 5
-
-
-def _check_bot_health():
-    """Ping the WhatsApp bot, cached for 5s to survive rapid refreshes."""
-    now = time.time()
-    if now - _BOT_HEALTH_CACHE["ts"] < _BOT_HEALTH_TTL_SECONDS:
-        return _BOT_HEALTH_CACHE["ok"]
-
-    ok = False
-    try:
-        url = getattr(settings, "WHATSAPP_BOT_URL", "http://localhost:3000")
-        r = requests.get(f"{url}/status", timeout=3)
-        if r.status_code == 200:
-            ok = bool(r.json().get("isReady", False))
-    except Exception:
-        ok = False
-
-    _BOT_HEALTH_CACHE["ts"] = now
-    _BOT_HEALTH_CACHE["ok"] = ok
-    return ok
-
-
-def _coerce_date(value):
-    """Accept a date, a YYYY-MM-DD string, or None → today."""
-    from datetime import datetime as _dt
-    if value is None:
-        return timezone.localdate()
-    if hasattr(value, "year") and hasattr(value, "month"):
-        return value  # already a date
-    try:
-        return _dt.strptime(str(value), "%Y-%m-%d").date()
-    except (ValueError, TypeError):
-        return timezone.localdate()
-
+# ============================================================
+# SYSTEM STATUS
+# ============================================================
 
 @ict_required
 def system_status(request):
     """
     System status dashboard:
       - Today's per-constituency report state
+      - WhatsApp group status per constituency
+      - Cron heartbeat freshness
       - Any FAILED / stuck-SENDING states (last 14 days)
       - Recent send history
     """
-    from home.models import Constituency, Ward
-
     today = timezone.localdate()
     fourteen_days_ago = today - timedelta(days=14)
 
-    # --- Constituencies the officer can see.
-    # ICT officers see their own constituency; superusers see all.
     if request.user.is_superuser:
         constituencies = Constituency.objects.filter(active=True).order_by("name")
     else:
         constituencies = Constituency.objects.filter(
             id=request.constituency.id, active=True
-        )
+        ).order_by("name")
+
+    visible_ids = list(constituencies.values_list("id", flat=True))
 
     todays_states = {
         s.constituency_id: s
-        for s in DailyReportState.objects.filter(report_date=today)
+        for s in DailyReportState.objects.filter(
+            report_date=today, constituency_id__in=visible_ids
+        )
     }
+
+    # First active group per constituency (alphabetically); missing if none.
+    groups_by_constituency = {}
+    for g in (
+            WhatsAppGroup.objects
+            .filter(constituency_id__in=visible_ids, is_active=True)
+            .order_by("name")
+    ):
+        if g.constituency_id not in groups_by_constituency:
+            groups_by_constituency[g.constituency_id] = g
+
+    active_phase = Phase.objects.filter(active=True).first()
+
+    ward_totals = dict(
+        Ward.objects
+        .filter(constituency_id__in=visible_ids, active=True)
+        .values("constituency_id")
+        .annotate(n=Count("id"))
+        .values_list("constituency_id", "n")
+    )
+
+    kit_totals = dict(
+        KIEMSKit.objects
+        .filter(ward__constituency_id__in=visible_ids, ward__active=True, status=True)
+        .values("ward__constituency_id")
+        .annotate(n=Count("id"))
+        .values_list("ward__constituency_id", "n")
+    )
+
+    submitted_kits_today = {}
+    if active_phase:
+        submitted_kits_today = dict(
+            DailyKIEMSEntry.objects
+            .filter(
+                ward__constituency_id__in=visible_ids,
+                phase=active_phase,
+                entry_date=today,
+                entry_type="REGISTRATION",
+            )
+            .values("ward__constituency_id")
+            .annotate(n=Count("kiems_kit_id", distinct=True))
+            .values_list("ward__constituency_id", "n")
+        )
 
     today_rows = []
     for c in constituencies:
         state = todays_states.get(c.id)
+        group = groups_by_constituency.get(c.id)
 
-        total_wards = Ward.objects.filter(constituency=c, active=True).count()
+        total_wards = state.total_wards if state else ward_totals.get(c.id, 0)
         submitted_wards = state.submitted_wards if state else 0
 
-        # Kit-level progress — the number ops actually cares about
-        kit_prog = constituency_kit_progress(c, today)
-        total_kits = kit_prog["total"]
-        submitted_kits = kit_prog["submitted"]
+        total_kits = kit_totals.get(c.id, 0)
+        submitted_kits = min(submitted_kits_today.get(c.id, 0), total_kits) if total_kits else 0
+
+        ward_pct = int((submitted_wards / total_wards) * 100) if total_wards else 0
+        kit_pct = int((submitted_kits / total_kits) * 100) if total_kits else 0
 
         today_rows.append({
             "constituency": c,
             "state": state,
-            "total_wards": state.total_wards if state else total_wards,
+            "total_wards": total_wards,
             "submitted_wards": submitted_wards,
-            "ward_progress_pct": int(
-                (submitted_wards / (state.total_wards if state else total_wards) * 100)
-                if (state.total_wards if state else total_wards) else 0
-            ),
+            "ward_progress_pct": ward_pct,
             "total_kits": total_kits,
             "submitted_kits": submitted_kits,
-            "kit_progress_pct": int(
-                (submitted_kits / total_kits * 100) if total_kits else 0
-            ),
+            "kit_progress_pct": kit_pct,
+            "has_group": group is not None,
+            "group_name": group.name if group else "",
+            "group_id": group.group_id if group else "",
         })
 
-    # --- Problem states (last 14 days, restricted to visible constituencies) ---
-    visible_ids = [c.id for c in constituencies]
-    problem_states = (
+    problem_states = list(
         DailyReportState.objects
         .filter(
             report_date__gte=fourteen_days_ago,
@@ -1782,8 +1827,7 @@ def system_status(request):
         .order_by("-report_date")[:50]
     )
 
-    # --- Recent send history ---
-    history = (
+    history = list(
         DailyReportState.objects
         .filter(
             report_date__gte=fourteen_days_ago,
@@ -1794,6 +1838,20 @@ def system_status(request):
         .order_by("-sent_at", "-updated_at")[:100]
     )
 
+    counts = {
+        "pending": sum(1 for r in today_rows if not r["state"] or r["state"].status == "PENDING"),
+        "ready": sum(1 for r in today_rows if r["state"] and r["state"].status == "READY"),
+        "sending": sum(1 for r in today_rows if r["state"] and r["state"].status == "SENDING"),
+        "sent": sum(1 for r in today_rows if r["state"] and r["state"].status == "SENT"),
+        "failed": sum(1 for r in today_rows if r["state"] and r["state"].status == "FAILED"),
+    }
+
+    heartbeat = CronHeartbeat.objects.filter(name="send_daily_reports").first()
+    heartbeat_stale = (
+        True if not heartbeat
+        else (timezone.now() - heartbeat.last_run_at).total_seconds() > 600
+    )
+
     context = {
         "constituency": request.constituency,
         "today": today,
@@ -1801,28 +1859,9 @@ def system_status(request):
         "problem_states": problem_states,
         "history": history,
         "bot_online": _check_bot_health(),
-        "counts": {
-            "pending": sum(
-                1 for r in today_rows
-                if not r["state"] or r["state"].status == "PENDING"
-            ),
-            "ready": sum(
-                1 for r in today_rows
-                if r["state"] and r["state"].status == "READY"
-            ),
-            "sending": sum(
-                1 for r in today_rows
-                if r["state"] and r["state"].status == "SENDING"
-            ),
-            "sent": sum(
-                1 for r in today_rows
-                if r["state"] and r["state"].status == "SENT"
-            ),
-            "failed": sum(
-                1 for r in today_rows
-                if r["state"] and r["state"].status == "FAILED"
-            ),
-        },
+        "heartbeat": heartbeat,
+        "heartbeat_stale": heartbeat_stale,
+        "counts": counts,
     }
     return render(request, "ict/system_status.html", context)
 
@@ -1842,6 +1881,7 @@ def system_status_run_tick(request):
             f"skipped {summary.get('skipped', 0)}."
         )
     except Exception as e:
+        logger.exception("Manual tick failed")
         messages.error(request, f"Tick failed: {e}")
     return redirect("ict:system_status")
 
@@ -1851,7 +1891,7 @@ def system_status_run_tick(request):
 def system_status_retry(request, state_id):
     """
     Force a single FAILED / stuck-SENDING state back to READY.
-    Scoped to the officer's own constituency (superusers may retry any).
+    Scoped to the officer's own constituency unless they're a superuser.
     """
     qs = DailyReportState.objects.all()
     if not request.user.is_superuser:
@@ -1860,20 +1900,17 @@ def system_status_retry(request, state_id):
     state = get_object_or_404(qs, pk=state_id)
 
     if state.status not in ("FAILED", "SENDING"):
-        messages.info(
-            request, f"State is already {state.status} — nothing to retry."
-        )
+        messages.info(request, f"State is already {state.status} - nothing to retry.")
         return redirect("ict:system_status")
 
     state.status = "READY"
     state.attempts = 0
     state.last_error = ""
-    state.ready_at = timezone.now()  # <- re-arm ready_at too
+    state.ready_at = timezone.now()
     state.locked_at = None
     state.locked_by = ""
     state.save(update_fields=[
-        "status", "attempts", "last_error",
-        "ready_at", "locked_at", "locked_by",
+        "status", "attempts", "last_error", "ready_at", "locked_at", "locked_by",
     ])
 
     messages.success(request, "State re-armed. It will be sent on the next tick.")
@@ -1887,15 +1924,10 @@ def system_status_reevaluate(request, constituency_id, report_date):
     Force a re-evaluation for a specific constituency/date.
     Officers may only re-evaluate their own constituency.
     """
-    from home.models import Constituency
-
-    # Scope the lookup
     if request.user.is_superuser:
         c = get_object_or_404(Constituency, pk=constituency_id)
     else:
-        c = get_object_or_404(
-            Constituency, pk=constituency_id, id=request.constituency.id
-        )
+        c = get_object_or_404(Constituency, pk=constituency_id, id=request.constituency.id)
 
     parsed_date = _coerce_date(report_date)
     state = reevaluate_constituency_report(c, parsed_date)
@@ -1903,13 +1935,10 @@ def system_status_reevaluate(request, constituency_id, report_date):
     if state:
         messages.success(
             request,
-            f"Re-evaluated: {state.submitted_wards}/{state.total_wards} "
-            f"wards — {state.status}"
+            f"Re-evaluated {c.name}: {state.submitted_wards}/{state.total_wards} wards - {state.status}"
         )
     else:
-        messages.warning(
-            request, "Nothing to evaluate (no active phase or no wards)."
-        )
+        messages.warning(request, "Nothing to evaluate (no active phase or no wards).")
 
     return redirect("ict:system_status")
 
@@ -1922,18 +1951,14 @@ def _collect_health_snapshot(request):
     today = timezone.localdate()
     since = today - timedelta(days=14)
 
-    # Scope
     if request.user.is_superuser:
         constituencies = Constituency.objects.filter(active=True).order_by("name")
     else:
-        constituencies = Constituency.objects.filter(
-            id=request.constituency.id, active=True
-        )
+        constituencies = Constituency.objects.filter(id=request.constituency.id, active=True)
 
     visible_ids = list(constituencies.values_list("id", flat=True))
     active_phase = Phase.objects.filter(active=True).first()
 
-    # --- Today per constituency ---
     today_states = {
         s.constituency_id: s
         for s in DailyReportState.objects.filter(report_date=today)
@@ -1946,7 +1971,6 @@ def _collect_health_snapshot(request):
         total_wards = Ward.objects.filter(constituency=c, active=True).count()
         submitted_wards = state.submitted_wards if state else 0
 
-        # Kit-level progress
         total_kits = KIEMSKit.objects.filter(
             ward__constituency=c, ward__active=True, status=True
         ).count()
@@ -1981,7 +2005,6 @@ def _collect_health_snapshot(request):
             "sent_at": state.sent_at if state else None,
         })
 
-    # --- Problem states (last 14 days) ---
     problem_states = list(
         DailyReportState.objects
         .filter(
@@ -1993,19 +2016,13 @@ def _collect_health_snapshot(request):
         .order_by("-report_date")[:100]
     )
 
-    # --- Recently sent (last 14 days) ---
     sent_recent = list(
         DailyReportState.objects
-        .filter(
-            report_date__gte=since,
-            constituency_id__in=visible_ids,
-            status="SENT",
-        )
+        .filter(report_date__gte=since, constituency_id__in=visible_ids, status="SENT")
         .select_related("constituency")
         .order_by("-sent_at")[:100]
     )
 
-    # --- Summary counts ---
     counts = {
         "pending": sum(1 for r in today_rows if r["status"] in ("PENDING", "NO_ACTIVITY")),
         "ready": sum(1 for r in today_rows if r["status"] == "READY"),
@@ -2014,7 +2031,6 @@ def _collect_health_snapshot(request):
         "failed": sum(1 for r in today_rows if r["status"] == "FAILED"),
     }
 
-    # --- Aggregate enrolment totals for context ---
     active_wards = Ward.objects.filter(constituency_id__in=visible_ids, active=True).count()
     active_kits = KIEMSKit.objects.filter(
         ward__constituency_id__in=visible_ids, ward__active=True, status=True
@@ -2022,12 +2038,8 @@ def _collect_health_snapshot(request):
     active_devices = Device.objects.filter(
         is_burned=True, is_active=True
     ).filter(
-        Q(vra__ward__constituency_id__in=visible_ids)
-        | Q(clerk__ward__constituency_id__in=visible_ids)
+        Q(vra__ward__constituency_id__in=visible_ids) | Q(clerk__ward__constituency_id__in=visible_ids)
     ).distinct().count()
-
-    # --- Bot health ---
-    bot_online = _check_bot_health()
 
     return {
         "generated_at": timezone.localtime().strftime("%d %b %Y, %H:%M:%S"),
@@ -2036,10 +2048,7 @@ def _collect_health_snapshot(request):
         "window_days": 14,
         "active_phase": active_phase,
         "is_superadmin_view": request.user.is_superuser,
-        "scope_label": (
-            "All Constituencies" if request.user.is_superuser
-            else request.constituency.name
-        ),
+        "scope_label": "All Constituencies" if request.user.is_superuser else request.constituency.name,
         "today_rows": today_rows,
         "counts": counts,
         "problem_states": problem_states,
@@ -2050,7 +2059,7 @@ def _collect_health_snapshot(request):
             "kits": active_kits,
             "devices_authorized": active_devices,
         },
-        "bot_online": bot_online,
+        "bot_online": _check_bot_health(),
     }
 
 
@@ -2063,33 +2072,24 @@ def system_health_report_preview(request):
 
 @ict_required
 def system_health_report_download(request):
-    """
-    Generate the system health report as PDF.
-    Uses PDF.co, falls back to ReportLab if configured, then HTML download.
-    """
+    """Generate the system health report as PDF (via PDF.co), or raw HTML."""
     ctx = _collect_health_snapshot(request)
     fmt = request.GET.get("format", "pdf")
 
-    # --- Raw HTML download ---
+    html_string = render_to_string("ict/system_health_report.html", ctx, request=request)
+
     if fmt == "html":
-        html = render_to_string("ict/system_health_report.html", ctx, request=request)
-        resp = HttpResponse(html, content_type="text/html")
+        resp = HttpResponse(html_string, content_type="text/html")
         filename = f"system_health_{ctx['report_date_iso']}.html"
         resp["Content-Disposition"] = f'attachment; filename="{filename}"'
         return resp
-
-    # --- PDF via PDF.co ---
-    html_string = render_to_string("ict/system_health_report.html", ctx, request=request)
 
     try:
         api_key = getattr(settings, "PDF_CO_API_KEY", None)
         if not api_key:
             raise RuntimeError("PDF_CO_API_KEY not configured")
 
-        api_url = (
-            f"{getattr(settings, 'PDF_CO_API_URL', 'https://api.pdf.co/v1')}"
-            "/pdf/convert/from/html"
-        )
+        api_url = f"{getattr(settings, 'PDF_CO_API_URL', 'https://api.pdf.co/v1')}/pdf/convert/from/html"
         payload = json.dumps({
             "name": f"System_Health_{ctx['report_date_iso']}.pdf",
             "html": html_string,
@@ -2099,10 +2099,7 @@ def system_health_report_download(request):
             "printBackground": "true",
             "async": False,
         })
-        headers = {
-            "x-api-key": api_key,
-            "Content-Type": "application/json",
-        }
+        headers = {"x-api-key": api_key, "Content-Type": "application/json"}
 
         r = requests.post(api_url, headers=headers, data=payload, timeout=60)
         if r.status_code != 200:
@@ -2127,16 +2124,10 @@ def system_health_report_download(request):
 
     except Exception as e:
         messages.warning(request, f"PDF service unavailable, falling back: {e}")
-        # Fall back to raw HTML download so the user still gets something
         resp = HttpResponse(html_string, content_type="text/html")
         filename = f"system_health_{ctx['report_date_iso']}.html"
         resp["Content-Disposition"] = f'attachment; filename="{filename}"'
         return resp
-
-
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 @csrf_exempt
@@ -2152,14 +2143,10 @@ def cron_send_reports(request):
     secret = os.environ.get("CRON_SECRET", "").strip()
     if not secret:
         logger.error("CRON_SECRET not configured")
-        return JsonResponse(
-            {"ok": False, "error": "Server misconfigured"}, status=500
-        )
+        return JsonResponse({"ok": False, "error": "Server misconfigured"}, status=500)
 
     auth = request.headers.get("Authorization", "")
     expected = f"Bearer {secret}"
-    # Constant-time compare
-    import hmac
     if not hmac.compare_digest(auth, expected):
         logger.warning("Unauthorized cron attempt from %s", request.META.get("REMOTE_ADDR"))
         return JsonResponse({"ok": False, "error": "Unauthorized"}, status=401)
@@ -2170,18 +2157,14 @@ def cron_send_reports(request):
         logger.exception("Cron tick failed")
         CronHeartbeat.objects.update_or_create(
             name="send_daily_reports",
-            defaults={
-                "last_summary": {"error": str(e)},
-            },
+            defaults={"last_summary": {"error": str(e)}},
         )
-        # Increment consecutive failures
         hb = CronHeartbeat.objects.filter(name="send_daily_reports").first()
         if hb:
             hb.consecutive_failures += 1
             hb.save(update_fields=["consecutive_failures"])
         return JsonResponse({"ok": False, "error": str(e)}, status=500)
 
-    # Record successful run
     hb, _ = CronHeartbeat.objects.get_or_create(name="send_daily_reports")
     hb.total_runs += 1
     hb.consecutive_failures = 0
@@ -2189,637 +2172,3 @@ def cron_send_reports(request):
     hb.save()
 
     return JsonResponse({"ok": True, "summary": summary})
-
-
-# ============================================================
-# MAIN VIEW
-# ============================================================
-
-@ict_required
-def system_status(request):
-    """
-    System status dashboard:
-      - Today's per-constituency report state
-      - WhatsApp group status per constituency
-      - Cron heartbeat freshness
-      - Any FAILED / stuck-SENDING states (last 14 days)
-      - Recent send history
-    """
-    today = timezone.localdate()
-    fourteen_days_ago = today - timedelta(days=14)
-
-    # ---------- Scope: superuser sees all, ICT sees their own ----------
-    if request.user.is_superuser:
-        constituencies = Constituency.objects.filter(active=True).order_by("name")
-    else:
-        constituencies = Constituency.objects.filter(
-            id=request.constituency.id, active=True
-        ).order_by("name")
-
-    visible_ids = list(constituencies.values_list("id", flat=True))
-
-    # ---------- Today's report states for visible constituencies ----------
-    todays_states = {
-        s.constituency_id: s
-        for s in DailyReportState.objects.filter(
-            report_date=today, constituency_id__in=visible_ids
-        )
-    }
-
-    # ---------- Today's WhatsApp group per constituency ----------
-    # Pick the first active group for each constituency (alphabetically).
-    # If none, mark as missing.
-    groups_by_constituency = {}
-    for g in (
-            WhatsAppGroup.objects
-                    .filter(constituency_id__in=visible_ids, is_active=True)
-                    .order_by("name")
-    ):
-        # First one wins
-        if g.constituency_id not in groups_by_constituency:
-            groups_by_constituency[g.constituency_id] = g
-
-    # ---------- Build the today grid ----------
-    active_phase = Phase.objects.filter(active=True).first()
-
-    # Precompute ward + kit totals in bulk to avoid N+1 on a big list
-    ward_totals = dict(
-        Ward.objects
-        .filter(constituency_id__in=visible_ids, active=True)
-        .values("constituency_id")
-        .annotate(n=Count("id"))
-        .values_list("constituency_id", "n")
-    )
-
-    # Kits per constituency
-    kit_totals = dict(
-        KIEMSKit.objects
-        .filter(
-            ward__constituency_id__in=visible_ids,
-            ward__active=True,
-            status=True,
-        )
-        .values("ward__constituency_id")
-        .annotate(n=Count("id"))
-        .values_list("ward__constituency_id", "n")
-    )
-
-    # Kits submitted today per constituency
-    submitted_kits_today = {}
-    if active_phase:
-        submitted_kits_today = dict(
-            DailyKIEMSEntry.objects
-            .filter(
-                ward__constituency_id__in=visible_ids,
-                phase=active_phase,
-                entry_date=today,
-                entry_type="REGISTRATION",
-            )
-            .values("ward__constituency_id")
-            .annotate(n=Count("kiems_kit_id", distinct=True))
-            .values_list("ward__constituency_id", "n")
-        )
-
-    today_rows = []
-    for c in constituencies:
-        state = todays_states.get(c.id)
-        group = groups_by_constituency.get(c.id)
-
-        total_wards = (
-            state.total_wards if state
-            else ward_totals.get(c.id, 0)
-        )
-        submitted_wards = state.submitted_wards if state else 0
-
-        total_kits = kit_totals.get(c.id, 0)
-        submitted_kits = submitted_kits_today.get(c.id, 0)
-        if submitted_kits > total_kits:
-            submitted_kits = total_kits
-
-        ward_pct = int((submitted_wards / total_wards) * 100) if total_wards else 0
-        kit_pct = int((submitted_kits / total_kits) * 100) if total_kits else 0
-
-        today_rows.append({
-            "constituency": c,
-            "state": state,
-            "total_wards": total_wards,
-            "submitted_wards": submitted_wards,
-            "ward_progress_pct": ward_pct,
-            "total_kits": total_kits,
-            "submitted_kits": submitted_kits,
-            "kit_progress_pct": kit_pct,
-            # WhatsApp group status
-            "has_group": group is not None,
-            "group_name": group.name if group else "",
-            "group_id": group.group_id if group else "",
-        })
-
-    # ---------- Problem states (FAILED / stuck SENDING, last 14 days) ----------
-    problem_states = list(
-        DailyReportState.objects
-        .filter(
-            report_date__gte=fourteen_days_ago,
-            constituency_id__in=visible_ids,
-            status__in=["FAILED", "SENDING"],
-        )
-        .select_related("constituency")
-        .order_by("-report_date")[:50]
-    )
-
-    # ---------- Recent send history ----------
-    history = list(
-        DailyReportState.objects
-        .filter(
-            report_date__gte=fourteen_days_ago,
-            constituency_id__in=visible_ids,
-            status__in=["SENT", "FAILED"],
-        )
-        .select_related("constituency")
-        .order_by("-sent_at", "-updated_at")[:100]
-    )
-
-    # ---------- Summary counts ----------
-    counts = {
-        "pending": sum(
-            1 for r in today_rows
-            if not r["state"] or r["state"].status == "PENDING"
-        ),
-        "ready": sum(
-            1 for r in today_rows
-            if r["state"] and r["state"].status == "READY"
-        ),
-        "sending": sum(
-            1 for r in today_rows
-            if r["state"] and r["state"].status == "SENDING"
-        ),
-        "sent": sum(
-            1 for r in today_rows
-            if r["state"] and r["state"].status == "SENT"
-        ),
-        "failed": sum(
-            1 for r in today_rows
-            if r["state"] and r["state"].status == "FAILED"
-        ),
-    }
-
-    # ---------- Cron heartbeat ----------
-    heartbeat = CronHeartbeat.objects.filter(name="send_daily_reports").first()
-    heartbeat_stale = (
-        True if not heartbeat
-        else (timezone.now() - heartbeat.last_run_at).total_seconds() > 600  # 10 min
-    )
-
-    context = {
-        "constituency": request.constituency,
-        "today": today,
-        "today_rows": today_rows,
-        "problem_states": problem_states,
-        "history": history,
-        "bot_online": _check_bot_health(),
-        "heartbeat": heartbeat,
-        "heartbeat_stale": heartbeat_stale,
-        "counts": counts,
-    }
-    return render(request, "ict/system_status.html", context)
-
-
-# ============================================================
-# POST ACTIONS
-# ============================================================
-
-@ict_required
-@require_POST
-def system_status_run_tick(request):
-    """Manually fire the reconciler tick (for ops use)."""
-    try:
-        reaped = reap_stuck_sending_states(stale_after_minutes=10)
-        summary = send_ready_reports(limit=20)
-        messages.success(
-            request,
-            f"Tick ran. Reaped {reaped} stuck. "
-            f"Sent {summary.get('sent', 0)}, "
-            f"failed {summary.get('failed', 0)}, "
-            f"skipped {summary.get('skipped', 0)}."
-        )
-    except Exception as e:
-        logger.exception("Manual tick failed")
-        messages.error(request, f"Tick failed: {e}")
-    return redirect("ict:system_status")
-
-
-@ict_required
-@require_POST
-def system_status_retry(request, state_id):
-    """
-    Force a single FAILED / stuck-SENDING state back to READY.
-    Scoped to the officer's own constituency unless they're a superuser.
-    """
-    qs = DailyReportState.objects.all()
-    if not request.user.is_superuser:
-        qs = qs.filter(constituency=request.constituency)
-
-    state = get_object_or_404(qs, pk=state_id)
-
-    if state.status not in ("FAILED", "SENDING"):
-        messages.info(
-            request, f"State is already {state.status} — nothing to retry."
-        )
-        return redirect("ict:system_status")
-
-    state.status = "READY"
-    state.attempts = 0
-    state.last_error = ""
-    state.ready_at = timezone.now()  # re-arm ready_at so the tick picks it up
-    state.locked_at = None
-    state.locked_by = ""
-    state.save(update_fields=[
-        "status", "attempts", "last_error",
-        "ready_at", "locked_at", "locked_by",
-    ])
-
-    messages.success(request, "State re-armed. It will be sent on the next tick.")
-    return redirect("ict:system_status")
-
-
-@ict_required
-@require_POST
-def system_status_reevaluate(request, constituency_id, report_date):
-    """
-    Force a re-evaluation for a specific constituency/date.
-    Officers may only re-evaluate their own constituency.
-    """
-    if request.user.is_superuser:
-        c = get_object_or_404(Constituency, pk=constituency_id)
-    else:
-        c = get_object_or_404(
-            Constituency, pk=constituency_id, id=request.constituency.id
-        )
-
-    parsed_date = _coerce_date(report_date)
-    state = reevaluate_constituency_report(c, parsed_date)
-
-    if state:
-        messages.success(
-            request,
-            f"Re-evaluated {c.name}: "
-            f"{state.submitted_wards}/{state.total_wards} wards — {state.status}"
-        )
-    else:
-        messages.warning(
-            request, "Nothing to evaluate (no active phase or no wards)."
-        )
-
-    return redirect("ict:system_status")
-
-
-# ==================== SYSTEM STATUS ====================
-
-import time
-import requests
-import logging
-
-from django.conf import settings
-from django.db.models import Count
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib import messages
-from django.http import JsonResponse
-from django.utils import timezone
-from django.views.decorators.http import require_POST
-
-from datetime import timedelta
-
-from home.models import (
-    Ward, KIEMSKit, DailyKIEMSEntry, DailyReportState,
-    Constituency, WhatsAppGroup, CronHeartbeat,
-)
-from home.services.daily_report import (
-    reap_stuck_sending_states,
-    send_ready_reports,
-    reevaluate_constituency_report,
-    constituency_kit_progress,
-)
-
-logger = logging.getLogger(__name__)
-
-# ------------------------------------------------------------
-# Bot health with a short in-process cache
-# ------------------------------------------------------------
-_BOT_HEALTH_CACHE = {"ts": 0.0, "ok": False}
-_BOT_HEALTH_TTL_SECONDS = 5
-
-
-def _check_bot_health():
-    """Ping the WhatsApp bot, cached for 5s to survive rapid page refreshes."""
-    now = time.time()
-    if now - _BOT_HEALTH_CACHE["ts"] < _BOT_HEALTH_TTL_SECONDS:
-        return _BOT_HEALTH_CACHE["ok"]
-
-    ok = False
-    try:
-        url = getattr(settings, "WHATSAPP_BOT_URL", "http://localhost:3000")
-        r = requests.get(f"{url}/status", timeout=3)
-        if r.status_code == 200:
-            ok = bool(r.json().get("isReady", False))
-    except Exception:
-        ok = False
-
-    _BOT_HEALTH_CACHE["ts"] = now
-    _BOT_HEALTH_CACHE["ok"] = ok
-    return ok
-
-
-# ------------------------------------------------------------
-# Utility: accept date, string, or None
-# ------------------------------------------------------------
-def _coerce_date(value):
-    """Accept a date object, a 'YYYY-MM-DD' string, or None → today."""
-    from datetime import datetime as _dt
-    if value is None:
-        return timezone.localdate()
-    if hasattr(value, "year") and hasattr(value, "month"):
-        return value  # already a date
-    try:
-        return _dt.strptime(str(value), "%Y-%m-%d").date()
-    except (ValueError, TypeError):
-        return timezone.localdate()
-
-
-# ============================================================
-# MAIN VIEW
-# ============================================================
-
-@ict_required
-def system_status(request):
-    """
-    System status dashboard:
-      - Today's per-constituency report state
-      - WhatsApp group status per constituency
-      - Cron heartbeat freshness
-      - Any FAILED / stuck-SENDING states (last 14 days)
-      - Recent send history
-    """
-    today = timezone.localdate()
-    fourteen_days_ago = today - timedelta(days=14)
-
-    # ---------- Scope: superuser sees all, ICT sees their own ----------
-    if request.user.is_superuser:
-        constituencies = Constituency.objects.filter(active=True).order_by("name")
-    else:
-        constituencies = Constituency.objects.filter(
-            id=request.constituency.id, active=True
-        ).order_by("name")
-
-    visible_ids = list(constituencies.values_list("id", flat=True))
-
-    # ---------- Today's report states for visible constituencies ----------
-    todays_states = {
-        s.constituency_id: s
-        for s in DailyReportState.objects.filter(
-            report_date=today, constituency_id__in=visible_ids
-        )
-    }
-
-    # ---------- Today's WhatsApp group per constituency ----------
-    # Pick the first active group for each constituency (alphabetically).
-    # If none, mark as missing.
-    groups_by_constituency = {}
-    for g in (
-            WhatsAppGroup.objects
-                    .filter(constituency_id__in=visible_ids, is_active=True)
-                    .order_by("name")
-    ):
-        # First one wins
-        if g.constituency_id not in groups_by_constituency:
-            groups_by_constituency[g.constituency_id] = g
-
-    # ---------- Build the today grid ----------
-    active_phase = Phase.objects.filter(active=True).first()
-
-    # Precompute ward + kit totals in bulk to avoid N+1 on a big list
-    ward_totals = dict(
-        Ward.objects
-        .filter(constituency_id__in=visible_ids, active=True)
-        .values("constituency_id")
-        .annotate(n=Count("id"))
-        .values_list("constituency_id", "n")
-    )
-
-    # Kits per constituency
-    kit_totals = dict(
-        KIEMSKit.objects
-        .filter(
-            ward__constituency_id__in=visible_ids,
-            ward__active=True,
-            status=True,
-        )
-        .values("ward__constituency_id")
-        .annotate(n=Count("id"))
-        .values_list("ward__constituency_id", "n")
-    )
-
-    # Kits submitted today per constituency
-    submitted_kits_today = {}
-    if active_phase:
-        submitted_kits_today = dict(
-            DailyKIEMSEntry.objects
-            .filter(
-                ward__constituency_id__in=visible_ids,
-                phase=active_phase,
-                entry_date=today,
-                entry_type="REGISTRATION",
-            )
-            .values("ward__constituency_id")
-            .annotate(n=Count("kiems_kit_id", distinct=True))
-            .values_list("ward__constituency_id", "n")
-        )
-
-    today_rows = []
-    for c in constituencies:
-        state = todays_states.get(c.id)
-        group = groups_by_constituency.get(c.id)
-
-        total_wards = (
-            state.total_wards if state
-            else ward_totals.get(c.id, 0)
-        )
-        submitted_wards = state.submitted_wards if state else 0
-
-        total_kits = kit_totals.get(c.id, 0)
-        submitted_kits = submitted_kits_today.get(c.id, 0)
-        if submitted_kits > total_kits:
-            submitted_kits = total_kits
-
-        ward_pct = int((submitted_wards / total_wards) * 100) if total_wards else 0
-        kit_pct = int((submitted_kits / total_kits) * 100) if total_kits else 0
-
-        today_rows.append({
-            "constituency": c,
-            "state": state,
-            "total_wards": total_wards,
-            "submitted_wards": submitted_wards,
-            "ward_progress_pct": ward_pct,
-            "total_kits": total_kits,
-            "submitted_kits": submitted_kits,
-            "kit_progress_pct": kit_pct,
-            # WhatsApp group status
-            "has_group": group is not None,
-            "group_name": group.name if group else "",
-            "group_id": group.group_id if group else "",
-        })
-
-    # ---------- Problem states (FAILED / stuck SENDING, last 14 days) ----------
-    problem_states = list(
-        DailyReportState.objects
-        .filter(
-            report_date__gte=fourteen_days_ago,
-            constituency_id__in=visible_ids,
-            status__in=["FAILED", "SENDING"],
-        )
-        .select_related("constituency")
-        .order_by("-report_date")[:50]
-    )
-
-    # ---------- Recent send history ----------
-    history = list(
-        DailyReportState.objects
-        .filter(
-            report_date__gte=fourteen_days_ago,
-            constituency_id__in=visible_ids,
-            status__in=["SENT", "FAILED"],
-        )
-        .select_related("constituency")
-        .order_by("-sent_at", "-updated_at")[:100]
-    )
-
-    # ---------- Summary counts ----------
-    counts = {
-        "pending": sum(
-            1 for r in today_rows
-            if not r["state"] or r["state"].status == "PENDING"
-        ),
-        "ready": sum(
-            1 for r in today_rows
-            if r["state"] and r["state"].status == "READY"
-        ),
-        "sending": sum(
-            1 for r in today_rows
-            if r["state"] and r["state"].status == "SENDING"
-        ),
-        "sent": sum(
-            1 for r in today_rows
-            if r["state"] and r["state"].status == "SENT"
-        ),
-        "failed": sum(
-            1 for r in today_rows
-            if r["state"] and r["state"].status == "FAILED"
-        ),
-    }
-
-    # ---------- Cron heartbeat ----------
-    heartbeat = CronHeartbeat.objects.filter(name="send_daily_reports").first()
-    heartbeat_stale = (
-        True if not heartbeat
-        else (timezone.now() - heartbeat.last_run_at).total_seconds() > 600  # 10 min
-    )
-
-    context = {
-        "constituency": request.constituency,
-        "today": today,
-        "today_rows": today_rows,
-        "problem_states": problem_states,
-        "history": history,
-        "bot_online": _check_bot_health(),
-        "heartbeat": heartbeat,
-        "heartbeat_stale": heartbeat_stale,
-        "counts": counts,
-    }
-    return render(request, "ict/system_status.html", context)
-
-
-# ============================================================
-# POST ACTIONS
-# ============================================================
-
-@ict_required
-@require_POST
-def system_status_run_tick(request):
-    """Manually fire the reconciler tick (for ops use)."""
-    try:
-        reaped = reap_stuck_sending_states(stale_after_minutes=10)
-        summary = send_ready_reports(limit=20)
-        messages.success(
-            request,
-            f"Tick ran. Reaped {reaped} stuck. "
-            f"Sent {summary.get('sent', 0)}, "
-            f"failed {summary.get('failed', 0)}, "
-            f"skipped {summary.get('skipped', 0)}."
-        )
-    except Exception as e:
-        logger.exception("Manual tick failed")
-        messages.error(request, f"Tick failed: {e}")
-    return redirect("ict:system_status")
-
-
-@ict_required
-@require_POST
-def system_status_retry(request, state_id):
-    """
-    Force a single FAILED / stuck-SENDING state back to READY.
-    Scoped to the officer's own constituency unless they're a superuser.
-    """
-    qs = DailyReportState.objects.all()
-    if not request.user.is_superuser:
-        qs = qs.filter(constituency=request.constituency)
-
-    state = get_object_or_404(qs, pk=state_id)
-
-    if state.status not in ("FAILED", "SENDING"):
-        messages.info(
-            request, f"State is already {state.status} — nothing to retry."
-        )
-        return redirect("ict:system_status")
-
-    state.status = "READY"
-    state.attempts = 0
-    state.last_error = ""
-    state.ready_at = timezone.now()  # re-arm ready_at so the tick picks it up
-    state.locked_at = None
-    state.locked_by = ""
-    state.save(update_fields=[
-        "status", "attempts", "last_error",
-        "ready_at", "locked_at", "locked_by",
-    ])
-
-    messages.success(request, "State re-armed. It will be sent on the next tick.")
-    return redirect("ict:system_status")
-
-
-@ict_required
-@require_POST
-def system_status_reevaluate(request, constituency_id, report_date):
-    """
-    Force a re-evaluation for a specific constituency/date.
-    Officers may only re-evaluate their own constituency.
-    """
-    if request.user.is_superuser:
-        c = get_object_or_404(Constituency, pk=constituency_id)
-    else:
-        c = get_object_or_404(
-            Constituency, pk=constituency_id, id=request.constituency.id
-        )
-
-    parsed_date = _coerce_date(report_date)
-    state = reevaluate_constituency_report(c, parsed_date)
-
-    if state:
-        messages.success(
-            request,
-            f"Re-evaluated {c.name}: "
-            f"{state.submitted_wards}/{state.total_wards} wards — {state.status}"
-        )
-    else:
-        messages.warning(
-            request, "Nothing to evaluate (no active phase or no wards)."
-        )
-
-    return redirect("ict:system_status")
