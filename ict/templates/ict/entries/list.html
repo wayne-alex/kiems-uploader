@@ -292,10 +292,19 @@
                         </td>
                         <td style="text-align:right;">
                             <div class="action-btns" style="justify-content:flex-end; gap:4px;">
-                                <a href="{% url 'ict:entry_edit' e.pk %}" class="btn btn-outline btn-sm" title="Office Edit">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                            </div>
+    <a href="{% url 'ict:entry_edit' e.pk %}" class="btn btn-outline btn-sm" title="Office Edit">
+        <i class="bi bi-pencil"></i>
+    </a>
+    <form method="post" action="{% url 'ict:entry_delete' e.pk %}"
+          onsubmit="return confirm('Delete this entry? This cannot be undone.');"
+          style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline btn-sm" title="Delete"
+                style="color:#b23a32; border-color:#b23a32;">
+            <i class="bi bi-trash"></i>
+        </button>
+    </form>
+</div>
                         </td>
                     </tr>
                     {% endfor %}

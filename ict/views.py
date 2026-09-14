@@ -689,6 +689,31 @@ def entry_edit(request, pk):
         "form": form, "entry": entry, "constituency": c,
     })
 
+@ict_required
+@require_POST
+def entry_delete(request, pk):
+    """Permanently delete a single REGISTRATION entry."""
+    c = request.constituency
+    entry = get_object_or_404(
+        DailyKIEMSEntry, pk=pk, ward__constituency=c, entry_type="REGISTRATION"
+    )
+
+    description = f"Deleted entry {entry.entry_date} - {entry.ward.name} - {entry.kiems_kit.kit_name}"
+    entry_date, ward = entry.entry_date, entry.ward
+    entry.delete()
+
+    _log(request, "DELETE", "DailyKIEMSEntry", f"deleted-{pk}", description)
+
+    try:
+        reevaluate_constituency_report(ward.constituency, entry_date)
+    except Exception as e:
+        logger.warning("State reevaluation failed after entry delete: %s", e)
+
+    messages.success(request, "Entry deleted.")
+    return redirect("ict:entry_list")
+
+
+
 
 # ==================== EXPORTS ====================
 

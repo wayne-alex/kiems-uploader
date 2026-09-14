@@ -47,6 +47,7 @@ urlpatterns = [
     path("entries/download-report/", views.entry_download_report, name="entry_download_report"),
     path("entries/download-report/preview/", views.entry_download_report_preview, name="entry_download_report_preview"),
     path("entries/import-csv/", views.entry_import_csv, name="entry_import_csv"),
+    path("entries/<int:pk>/delete/", views.entry_delete, name="entry_delete"),
 
     # Notifications
     path("notifications/", views.notification_list, name="notification_list"),
