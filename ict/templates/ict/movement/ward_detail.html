@@ -1,0 +1,60 @@
+{% extends "ict/base.html" %}
+{% block title %}{{ ward.name }} — Movement{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>{{ ward.name }}</h2>
+    <p>Movement plan for {{ schedule_date|date:"D d M Y" }}</p>
+  </div>
+  <a href="{% url 'ict:movement_list' %}?date={{ schedule_date|date:'Y-m-d' }}&ward={{ ward.id }}"
+     class="btn btn-outline">
+    <i class="bi bi-arrow-left"></i> Back
+  </a>
+</div>
+
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Kit</th>
+        <th>Serial</th>
+        <th>Venue</th>
+        <th>Submitted By</th>
+        <th>Updated</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><strong>{{ r.kit.kit_name }}</strong></td>
+        <td style="font-family:monospace; font-size:12px;">{{ r.kit.serial_no }}</td>
+        <td>
+          {% if r.schedule %}
+            <form method="post" action="{% url 'ict:movement_edit' r.schedule.pk %}"
+                  style="display:flex; gap:6px;">
+              {% csrf_token %}
+              <input type="text" name="venue" value="{{ r.schedule.venue }}" class="form-control"
+                     style="padding:6px 10px; font-size:13px;">
+              <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-check2"></i></button>
+            </form>
+          {% else %}
+            <span style="color:var(--text-muted); font-size:12px;">Not submitted</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if r.schedule.vra %}
+            <span class="badge badge-blue">VRA: {{ r.schedule.vra.name }}</span>
+          {% elif r.schedule.clerk %}
+            <span class="badge badge-orange">Clerk: {{ r.schedule.clerk.name }}</span>
+          {% elif r.schedule %}—{% else %}<span class="badge badge-grey">Pending</span>{% endif %}
+        </td>
+        <td style="font-size:12px; color:var(--text-muted);">
+          {{ r.schedule.updated_at|date:"d M H:i"|default:"—" }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "ict/base.html" %}
+{% block title %}Movement Status{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Movement Schedule Coverage</h2>
+    <p>7-day rolling status of ward submissions and kit coverage.</p>
+  </div>
+  <a href="{% url 'ict:movement_list' %}" class="btn btn-outline">
+    <i class="bi bi-arrow-left"></i> Back to Schedule
+  </a>
+</div>
+
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Ward Coverage</th>
+        <th>Kit Coverage</th>
+        <th>State</th>
+        <th>Last Sent</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in days %}
+      <tr>
+        <td><strong>{{ d.date|date:"D d M Y" }}</strong></td>
+        <td>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="badge {% if d.ward_pct == 100 %}badge-green{% elif d.ward_pct > 0 %}badge-orange{% else %}badge-grey{% endif %}">
+              {{ d.submitted_wards }}/{{ d.total_wards }}
+            </span>
+            <div style="flex:1; height:6px; background:var(--surface-alt); border-radius:3px; min-width:80px;">
+              <div style="height:100%; width:{{ d.ward_pct }}%; background:var(--primary); border-radius:3px;"></div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="badge {% if d.kit_pct == 100 %}badge-green{% elif d.kit_pct > 0 %}badge-orange{% else %}badge-grey{% endif %}">
+              {{ d.scheduled_kits }}/{{ d.total_kits }}
+            </span>
+            <div style="flex:1; height:6px; background:var(--surface-alt); border-radius:3px; min-width:80px;">
+              <div style="height:100%; width:{{ d.kit_pct }}%; background:var(--purple); border-radius:3px;"></div>
+            </div>
+          </div>
+        </td>
+        <td>
+          {% if d.state %}
+            <span class="badge {% if d.state.status == 'SENT' %}badge-green{% elif d.state.status == 'FAILED' %}badge-red{% elif d.state.status == 'READY' %}badge-blue{% else %}badge-grey{% endif %}">
+              {{ d.state.get_status_display }}
+            </span>
+          {% else %}
+            <span class="badge badge-grey">No Activity</span>
+          {% endif %}
+        </td>
+        <td style="font-size:12px; color:var(--text-muted);">
+          {% if d.state.sent_at %}{{ d.state.sent_at|date:"d M H:i" }}{% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-top:20px;">
+  <div class="list-header" style="padding:0 0 12px;">
+    <h3>Recent Sends</h3>
+  </div>
+  <div style="display:flex; flex-direction:column; gap:8px;">
+    {% for log in recent_sends %}
+    <div style="display:flex; justify-content:space-between; align-items:center;
+                padding:10px 12px; background:var(--surface-alt); border-radius:8px; font-size:13px;">
+      <div>
+        <span class="badge {% if log.kind == 'GRAND' %}badge-blue{% elif log.kind == 'MANUAL' %}badge-orange{% else %}badge-grey{% endif %}">
+          {{ log.get_kind_display }}
+        </span>
+        <span style="margin-left:8px;">{{ log.schedule_date|date:"d M Y" }}</span>
+      </div>
+      <div style="color:var(--text-muted); font-size:12px;">
+        {{ log.created_at|date:"d M H:i" }}
+        {% if log.sent_ok %}
+          <span style="color:var(--success); margin-left:8px;"><i class="bi bi-check-circle-fill"></i></span>
+        {% else %}
+          <span style="color:var(--danger); margin-left:8px;"><i class="bi bi-x-circle-fill"></i></span>
+        {% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <p style="color:var(--text-muted); font-size:13px;">No recent sends.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -29,4 +29,8 @@ urlpatterns = [
     path('save-clerk-venues/', views.save_clerk_venues, name='save_clerk_venues'),
     path('register-device/', views.register_device, name='register_device'),
     path('auto-bind-clerk/', views.auto_bind_clerk, name='auto_bind_clerk'),
+
+    path("movement/", views.movement_schedule_view, name="movement_schedule"),
+    path("movement/kits/", views.movement_kits, name="movement_kits"),
+    path("movement/save/", views.save_movement_schedule, name="save_movement_schedule"),
 ]

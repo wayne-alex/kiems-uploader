@@ -1,0 +1,220 @@
+{% extends "ict/base.html" %}
+{% block title %}Movement Schedules{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Tomorrow's Movement Schedule</h2>
+    <p>Plan and confirm venue assignments per KIEMS kit across all wards.</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="{% url 'ict:movement_status' %}" class="btn btn-outline">
+      <i class="bi bi-bar-chart"></i> Status
+    </a>
+    <a href="{% url 'ict:movement_log' %}" class="btn btn-outline">
+      <i class="bi bi-clock-history"></i> Send Log
+    </a>
+    <button type="button" id="previewGrandBtn" class="btn btn-outline">
+      <i class="bi bi-eye"></i> Preview Grand
+    </button>
+    <form method="post" action="{% url 'ict:movement_send_grand' %}" style="display:inline;">
+      {% csrf_token %}
+      <input type="hidden" name="date" value="{{ schedule_date_iso }}">
+      <button type="submit" class="btn btn-primary"
+              onclick="return confirm('Send the grand movement report for {{ schedule_date_iso }} now?');">
+        <i class="bi bi-whatsapp"></i> Send Grand Report
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- KPI cards -->
+<div class="stat-grid">
+  <div class="stat-card green">
+    <div class="icon"><i class="bi bi-people"></i></div>
+    <span class="label">Wards Submitted</span>
+    <span class="value">{{ stats.submitted_wards }}/{{ stats.total_wards }}</span>
+    <small style="color:var(--text-muted);font-size:12px;">{{ stats.ward_pct }}% coverage</small>
+  </div>
+  <div class="stat-card {% if stats.kit_pct == 100 %}green{% else %}orange{% endif %}">
+    <div class="icon"><i class="bi bi-cpu"></i></div>
+    <span class="label">Kits Scheduled</span>
+    <span class="value">{{ stats.scheduled_kits }}/{{ stats.total_kits }}</span>
+    <small style="color:var(--text-muted);font-size:12px;">{{ stats.kit_pct }}% coverage</small>
+  </div>
+  <div class="stat-card {% if state.status == 'SENT' %}green{% elif state.status == 'FAILED' %}red{% else %}orange{% endif %}">
+    <div class="icon"><i class="bi bi-broadcast"></i></div>
+    <span class="label">Report State</span>
+    <span class="value" style="font-size:18px;">
+      {% if state %}{{ state.get_status_display }}{% else %}No Activity{% endif %}
+    </span>
+    {% if state.sent_at %}<small style="color:var(--text-muted);font-size:12px;">Sent {{ state.sent_at|date:"d M H:i" }}</small>{% endif %}
+  </div>
+  <div class="stat-card red">
+    <div class="icon"><i class="bi bi-exclamation-triangle"></i></div>
+    <span class="label">Missing Wards</span>
+    <span class="value">{{ stats.missing_wards_count }}</span>
+    {% if stats.missing_wards_count %}
+      <a href="?date={{ schedule_date_iso }}&missing=1"
+         style="font-size:12px;color:var(--danger);font-weight:600;text-decoration:none;">
+        View list
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="get" class="filters">
+  <div class="field">
+    <label>Date</label>
+    <input type="date" name="date" value="{{ schedule_date_iso }}" class="form-control">
+  </div>
+  <div class="field">
+    <label>Ward</label>
+    <select name="ward" class="form-control">
+      <option value="">All wards</option>
+      {% for w in wards %}
+        <option value="{{ w.id }}" {% if ward_id == w.id|stringformat:"s" %}selected{% endif %}>{{ w.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>Kit</label>
+    <select name="kit" class="form-control">
+      <option value="">All kits</option>
+      {% for k in kits %}
+        <option value="{{ k.id }}" {% if kit_id == k.id|stringformat:"s" %}selected{% endif %}>
+          {{ k.ward.name }} — {{ k.kit_name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>&nbsp;</label>
+    <label style="display:flex; align-items:center; gap:6px; font-size:13px; text-transform:none; letter-spacing:0;">
+      <input type="checkbox" name="missing" value="1" {% if only_missing %}checked{% endif %}>
+      Only missing wards
+    </label>
+  </div>
+  <button type="submit" class="btn btn-primary">Filter</button>
+  <a href="{% url 'ict:movement_list' %}" class="btn btn-outline">Reset</a>
+</form>
+
+{% if missing_wards %}
+<div class="card" style="margin-bottom:16px; background:var(--warning-soft); border-color:rgba(181,117,10,0.25);">
+  <div style="display:flex; align-items:center; gap:10px;">
+    <i class="bi bi-exclamation-triangle-fill" style="color:var(--warning); font-size:20px;"></i>
+    <div>
+      <strong style="color:var(--warning);">Missing wards for {{ schedule_date_iso }}:</strong>
+      <span style="font-size:13px;">
+        {% for w in missing_wards %}{{ w.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+      </span>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Table -->
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Ward</th>
+        <th>Kit</th>
+        <th>Venue</th>
+        <th>Submitted By</th>
+        <th>Edits</th>
+        <th>Updated</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in schedule_rows %}
+      <tr>
+        <td><strong>{{ s.ward.name }}</strong></td>
+        <td>
+          <div>{{ s.kiems_kit.kit_name }}</div>
+          <small style="font-family:monospace; color:var(--text-muted); font-size:11px;">
+            {{ s.kiems_kit.serial_no }}
+          </small>
+        </td>
+        <td>
+          <form method="post" action="{% url 'ict:movement_edit' s.pk %}"
+                style="display:flex; gap:6px; align-items:center;">
+            {% csrf_token %}
+            <input type="text" name="venue" value="{{ s.venue }}" class="form-control"
+                   style="padding:6px 10px; font-size:13px; min-width:180px;">
+            <button type="submit" class="btn btn-sm btn-primary" title="Save">
+              <i class="bi bi-check2"></i>
+            </button>
+          </form>
+        </td>
+        <td>
+          {% if s.vra %}
+            <span class="badge badge-blue">VRA: {{ s.vra.name }}</span>
+          {% elif s.clerk %}
+            <span class="badge badge-orange">Clerk: {{ s.clerk.name }}</span>
+          {% else %}
+            <span class="badge badge-grey">Office</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if s.edit_count %}<span class="badge badge-grey">{{ s.edit_count }}</span>{% else %}—{% endif %}
+        </td>
+        <td style="font-size:12px; color:var(--text-muted);">{{ s.updated_at|date:"d M H:i" }}</td>
+        <td>
+          <div class="action-btns">
+            <form method="post" action="{% url 'ict:movement_delete' s.pk %}"
+                  onsubmit="return confirm('Delete this schedule?');" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="danger" title="Delete">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7">
+          <div class="empty-state">
+            <i class="bi bi-calendar-x"></i>
+            <p>No movement schedules for {{ schedule_date_iso }}.</p>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Grand preview modal -->
+<div id="previewModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,22,0.5); z-index:999; align-items:center; justify-content:center; padding:20px;">
+  <div class="card" style="max-width:600px; width:100%; max-height:80vh; overflow:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="font-size:16px;">Grand Report Preview</h3>
+      <button onclick="document.getElementById('previewModal').style.display='none'"
+              style="background:none;border:none;font-size:22px;cursor:pointer;">&times;</button>
+    </div>
+    <pre id="previewContent" style="background:var(--surface-alt); padding:14px; border-radius:10px;
+         font-family:monospace; font-size:12px; white-space:pre-wrap; max-height:50vh; overflow:auto;"></pre>
+  </div>
+</div>
+
+<script>
+document.getElementById('previewGrandBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('previewGrandBtn');
+  btn.disabled = true;
+  try {
+    const r = await fetch('{% url "ict:movement_preview_grand" %}?date={{ schedule_date_iso }}');
+    const d = await r.json();
+    document.getElementById('previewContent').textContent = d.preview || 'No schedules.';
+    document.getElementById('previewModal').style.display = 'flex';
+  } catch(e) {
+    alert('Preview failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+{% endblock %}

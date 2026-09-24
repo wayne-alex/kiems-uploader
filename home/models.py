@@ -1,8 +1,8 @@
 import uuid
-from django.utils import timezone
 
 from django.contrib.auth.models import User
 from django.db import models
+from django.utils import timezone
 
 
 class Constituency(models.Model):
@@ -167,6 +167,163 @@ class DailyKIEMSEntry(models.Model):
         return f"{self.kiems_kit.kit_name} - {self.entry_date}"
 
 
+class MovementSchedule(models.Model):
+    """
+    Tomorrow's movement plan: for each KIEMS kit in a ward, where will it be
+    stationed tomorrow? One row per (kit, schedule_date). Populated from the
+    client side by VRAs/Clerks, and viewable/editable by the ICT officer.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    kiems_kit = models.ForeignKey(
+        KIEMSKit, on_delete=models.PROTECT, related_name="movement_schedules"
+    )
+    ward = models.ForeignKey(
+        Ward, on_delete=models.PROTECT, related_name="movement_schedules"
+    )
+    constituency = models.ForeignKey(
+        Constituency, on_delete=models.PROTECT, related_name="movement_schedules"
+    )
+    phase = models.ForeignKey(
+        Phase, on_delete=models.PROTECT, related_name="movement_schedules"
+    )
+
+    # Who submitted it (either one will be set)
+    vra = models.ForeignKey(
+        VRA, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="movement_schedules",
+    )
+    clerk = models.ForeignKey(
+        Clerk, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="movement_schedules",
+    )
+
+    schedule_date = models.DateField(db_index=True)  # always "tomorrow" at creation
+    venue = models.CharField(max_length=200)
+    notes = models.CharField(max_length=255, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    edit_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-schedule_date", "ward__name", "kiems_kit__kit_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["kiems_kit", "schedule_date"],
+                name="unique_kit_movement_per_day",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["constituency", "schedule_date"]),
+            models.Index(fields=["ward", "schedule_date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.kiems_kit.kit_name} @ {self.venue} on {self.schedule_date}"
+
+
+class MovementScheduleState(models.Model):
+    """
+    One row per (constituency, schedule_date). Tracks whether all wards have
+    submitted their movement plan for that date, so the grand report is sent
+    exactly once.
+    """
+    STATUS_CHOICES = [
+        ("PENDING", "Pending — wards still submitting"),
+        ("READY", "Ready — all wards in"),
+        ("SENDING", "Sending — locked by a worker"),
+        ("SENT", "Sent"),
+        ("FAILED", "Failed — will retry"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    constituency = models.ForeignKey(
+        Constituency, on_delete=models.CASCADE,
+        related_name="movement_schedule_states",
+    )
+    schedule_date = models.DateField(db_index=True)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default="PENDING")
+
+    total_wards = models.PositiveIntegerField(default=0)
+    submitted_wards = models.PositiveIntegerField(default=0)
+
+    ready_at = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    message_hash = models.CharField(max_length=64, blank=True)
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["constituency", "schedule_date"],
+                name="unique_movement_schedule_per_constituency_day",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["status", "schedule_date"]),
+        ]
+        ordering = ["-schedule_date"]
+
+    def __str__(self):
+        return f"{self.constituency.name} {self.schedule_date} — {self.status}"
+
+
+class MovementScheduleLog(models.Model):
+    """
+    Audit + delivery log for movement-schedule WhatsApp messages,
+    whether auto-sent (per-kit or grand) or manually sent by the ICT officer.
+    """
+    KIND_CHOICES = [
+        ("PER_KIT", "Per-kit submission"),
+        ("GRAND", "Grand report (all wards)"),
+        ("MANUAL", "Manual send by ICT officer"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    constituency = models.ForeignKey(
+        Constituency, on_delete=models.CASCADE, related_name="movement_schedule_logs"
+    )
+    schedule_date = models.DateField(db_index=True)
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+
+    ward = models.ForeignKey(
+        Ward, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="movement_schedule_logs",
+    )
+    kiems_kit = models.ForeignKey(
+        KIEMSKit, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="movement_schedule_logs",
+    )
+
+    group_id = models.CharField(max_length=100, blank=True)
+    group_name = models.CharField(max_length=200, blank=True)
+    message = models.TextField()
+    sent_ok = models.BooleanField(default=False)
+    error = models.TextField(blank=True)
+
+    sent_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="movement_schedule_logs",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["constituency", "-created_at"]),
+            models.Index(fields=["schedule_date", "kind"]),
+        ]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} - {self.schedule_date} - {'OK' if self.sent_ok else 'FAIL'}"
+
+
 # ==================== WHATSAPP MODELS ====================
 
 class WhatsAppGroup(models.Model):
@@ -209,6 +366,7 @@ class WhatsAppGroup(models.Model):
     def __str__(self):
         scope = self.constituency.name if self.constituency else "GLOBAL"
         return f"[{scope}] {self.name}"
+
 
 class WhatsAppSetting(models.Model):
     """User settings for WhatsApp"""
@@ -299,13 +457,13 @@ class DeviceBurnLog(models.Model):
     )
     action = models.CharField(max_length=20, choices=[
         # New, semantically-correct actions
-        ("AUTHORIZE",      "Authorized"),
-        ("REVOKE",         "Authorization Revoked"),
+        ("AUTHORIZE", "Authorized"),
+        ("REVOKE", "Authorization Revoked"),
         # Legacy values kept so old rows still render
-        ("BURN",           "Burned (legacy)"),
-        ("UNBURN",         "Unburned (legacy)"),
-        ("REVOKE_ACCESS",  "Access Revoked (legacy)"),
-        ("RESTORE",        "Access Restored (legacy)"),
+        ("BURN", "Burned (legacy)"),
+        ("UNBURN", "Unburned (legacy)"),
+        ("REVOKE_ACCESS", "Access Revoked (legacy)"),
+        ("RESTORE", "Access Restored (legacy)"),
     ])
     performed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     notes = models.TextField(blank=True)
@@ -332,6 +490,7 @@ class DailyReportLog(models.Model):
     def __str__(self):
         return f"Daily report sent for {self.report_date} at {self.sent_at}"
 
+
 class AuditLog(models.Model):
     ACTIONS = [
         ("CREATE", "Create"),
@@ -353,7 +512,7 @@ class AuditLog(models.Model):
         related_name="audit_logs",
     )
     action = models.CharField(max_length=20, choices=ACTIONS)
-    model_name = models.CharField(max_length=100, blank=True)   # e.g. "VRA", "KIEMSKit"
+    model_name = models.CharField(max_length=100, blank=True)  # e.g. "VRA", "KIEMSKit"
     object_id = models.CharField(max_length=64, blank=True)
     object_repr = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True)
@@ -379,11 +538,11 @@ class DailyReportState(models.Model):
     grand-total report should be built and sent for a given day.
     """
     STATUS_CHOICES = [
-        ("PENDING",  "Pending — wards still submitting"),
-        ("READY",    "Ready — all wards in, waiting to send"),
-        ("SENDING",  "Sending — locked by a worker"),
-        ("SENT",     "Sent — done"),
-        ("FAILED",   "Failed — will be retried"),
+        ("PENDING", "Pending — wards still submitting"),
+        ("READY", "Ready — all wards in, waiting to send"),
+        ("SENDING", "Sending — locked by a worker"),
+        ("SENT", "Sent — done"),
+        ("FAILED", "Failed — will be retried"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -453,6 +612,7 @@ class DailyReportState(models.Model):
         self.ready_at = None
         self.save(update_fields=["status", "ready_at", "updated_at"])
         return True
+
 
 class CronHeartbeat(models.Model):
     """

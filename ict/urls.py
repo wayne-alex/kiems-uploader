@@ -72,4 +72,14 @@ urlpatterns = [
 
     #     Cron Job
     path("cron/send-reports/", views.cron_send_reports, name="cron_send_reports"),
+
+    # Movement Schedule (ICT)
+    path("movement/", views.movement_list, name="movement_list"),
+    path("movement/status/", views.movement_status, name="movement_status"),
+    path("movement/log/", views.movement_log, name="movement_log"),
+    path("movement/ward/<int:ward_id>/", views.movement_ward_detail, name="movement_ward_detail"),
+    path("movement/<uuid:pk>/edit/", views.movement_edit, name="movement_edit"),
+    path("movement/<uuid:pk>/delete/", views.movement_delete, name="movement_delete"),
+    path("movement/preview-grand/", views.movement_preview_grand, name="movement_preview_grand"),
+    path("movement/send-grand/", views.movement_send_grand, name="movement_send_grand"),
 ]

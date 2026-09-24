@@ -1,0 +1,69 @@
+{% extends "ict/base.html" %}
+{% block title %}Movement Send Log{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Movement Send Log</h2>
+    <p>Every WhatsApp delivery attempt for movement schedules.</p>
+  </div>
+  <a href="{% url 'ict:movement_list' %}" class="btn btn-outline">
+    <i class="bi bi-arrow-left"></i> Back
+  </a>
+</div>
+
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Kind</th>
+        <th>Date</th>
+        <th>Ward</th>
+        <th>Kit</th>
+        <th>Status</th>
+        <th>By</th>
+        <th>Preview</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td style="font-size:12px;">{{ log.created_at|date:"d M H:i:s" }}</td>
+        <td>
+          <span class="badge {% if log.kind == 'GRAND' %}badge-blue{% elif log.kind == 'MANUAL' %}badge-orange{% else %}badge-grey{% endif %}">
+            {{ log.get_kind_display }}
+          </span>
+        </td>
+        <td>{{ log.schedule_date|date:"d M Y" }}</td>
+        <td>{{ log.ward.name|default:"—" }}</td>
+        <td>
+          {% if log.kiems_kit %}
+            {{ log.kiems_kit.kit_name }}
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if log.sent_ok %}
+            <span class="badge badge-green">Sent</span>
+          {% else %}
+            <span class="badge badge-red" title="{{ log.error }}">Failed</span>
+          {% endif %}
+        </td>
+        <td>{{ log.sent_by.username|default:"system" }}</td>
+        <td>
+          <button class="btn btn-sm btn-outline"
+                  onclick="alert(this.getAttribute('data-msg'))"
+                  data-msg="{{ log.message|escapejs }}">
+            <i class="bi bi-eye"></i>
+          </button>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8">
+        <div class="empty-state"><i class="bi bi-clock-history"></i><p>No sends yet.</p></div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

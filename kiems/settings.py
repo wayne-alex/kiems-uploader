@@ -29,6 +29,7 @@ SECRET_KEY = 'django-insecure-f#jp2g-7cod-*_a9h((lnz#wy#)m_-&5=)*h9s4en_t&_*-amo
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG') == 'True'
+MOVEMENT_REQUIRE_BOUND_DEVICE = os.getenv('MOVEMENT_REQUIRE_BOUND_DEVICE') == 'True'
 
 ALLOWED_HOSTS = ['.vercel.app', '127.0.0.1']
 LOGIN_URL = 'superadmin:login'

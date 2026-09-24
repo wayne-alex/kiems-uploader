@@ -26,7 +26,7 @@ from django.views.decorators.http import require_POST, require_GET
 from home.models import (
     VRA, Clerk, Device, DeviceBurnLog, AuditLog, WhatsAppSetting, Phase,
     Ward, KIEMSKit, DailyKIEMSEntry, Constituency, WhatsAppGroup,
-    CronHeartbeat, DailyReportState,
+    CronHeartbeat, DailyReportState, MovementSchedule, MovementScheduleState, MovementScheduleLog,
 )
 from home.services.daily_report import (
     reap_stuck_sending_states,
@@ -320,7 +320,6 @@ def kit_list(request):
         .prefetch_related("assigned_clerks")
     )
     return render(request, "ict/kits/list.html", {"kits": kits, "constituency": c})
-
 
 @ict_required
 def kit_create(request):
@@ -2197,3 +2196,332 @@ def cron_send_reports(request):
     hb.save()
 
     return JsonResponse({"ok": True, "summary": summary})
+
+
+@ict_required
+def movement_list(request):
+    """
+    Filterable list of movement schedules for the officer's constituency.
+    Filters: schedule_date, ward, kit, only_missing (wards without schedules).
+    """
+    c = request.constituency
+
+    qs = (
+        MovementSchedule.objects
+        .filter(constituency=c)
+        .select_related("ward", "kiems_kit", "vra", "clerk")
+    )
+
+    date_str = request.GET.get("date")
+    ward_id = request.GET.get("ward")
+    kit_id = request.GET.get("kit")
+    only_missing = request.GET.get("missing") == "1"
+
+    # Default to tomorrow
+    if date_str:
+        try:
+            schedule_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            schedule_date = timezone.localdate() + timedelta(days=1)
+    else:
+        schedule_date = timezone.localdate() + timedelta(days=1)
+
+    qs = qs.filter(schedule_date=schedule_date)
+
+    if ward_id:
+        qs = qs.filter(ward_id=ward_id)
+    if kit_id:
+        qs = qs.filter(kiems_kit_id=kit_id)
+
+    wards = Ward.objects.filter(constituency=c, active=True).order_by("name")
+    kits = KIEMSKit.objects.filter(
+        ward__constituency=c, ward__active=True, status=True
+    ).order_by("ward__name", "kit_name")
+
+    # Ward coverage stats for the selected date
+    total_wards = wards.count()
+    submitted_wards = (
+        MovementSchedule.objects
+        .filter(constituency=c, schedule_date=schedule_date)
+        .values("ward_id").distinct().count()
+    )
+    missing_wards = list(
+        wards.exclude(
+            id__in=MovementSchedule.objects
+                    .filter(constituency=c, schedule_date=schedule_date)
+                    .values_list("ward_id", flat=True)
+        ).values("id", "name")
+    )
+
+    total_kits = kits.count()
+    scheduled_kits = (
+        MovementSchedule.objects
+        .filter(constituency=c, schedule_date=schedule_date, kiems_kit__in=kits)
+        .values("kiems_kit_id").distinct().count()
+    )
+
+    if only_missing:
+        qs = qs.filter(ward_id__in=[w["id"] for w in missing_wards])
+
+    state = MovementScheduleState.objects.filter(
+        constituency=c, schedule_date=schedule_date
+    ).first()
+
+    schedule_rows = qs.order_by("ward__name", "kiems_kit__kit_name")
+
+    return render(request, "ict/movement/list.html", {
+        "constituency": c,
+        "schedule_date": schedule_date,
+        "schedule_date_iso": schedule_date.isoformat(),
+        "schedule_rows": schedule_rows,
+        "wards": wards,
+        "kits": kits,
+        "state": state,
+        "stats": {
+            "total_wards": total_wards,
+            "submitted_wards": submitted_wards,
+            "missing_wards_count": total_wards - submitted_wards,
+            "ward_pct": int(submitted_wards / total_wards * 100) if total_wards else 0,
+            "total_kits": total_kits,
+            "scheduled_kits": scheduled_kits,
+            "kit_pct": int(scheduled_kits / total_kits * 100) if total_kits else 0,
+        },
+        "missing_wards": missing_wards,
+        "ward_id": ward_id or "",
+        "kit_id": kit_id or "",
+        "only_missing": only_missing,
+    })
+
+
+@ict_required
+def movement_ward_detail(request, ward_id):
+    """All schedules for one ward on a given date (default: tomorrow)."""
+    c = request.constituency
+    ward = get_object_or_404(Ward, pk=ward_id, constituency=c)
+
+    date_str = request.GET.get("date")
+    if date_str:
+        try:
+            schedule_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            schedule_date = timezone.localdate() + timedelta(days=1)
+    else:
+        schedule_date = timezone.localdate() + timedelta(days=1)
+
+    kits = KIEMSKit.objects.filter(ward=ward, status=True).order_by("kit_name")
+    existing = {
+        m.kiems_kit_id: m
+        for m in MovementSchedule.objects.filter(
+            ward=ward, schedule_date=schedule_date
+        )
+    }
+
+    rows = []
+    for kit in kits:
+        rows.append({
+            "kit": kit,
+            "schedule": existing.get(kit.id),
+        })
+
+    return render(request, "ict/movement/ward_detail.html", {
+        "constituency": c,
+        "ward": ward,
+        "schedule_date": schedule_date,
+        "rows": rows,
+    })
+
+
+@ict_required
+@require_POST
+def movement_edit(request, pk):
+    """Officer edits a single MovementSchedule's venue."""
+    c = request.constituency
+    schedule = get_object_or_404(MovementSchedule, pk=pk, constituency=c)
+
+    new_venue = (request.POST.get("venue") or "").strip()
+    if not new_venue:
+        messages.error(request, "Venue cannot be empty.")
+        return redirect(request.META.get("HTTP_REFERER") or "ict:movement_list")
+
+    old = schedule.venue
+    schedule.venue = new_venue
+    schedule.notes = request.POST.get("notes", schedule.notes)[:255]
+    schedule.edit_count += 1
+    schedule.save(update_fields=["venue", "notes", "edit_count", "updated_at"])
+
+    _log(request, "UPDATE", "MovementSchedule", schedule,
+         f"Office venue change: '{old}' -> '{new_venue}'")
+
+    messages.success(request, f"Venue updated for {schedule.kiems_kit.kit_name}.")
+    return redirect(request.META.get("HTTP_REFERER") or "ict:movement_list")
+
+
+@ict_required
+@require_POST
+def movement_delete(request, pk):
+    """Officer deletes a single MovementSchedule row."""
+    c = request.constituency
+    schedule = get_object_or_404(MovementSchedule, pk=pk, constituency=c)
+
+    description = f"Deleted movement schedule {schedule.schedule_date} - {schedule.ward.name} - {schedule.kiems_kit.kit_name}"
+    schedule_date, ward = schedule.schedule_date, schedule.ward
+    schedule.delete()
+
+    _log(request, "DELETE", "MovementSchedule", f"deleted-{pk}", description)
+
+    # Re-evaluate coverage in case this unblocks the grand report
+    try:
+        from home.services.movement_schedule import reevaluate_movement_schedule
+        reevaluate_movement_schedule(ward.constituency, schedule_date)
+    except Exception as e:
+        logger.warning("Movement state reeval failed: %s", e)
+
+    messages.success(request, "Schedule deleted.")
+    return redirect(request.META.get("HTTP_REFERER") or "ict:movement_list")
+
+
+@ict_required
+@require_GET
+def movement_preview_grand(request):
+    """Return the exact grand-report text for the officer to preview."""
+    c = request.constituency
+    date_str = request.GET.get("date")
+    try:
+        schedule_date = (
+            datetime.strptime(date_str, "%Y-%m-%d").date()
+            if date_str else timezone.localdate() + timedelta(days=1)
+        )
+    except ValueError:
+        schedule_date = timezone.localdate() + timedelta(days=1)
+
+    from home.services.movement_schedule import build_grand_message
+    text = build_grand_message(c, schedule_date)
+
+    return JsonResponse({
+        "ok": True,
+        "schedule_date": schedule_date.isoformat(),
+        "preview": text,
+    })
+
+
+@ict_required
+@require_POST
+def movement_send_grand(request):
+    """
+    Officer manually triggers the grand report for a given date.
+    Does NOT require all wards to have submitted - officer override.
+    """
+    c = request.constituency
+    date_str = request.POST.get("date")
+    try:
+        schedule_date = (
+            datetime.strptime(date_str, "%Y-%m-%d").date()
+            if date_str else timezone.localdate() + timedelta(days=1)
+        )
+    except ValueError:
+        schedule_date = timezone.localdate() + timedelta(days=1)
+
+    # Ensure some content exists
+    if not MovementSchedule.objects.filter(constituency=c, schedule_date=schedule_date).exists():
+        messages.warning(request, "No movement schedules exist for that date.")
+        return redirect(request.META.get("HTTP_REFERER") or "ict:movement_list")
+
+    # Get/create state; force SENDING regardless of current state so manual
+    # override works even when wards are missing.
+    state, _ = MovementScheduleState.objects.get_or_create(
+        constituency=c, schedule_date=schedule_date,
+        defaults={"status": "PENDING"},
+    )
+
+    from home.services.movement_schedule import send_grand_movement_message
+    ok, err = send_grand_movement_message(state, user=request.user)
+
+    if ok:
+        state.status = "SENT"
+        state.sent_at = timezone.now()
+        state.attempts += 1
+        state.save(update_fields=["status", "sent_at", "attempts"])
+        _log(request, "SUBMIT", "MovementScheduleState", state,
+             f"Manual grand movement report sent for {schedule_date}")
+        messages.success(request, f"Grand movement report sent for {schedule_date}.")
+    else:
+        state.status = "FAILED"
+        state.last_error = err or "unknown"
+        state.attempts += 1
+        state.save(update_fields=["status", "last_error", "attempts"])
+        messages.error(request, f"Send failed: {err}")
+
+    return redirect(request.META.get("HTTP_REFERER") or "ict:movement_list")
+
+
+@ict_required
+def movement_log(request):
+    """Recent WhatsApp delivery history for movement messages."""
+    c = request.constituency
+    logs = (
+        MovementScheduleLog.objects
+        .filter(constituency=c)
+        .select_related("ward", "kiems_kit", "sent_by")
+        .order_by("-created_at")[:200]
+    )
+    return render(request, "ict/movement/log.html", {
+        "constituency": c,
+        "logs": logs,
+    })
+
+
+@ict_required
+def movement_status(request):
+    """
+    Coverage/status dashboard for movement schedules across upcoming dates.
+    """
+    c = request.constituency
+    today = timezone.localdate()
+
+    active_wards = Ward.objects.filter(constituency=c, active=True)
+    total_wards = active_wards.count()
+    total_kits = KIEMSKit.objects.filter(
+        ward__constituency=c, ward__active=True, status=True
+    ).count()
+
+    # Next 7 days coverage
+    days = []
+    for offset in range(0, 7):
+        day = today + timedelta(days=offset)
+        submitted_wards = (
+            MovementSchedule.objects
+            .filter(constituency=c, schedule_date=day)
+            .values("ward_id").distinct().count()
+        )
+        scheduled_kits = (
+            MovementSchedule.objects
+            .filter(constituency=c, schedule_date=day)
+            .values("kiems_kit_id").distinct().count()
+        )
+        state = MovementScheduleState.objects.filter(
+            constituency=c, schedule_date=day
+        ).first()
+        days.append({
+            "date": day,
+            "submitted_wards": submitted_wards,
+            "total_wards": total_wards,
+            "ward_pct": int(submitted_wards / total_wards * 100) if total_wards else 0,
+            "scheduled_kits": scheduled_kits,
+            "total_kits": total_kits,
+            "kit_pct": int(scheduled_kits / total_kits * 100) if total_kits else 0,
+            "state": state,
+        })
+
+    recent_sends = (
+        MovementScheduleLog.objects
+        .filter(constituency=c)
+        .order_by("-created_at")[:10]
+    )
+
+    return render(request, "ict/movement/status.html", {
+        "constituency": c,
+        "days": days,
+        "recent_sends": recent_sends,
+        "total_wards": total_wards,
+        "total_kits": total_kits,
+    })

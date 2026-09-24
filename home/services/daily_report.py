@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import socket
 from datetime import timedelta
 
@@ -9,7 +10,10 @@ from django.utils import timezone
 
 from home.models import (
     Ward, KIEMSKit, DailyKIEMSEntry, DailyReportState, Phase,
+    MovementSchedule, MovementScheduleState,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -139,7 +143,7 @@ def reevaluate_constituency_report(constituency, report_date=None):
 
 
 # ============================================================
-# SENDER — the ONLY place that actually sends
+# SENDER — daily registration report (the ONLY place that sends it)
 # ============================================================
 
 def _build_grand_total_payload(state):
@@ -203,7 +207,7 @@ def _build_grand_total_payload(state):
 
 def send_ready_reports(limit=20, max_attempts=5):
     """
-    The ONLY function that actually sends grand totals.
+    The ONLY function that actually sends daily grand totals.
     Safe to call from cron, a background thread, or manually.
     Idempotent by design (uses select_for_update + terminal SENT state).
 
@@ -267,7 +271,7 @@ def send_ready_reports(limit=20, max_attempts=5):
                 s.last_error = ""
                 results["sent"] += 1
             else:
-                # Exhausted attempts → park as FAILED; otherwise retry next tick
+                # Exhausted attempts — park as FAILED; otherwise retry next tick
                 s.status = "FAILED" if s.attempts >= max_attempts else "READY"
                 s.last_error = (
                         f"{err or 'Unknown error'}"
@@ -280,43 +284,240 @@ def send_ready_reports(limit=20, max_attempts=5):
 
 
 # ============================================================
-# REAPER — heals stuck SENDING rows
+# MOVEMENT SCHEDULE — evaluation + sender
+# ============================================================
+
+def reevaluate_movement_schedule(constituency, schedule_date=None):
+    """
+    Mirror of `reevaluate_constituency_report` but for MovementSchedule.
+    Called from the client submission endpoint after every save. Never sends.
+    Returns the resulting MovementScheduleState (or None).
+    """
+    schedule_date = schedule_date or (timezone.localdate() + timedelta(days=1))
+
+    if not constituency:
+        return None
+
+    total_wards = Ward.objects.filter(
+        constituency=constituency, active=True
+    ).count()
+    if total_wards == 0:
+        return None
+
+    submitted_wards = (
+        MovementSchedule.objects
+        .filter(constituency=constituency, schedule_date=schedule_date)
+        .values("ward_id")
+        .distinct()
+        .count()
+    )
+
+    with transaction.atomic():
+        state, _ = MovementScheduleState.objects.select_for_update().get_or_create(
+            constituency=constituency,
+            schedule_date=schedule_date,
+            defaults={
+                "total_wards": total_wards,
+                "submitted_wards": submitted_wards,
+            },
+        )
+
+        state.total_wards = total_wards
+        state.submitted_wards = submitted_wards
+
+        if submitted_wards < total_wards:
+            if state.status != "SENT":
+                state.status = "PENDING"
+                state.ready_at = None
+        else:
+            if state.status in ("PENDING", "FAILED"):
+                state.status = "READY"
+                state.ready_at = timezone.now()
+            # If SENT/SENDING/READY, leave it alone
+
+        state.save()
+
+    return state
+
+
+def _build_movement_payload(state):
+    """
+    Build (message_text, data_hash) for a MovementScheduleState.
+    Returns (None, None) if no schedules exist.
+    """
+    schedules = list(
+        MovementSchedule.objects
+        .filter(
+            constituency=state.constituency,
+            schedule_date=state.schedule_date,
+        )
+        .select_related("ward", "kiems_kit")
+        .order_by("ward__name", "kiems_kit__kit_name")
+    )
+
+    if not schedules:
+        return None, None
+
+    # Stable data hash
+    fingerprint_payload = {
+        "c": state.constituency_id,
+        "d": state.schedule_date.isoformat(),
+        "rows": [
+            (s.ward.name, s.kiems_kit.kit_name, s.venue)
+            for s in schedules
+        ],
+    }
+    data_hash = hashlib.sha256(
+        json.dumps(fingerprint_payload, sort_keys=True).encode()
+    ).hexdigest()
+
+    msg = f"*{state.constituency.name.upper()} — TOMORROW'S MOVEMENT PLAN*\n"
+    msg += f"_{state.schedule_date.strftime('%d %b %Y')}_\n"
+    msg += "------------------------------\n"
+
+    current_ward = None
+    for s in schedules:
+        if s.ward.name != current_ward:
+            current_ward = s.ward.name
+            msg += f"\n*{current_ward}*\n"
+        msg += f"  {s.kiems_kit.kit_name}: {s.venue}\n"
+
+    msg += "------------------------------\n"
+    msg += f"_{len(schedules)} kit(s) scheduled across {state.submitted_wards}/{state.total_wards} wards_"
+
+    return msg, data_hash
+
+
+def send_ready_movement_reports(limit=20, max_attempts=5):
+    """
+    The ONLY function that sends the grand movement-schedule report.
+    Safe to call from cron or manually. Idempotent.
+
+    Returns: {"sent": int, "failed": int, "skipped": int}
+    """
+    from home.services.whatsapp import send_to_constituency
+
+    now = timezone.now()
+    hostname = socket.gethostname()
+
+    with transaction.atomic():
+        ready_states = list(
+            MovementScheduleState.objects
+            .select_for_update(skip_locked=True)
+            .filter(status="READY")
+            .filter(attempts__lt=max_attempts)
+            .order_by("ready_at")[:limit]
+        )
+        for s in ready_states:
+            s.status = "SENDING"
+            s.attempts = s.attempts + 1
+            s.save(update_fields=["status", "attempts"])
+
+    results = {"sent": 0, "failed": 0, "skipped": 0}
+
+    for state in ready_states:
+        message, data_hash = _build_movement_payload(state)
+
+        if not message:
+            with transaction.atomic():
+                s = MovementScheduleState.objects.select_for_update().get(pk=state.pk)
+                s.status = "FAILED"
+                s.last_error = "No movement schedules at send time"
+                s.save(update_fields=["status", "last_error"])
+            results["skipped"] += 1
+            continue
+
+        # Dedupe: if the exact same content already went out, mark SENT
+        # without re-sending (protects against re-eval loops).
+        if state.message_hash and state.message_hash == data_hash and state.sent_at:
+            with transaction.atomic():
+                s = MovementScheduleState.objects.select_for_update().get(pk=state.pk)
+                s.status = "SENT"
+                s.save(update_fields=["status"])
+            results["skipped"] += 1
+            continue
+
+        ok, err, group_id = send_to_constituency(state.constituency, message)
+
+        with transaction.atomic():
+            s = MovementScheduleState.objects.select_for_update().get(pk=state.pk)
+            if ok:
+                s.status = "SENT"
+                s.sent_at = timezone.now()
+                s.message_hash = data_hash
+                s.last_error = ""
+                results["sent"] += 1
+            else:
+                s.status = "FAILED" if s.attempts >= max_attempts else "READY"
+                s.last_error = (
+                        f"{err or 'Unknown error'}"
+                        + (f" (group: {group_id})" if group_id else "")
+                )
+                results["failed"] += 1
+            s.save()
+
+    return results
+
+
+# ============================================================
+# REAPER — heals stuck SENDING rows (both daily + movement)
 # ============================================================
 
 def reap_stuck_sending_states(stale_after_minutes=10):
     """
     Any SENDING row older than stale_after_minutes is returned to READY
     so the next send tick can retry it. Handles workers that crashed
-    mid-send.
+    mid-send. Applies to BOTH daily and movement state tables.
     """
     cutoff = timezone.now() - timedelta(minutes=stale_after_minutes)
-    stuck = DailyReportState.objects.filter(
+
+    daily_reaped = DailyReportState.objects.filter(
         status="SENDING",
         locked_at__lt=cutoff,
-    )
-    count = stuck.update(
+    ).update(
         status="READY",
         locked_at=None,
         locked_by="",
         last_error="Reaped stale SENDING lock",
     )
-    return count
+
+    # MovementScheduleState has no locked_at field — use updated_at instead
+    movement_reaped = MovementScheduleState.objects.filter(
+        status="SENDING",
+        updated_at__lt=cutoff,
+    ).update(
+        status="READY",
+        last_error="Reaped stale SENDING lock",
+    )
+
+    return daily_reaped + movement_reaped
 
 
 # ============================================================
 # ONE-CALL TICK — used by cron / management command / button
 # ============================================================
 
-def run_daily_report_tick(max_send=20):
+def run_daily_report_tick(max_send=20, max_movement_send=20):
     """
-    Reap stale SENDING states, then attempt to send any READY ones.
+    Reap stale SENDING states, then attempt to send any READY ones
+    for BOTH daily registration reports AND movement schedules.
     Safe to call repeatedly (idempotent).
 
-    max_send caps how many reports are sent in a single tick — useful on
-    Vercel's serverless timeouts. Set to 1 for maximum safety, or higher
-    when running on a persistent worker.
+    max_send / max_movement_send cap how many reports are sent per tick —
+    useful on Vercel's serverless timeouts. Split so a backlog of one
+    workflow can't starve the other.
     """
     reaped = reap_stuck_sending_states(stale_after_minutes=10)
-    summary = send_ready_reports(limit=max_send)
-    summary["reaped"] = reaped
-    return summary
+
+    daily_summary = send_ready_reports(limit=max_send)
+    movement_summary = send_ready_movement_reports(limit=max_movement_send)
+
+    return {
+        "reaped": reaped,
+        "daily": daily_summary,
+        "movement": movement_summary,
+        # Top-level convenience keys (backward-compatible with existing callers)
+        "sent": daily_summary["sent"] + movement_summary["sent"],
+        "failed": daily_summary["failed"] + movement_summary["failed"],
+        "skipped": daily_summary["skipped"] + movement_summary["skipped"],
+    }

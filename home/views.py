@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
+from datetime import timedelta
 
-import requests
 from django.conf import settings
 from django.db.models import Sum, Q
 from django.http import JsonResponse
@@ -10,13 +10,18 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods, require_GET, require_POST
 
+from home.models import MovementSchedule
+from home.services.movement_schedule import (
+    format_single_movement_message, )
 from .models import (
     Ward, VRA, Clerk, KIEMSKit, Phase, DailyKIEMSEntry,
-    Device, WhatsAppSetting, WhatsAppGroup, Constituency
+    Device, WhatsAppSetting, Constituency
 )
 from .services.whatsapp import send_to_constituency, get_group_for_constituency
 
 
+# Set to False if unbound devices must be allowed to pick any ward.
+MOVEMENT_REQUIRE_BOUND_DEVICE = getattr(settings, "MOVEMENT_REQUIRE_BOUND_DEVICE", True)
 # ==================== WHATSAPP HELPER FUNCTIONS ====================
 
 
@@ -67,9 +72,6 @@ def get_whatsapp_settings():
     except Exception as e:
         print(f"WhatsApp settings error: {str(e)}")
         return None
-
-
-
 
 
 def format_vra_submission_message(entry, is_update=False):
@@ -1562,3 +1564,352 @@ def save_clerk_venues(request):
     except Exception as e:
         print(f"[clerk-mapping] Save error: {str(e)}")
         return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+
+
+# ==================== MOVEMENT SCHEDULE (CLIENT) ====================
+
+def movement_schedule_view(request):
+    """Client page: pick ward, see all kits, enter tomorrow's venue per kit."""
+    bound_constituency = None
+    bound_ward = None
+    bound_clerk = None
+    bound_vra = None
+
+    # Try VRA first, then Clerk
+    vra = get_vra_from_request(request)
+    if vra and vra.ward:
+        bound_ward = vra.ward
+        bound_constituency = vra.ward.constituency
+        bound_vra = vra
+    else:
+        clerk = get_clerk_from_request(request)
+        if clerk and clerk.ward:
+            bound_ward = clerk.ward
+            bound_constituency = clerk.ward.constituency
+            bound_clerk = clerk
+
+    constituencies = Constituency.objects.filter(active=True).order_by("name")
+    wards = Ward.objects.select_related("constituency").order_by(
+        "constituency__name", "name"
+    )
+    active_phase = Phase.objects.filter(active=True).first()
+
+    # Tomorrow (not today!)
+    tomorrow = timezone.localdate() + timedelta(days=1)
+
+    return render(request, "movement_schedule.html", {
+        "constituencies": constituencies,
+        "wards": wards,
+        "bound_constituency": bound_constituency,
+        "bound_ward": bound_ward,
+        "bound_vra": bound_vra,
+        "bound_clerk": bound_clerk,
+        "active_phase": active_phase,
+        "schedule_date": tomorrow.isoformat(),
+    })
+
+
+@require_GET
+def movement_kits(request):
+    """
+    Given a ward, return all active kits for that ward plus any existing
+    MovementSchedule row for tomorrow (so the client can pre-fill).
+    """
+    ward_id = request.GET.get("ward_id")
+    fingerprint = request.GET.get("fingerprint")
+    token = request.GET.get("token")
+
+    if not ward_id:
+        return JsonResponse({"ok": False, "error": "ward_id required"}, status=400)
+
+    try:
+        ward = Ward.objects.select_related("constituency").get(id=ward_id, active=True)
+    except Ward.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "Ward not found"}, status=404)
+
+    active_phase = Phase.objects.filter(active=True).first()
+    if not active_phase:
+        return JsonResponse({"ok": False, "error": "No active phase"}, status=404)
+
+    schedule_date = timezone.localdate() + timedelta(days=1)
+
+    kits = KIEMSKit.objects.filter(ward=ward, status=True).order_by("kit_name")
+
+    existing = {
+        m.kiems_kit_id: m
+        for m in MovementSchedule.objects.filter(
+            kiems_kit__in=kits,
+            phase=active_phase,
+            schedule_date=schedule_date,
+        )
+    }
+
+    data = []
+    for kit in kits:
+        row = existing.get(kit.id)
+        data.append({
+            "kit_id": kit.id,
+            "kit_name": kit.kit_name,
+            "serial_no": kit.serial_no,
+            "venue": row.venue if row else "",
+            "has_schedule": bool(row),
+            "notes": row.notes if row else "",
+        })
+
+    return JsonResponse({
+        "ok": True,
+        "ward_id": ward.id,
+        "ward_name": ward.name,
+        "constituency_id": ward.constituency_id,
+        "constituency_name": ward.constituency.name if ward.constituency else None,
+        "schedule_date": schedule_date.isoformat(),
+        "kits": data,
+    })
+
+
+
+
+def _resolve_submitter(fingerprint, token):
+    """Return (vra, clerk) for the device or token. Either may be None."""
+    vra = clerk = None
+
+    if fingerprint:
+        device = (
+            Device.objects
+            .select_related("vra", "vra__ward", "clerk", "clerk__ward")
+            .filter(fingerprint=fingerprint, is_burned=True, is_active=True)
+            .first()
+        )
+        if device:
+            vra = device.vra
+            clerk = device.clerk
+
+    if not (vra or clerk) and token:
+        vra = VRA.objects.select_related("ward").filter(
+            device_token=token, active=True
+        ).first()
+        if not vra:
+            clerk = Clerk.objects.select_related("ward").filter(
+                device_token=token, active=True
+            ).first()
+
+    return vra, clerk
+
+
+def _resolve_schedule_date(raw):
+    """
+    Use the date the page displayed if it is today or tomorrow (covers a page
+    left open past midnight). Anything else falls back to tomorrow.
+    """
+    today = timezone.localdate()
+    tomorrow = today + timedelta(days=1)
+    if raw:
+        try:
+            d = datetime.strptime(str(raw), "%Y-%m-%d").date()
+            if today <= d <= tomorrow:
+                return d
+        except (ValueError, TypeError):
+            pass
+    return tomorrow
+
+
+@csrf_exempt
+@require_POST
+def save_movement_schedule(request):
+    """
+    Save tomorrow's venue for one or more kits in one ward.
+
+    Body: {
+        ward_id, fingerprint?, token?, schedule_date?,
+        entries: [{kit_id, venue, notes?}]
+    }
+
+    Behaviour:
+      - Only VRAs/clerks bound to the ward may save (see MOVEMENT_REQUIRE_BOUND_DEVICE).
+      - `notes` is only changed when the client actually sends it.
+      - Rows whose venue/notes did not change are skipped: no edit_count bump,
+        no WhatsApp message.
+      - Valid rows are saved even if others fail; failures come back in `errors`
+        keyed by kit id.
+    """
+    # ---------- Parse body ----------
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError):
+        return JsonResponse({"ok": False, "error": "Invalid JSON"}, status=400)
+
+    if not isinstance(data, dict):
+        return JsonResponse({"ok": False, "error": "Invalid JSON"}, status=400)
+
+    ward_id = data.get("ward_id")
+    fingerprint = data.get("fingerprint")
+    token = data.get("token")
+    entries = data.get("entries")
+
+    if not ward_id or not isinstance(entries, list) or not entries:
+        return JsonResponse(
+            {"ok": False, "error": "ward_id and entries required"}, status=400
+        )
+
+    try:
+        ward_id = int(ward_id)
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "error": "Invalid ward_id"}, status=400)
+
+    # ---------- Ward + phase ----------
+    try:
+        ward = Ward.objects.select_related("constituency").get(id=ward_id, active=True)
+    except Ward.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "Ward not found"}, status=404)
+
+    if not ward.constituency:
+        return JsonResponse(
+            {"ok": False, "error": "Ward has no constituency"}, status=400
+        )
+
+    active_phase = Phase.objects.filter(active=True).first()
+    if not active_phase:
+        return JsonResponse({"ok": False, "error": "No active phase"}, status=404)
+
+    # ---------- Who is submitting ----------
+    vra, clerk = _resolve_submitter(fingerprint, token)
+
+    if MOVEMENT_REQUIRE_BOUND_DEVICE:
+        if not (vra or clerk):
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "This device is not authorized. Please contact your ICT officer.",
+                },
+                status=401,
+            )
+        if vra and vra.ward_id != ward.id:
+            return JsonResponse(
+                {"ok": False, "error": "You can only save for your own ward."},
+                status=403,
+            )
+        if not vra and clerk and clerk.ward_id and clerk.ward_id != ward.id:
+            return JsonResponse(
+                {"ok": False, "error": "You can only save for your own ward."},
+                status=403,
+            )
+
+    schedule_date = _resolve_schedule_date(data.get("schedule_date"))
+
+    # ---------- Save loop ----------
+    created, updated, errors = [], [], {}
+    unchanged = 0
+
+    for item in entries:
+        if not isinstance(item, dict):
+            errors["entry"] = "Invalid entry."
+            continue
+
+        kit_id = item.get("kit_id")
+        venue = (item.get("venue") or "").strip()
+
+        raw_notes = item.get("notes")
+        notes = raw_notes.strip() if isinstance(raw_notes, str) else None  # None = not sent
+
+        if not kit_id:
+            errors["kit_id"] = "Missing kit_id"
+            continue
+
+        try:
+            kit_id = int(kit_id)
+        except (ValueError, TypeError):
+            errors[str(kit_id)] = "Invalid kit_id."
+            continue
+
+        if not venue:
+            errors[str(kit_id)] = "Venue is required."
+            continue
+
+        try:
+            kit = KIEMSKit.objects.get(id=kit_id, ward=ward, status=True)
+        except KIEMSKit.DoesNotExist:
+            errors[str(kit_id)] = "Kit not in this ward."
+            continue
+
+        obj, was_created = MovementSchedule.objects.get_or_create(
+            kiems_kit=kit,
+            schedule_date=schedule_date,
+            defaults={
+                "ward": ward,
+                "constituency": ward.constituency,
+                "phase": active_phase,
+                "vra": vra,
+                "clerk": clerk,
+                "venue": venue,
+                "notes": notes or "",
+            },
+        )
+
+        if was_created:
+            created.append(obj)
+            continue
+
+        new_notes = obj.notes if notes is None else notes
+        if obj.venue == venue and obj.notes == new_notes:
+            unchanged += 1
+            continue
+
+        obj.venue = venue
+        obj.notes = new_notes
+        obj.edit_count += 1
+        obj.save(update_fields=["venue", "notes", "edit_count", "updated_at"])
+        updated.append(obj)
+
+    # ---------- WhatsApp (one message per changed kit; never raises) ----------
+    try:
+        settings_obj = get_whatsapp_settings()
+        notify_vra = settings_obj.notify_vra if settings_obj else True
+        notify_edit = settings_obj.notify_edit if settings_obj else True
+
+        if notify_vra:
+            for obj in created:
+                try:
+                    send_to_constituency(
+                        ward.constituency,
+                        format_single_movement_message(obj, is_update=False),
+                    )
+                except Exception as e:
+                    print(f"[movement] WhatsApp send failed (new kit {obj.kiems_kit_id}): {e}")
+
+        if notify_edit:
+            for obj in updated:
+                try:
+                    send_to_constituency(
+                        ward.constituency,
+                        format_single_movement_message(obj, is_update=True),
+                    )
+                except Exception as e:
+                    print(f"[movement] WhatsApp send failed (edit kit {obj.kiems_kit_id}): {e}")
+    except Exception as e:
+        print(f"[movement] WhatsApp error: {e}")
+
+    # ---------- Recompute report state (does not send the grand report) ----------
+    if created or updated:
+        try:
+            from home.services.movement_schedule import reevaluate_movement_schedule
+            reevaluate_movement_schedule(ward.constituency, schedule_date)
+        except Exception as e:
+            print(f"[movement] State re-evaluation error: {e}")
+
+    # ---------- Response ----------
+    counts = {
+        "created": len(created),
+        "updated": len(updated),
+        "unchanged": unchanged,
+    }
+
+    if errors:
+        return JsonResponse({"ok": False, "errors": errors, **counts}, status=400)
+
+    saved = len(created) + len(updated)
+    if saved == 0:
+        message = "No changes to save."
+    else:
+        message = f"{saved} venue(s) saved for {schedule_date}."
+
+    return JsonResponse({"ok": True, "message": message, **counts})

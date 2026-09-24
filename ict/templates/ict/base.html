@@ -809,6 +809,15 @@
         {% if report_alert_count %}<span class="badge-count">{{ report_alert_count }}</span>{% endif %}
     </a>
 </li>
+            <li class="menu-item {% if 'movement' in request.path %}active{% endif %}">
+    <a href="{% url 'ict:movement_list' %}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+        </svg>
+        Movement Schedule
+    </a>
+</li>
         </nav>
 
         <div class="sidebar-footer">

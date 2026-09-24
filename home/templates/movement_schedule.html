@@ -1,0 +1,328 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tomorrow's Movement Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&family=Space+Grotesk:wght@700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/iconfont/tabler-icons.min.css">
+<script src="https://openfpcdn.io/fingerprintjs/v4/iife.min.js" async></script>
+<style>
+  body { margin:0; font-family:'Inter',sans-serif; background:#F0F1EC; color:#1C1C1E; }
+  .navbar { position:sticky; top:0; background:rgba(240,241,236,.86); backdrop-filter:blur(20px);
+            border-bottom:1px solid #E7E7E2; padding:10px 16px; z-index:10; }
+  .title { font-family:'Space Grotesk',sans-serif; font-size:21px; font-weight:700; margin:0; }
+  .content { max-width:780px; margin:0 auto; padding:12px 14px 36px; }
+  .group { background:#fff; border-radius:13px; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,.05); margin-bottom:12px; }
+  .row { padding:9px 14px; border-bottom:.5px solid #E7E7E2; position:relative; }
+  .row:last-child { border-bottom:none; }
+  .row label { font-size:10px; color:#6E6E73; display:block; margin-bottom:1px; font-weight:600; text-transform:uppercase; }
+  .row select, .row input { border:none; outline:none; font-size:14.5px; width:100%; background:transparent; padding:1px 0; font-family:inherit; font-weight:500; }
+  .btn-primary { padding:11px 16px; border:none; border-radius:9px; background:linear-gradient(180deg,#78ab4c,#6B9C3F);
+                 color:#fff; font-weight:700; font-size:13px; cursor:pointer; width:100%; font-family:inherit; }
+  .btn-primary:disabled { background:#D1D1D6; cursor:not-allowed; }
+  .kit-card { background:#fff; border-radius:13px; padding:12px 14px; margin-bottom:10px; box-shadow:0 1px 2px rgba(0,0,0,.05); border-left:3px solid transparent; }
+  .kit-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px; }
+  .kit-name { font-weight:700; font-size:14px; }
+  .kit-serial { font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#6E6E73; }
+  .kit-card input.venue { width:100%; box-sizing:border-box; border:1px solid #E7E7E2; border-radius:7px; padding:8px 10px; font-size:16px; font-family:inherit; }
+  .kit-card input.venue:focus { outline:none; border-color:#6B9C3F; box-shadow:0 0 0 3px #EAF3DD; }
+  .kit-card.saved { border-left-color:#4C7128; }
+  .kit-card.has-error { border-left-color:#D3372A; }
+  .msg-success { color:#4C7128; background:#EAF3DD; padding:8px 12px; border-radius:9px; font-size:12px; margin-top:8px; }
+  .msg-error { color:#D3372A; background:#FBE8E6; padding:8px 12px; border-radius:9px; font-size:12px; margin-top:8px; }
+  .empty { color:#6E6E73; font-size:13px; padding:12px 2px; }
+  .hidden { display:none!important; }
+  .date-badge { display:inline-block; background:#EAF3DD; color:#2F5A18; font-size:11px; font-weight:600; padding:3px 10px; border-radius:12px; margin-bottom:10px; }
+</style>
+</head>
+<body>
+<div class="navbar">
+  <div class="title">Tomorrow's Movement Plan</div>
+</div>
+<div class="content">
+
+  <div class="date-badge">
+    <i class="ti ti-calendar"></i>
+    Schedule date: <strong id="sched-date-display">{{ schedule_date }}</strong>
+  </div>
+
+  <!-- Identify -->
+  <div id="identify-card" class="group">
+    <div class="row">
+      <label for="constituency-select">Constituency</label>
+      <select id="constituency-select">
+        <option value="">Select constituency</option>
+        {% for c in constituencies %}
+          <option value="{{ c.id }}" {% if bound_constituency and bound_constituency.id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="row">
+      <label for="ward-select">Ward</label>
+      <select id="ward-select">
+        <option value="">Select ward</option>
+      </select>
+    </div>
+  </div>
+  <button id="load-kits-btn" class="btn-primary" disabled>Load kits</button>
+  <div id="bind-error" class="msg-error hidden" role="alert"></div>
+
+  <!-- Kits -->
+  <div id="kits-container" class="hidden" style="margin-top:14px;">
+    <h3 id="kits-title" style="font-size:15px; margin:0 0 10px;"></h3>
+    <div id="kits-list"></div>
+    <button id="save-all-btn" class="btn-primary" style="margin-top:10px;">
+      <i class="ti ti-device-floppy"></i> Save movement plan
+    </button>
+    <div id="save-msg" class="hidden" role="status"></div>
+  </div>
+
+</div>
+
+<script>
+const CSRF = "{{ csrf_token }}";
+const BOUND_WARD_ID = {{ bound_ward.id|default:"null" }};
+const BOUND_CONSTITUENCY_ID = {{ bound_constituency.id|default:"null" }};
+
+let fpId = null;
+let fpReady = null;          // promise, resolves when fingerprint attempt finishes
+let currentWardId = null;
+
+const $ = id => document.getElementById(id);
+
+// ---------- helpers ----------
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+}
+
+function showError(msg) {
+  const el = $('bind-error');
+  el.textContent = msg || 'Something went wrong. Please try again.';
+  el.classList.remove('hidden');
+}
+
+function clearError() {
+  $('bind-error').classList.add('hidden');
+}
+
+function resetKits() {
+  $('kits-container').classList.add('hidden');
+  $('kits-list').innerHTML = '';
+  $('save-msg').classList.add('hidden');
+}
+
+// fetch wrapper: always returns parsed JSON or throws a readable Error
+async function api(url, options) {
+  const r = await fetch(url, options);
+  let data = null;
+  try { data = await r.json(); } catch (_) { /* non-JSON response */ }
+  // Your views return JSON with ok:false on 4xx, so hand those back to the caller
+  if (data === null) throw new Error(`Server error (${r.status}). Please try again.`);
+  return data;
+}
+
+// ---------- fingerprint ----------
+async function initFingerprint() {
+  try {
+    if (typeof FingerprintJS === 'undefined') {
+      // script is async; wait briefly for it to arrive
+      await new Promise((res, rej) => {
+        const t0 = Date.now();
+        const iv = setInterval(() => {
+          if (typeof FingerprintJS !== 'undefined') { clearInterval(iv); res(); }
+          else if (Date.now() - t0 > 8000) { clearInterval(iv); rej(new Error('timeout')); }
+        }, 100);
+      });
+    }
+    const fp = await FingerprintJS.load();
+    const r = await fp.get();
+    fpId = r.visitorId;
+    await fetch('/register-device/', {
+      method: 'POST',
+      headers: {'X-CSRFToken': CSRF, 'Content-Type': 'application/json'},
+      body: JSON.stringify({fingerprint: fpId, device_info: {}})
+    });
+  } catch (e) {
+    console.warn('Fingerprint failed', e);
+  }
+}
+
+// ---------- data loading ----------
+async function loadWards(constituencyId) {
+  const sel = $('ward-select');
+  sel.innerHTML = '<option value="">Select ward</option>';
+  try {
+    const d = await api(`/api/wards-by-constituency/?constituency_id=${encodeURIComponent(constituencyId)}`);
+    (d.wards || []).forEach(w => {
+      const o = document.createElement('option');
+      o.value = w.id;
+      o.textContent = w.name;
+      sel.appendChild(o);
+    });
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+async function loadKits(forcedWardId) {
+  const wardId = (typeof forcedWardId === 'string' || typeof forcedWardId === 'number')
+    ? forcedWardId : $('ward-select').value;
+  if (!wardId) return;
+  currentWardId = wardId;
+  clearError();
+  resetKits();
+
+  const btn = $('load-kits-btn');
+  btn.disabled = true;
+  try {
+    const d = await api(`/movement/kits/?ward_id=${encodeURIComponent(wardId)}`);
+    if (!d.ok) { showError(d.error); return; }
+
+    if (d.schedule_date) $('sched-date-display').textContent = d.schedule_date;
+    const kits = d.kits || [];
+    $('kits-title').textContent = `${d.ward_name} \u2014 Kits (${kits.length})`;
+    $('kits-list').innerHTML = kits.length
+      ? kits.map(k => `
+        <div class="kit-card ${k.has_schedule ? 'saved' : ''}" data-kit-id="${esc(k.kit_id)}" data-orig="${esc(k.venue)}">
+          <div class="kit-head">
+            <span class="kit-name">${esc(k.kit_name)}</span>
+            <span class="kit-serial">${esc(k.serial_no)}</span>
+          </div>
+          <input class="venue" placeholder="Venue for tomorrow" value="${esc(k.venue)}" aria-label="Venue for ${esc(k.kit_name)}">
+        </div>`).join('')
+      : '<div class="empty">No kits found for this ward.</div>';
+
+    $('save-all-btn').classList.toggle('hidden', kits.length === 0);
+    $('kits-container').classList.remove('hidden');
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = !($('constituency-select').value && $('ward-select').value);
+  }
+}
+
+async function saveAll() {
+  const btn = $('save-all-btn');
+  const msg = $('save-msg');
+
+  // give the fingerprint a moment to finish if the user is very fast
+  if (fpReady) await fpReady;
+
+  // Send only kits with a venue that changed, so unchanged kits don't trigger "updated" WhatsApp messages
+  document.querySelectorAll('.kit-card').forEach(c => c.classList.remove('has-error'));
+  const entries = [...document.querySelectorAll('.kit-card')]
+    .map(card => ({ card, venue: card.querySelector('.venue').value.trim() }))
+    .filter(x => x.venue && x.venue !== (x.card.dataset.orig || ''))
+    .map(x => ({ kit_id: parseInt(x.card.dataset.kitId, 10), venue: x.venue }));
+
+  msg.classList.remove('hidden');
+  if (!entries.length) {
+    msg.className = 'msg-error';
+    msg.textContent = 'Nothing to save. Enter or change a venue first.';
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const d = await api('/movement/save/', {
+      method: 'POST',
+      headers: {'X-CSRFToken': CSRF, 'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        ward_id: parseInt(currentWardId, 10),
+        fingerprint: fpId,
+        entries
+      })
+    });
+    if (d.ok) {
+      msg.className = 'msg-success';
+      msg.textContent = d.message || 'Movement plan saved.';
+      document.querySelectorAll('.kit-card').forEach(card => {
+        const v = card.querySelector('.venue').value.trim();
+        if (v) { card.dataset.orig = v; card.classList.add('saved'); }
+      });
+    } else {
+      msg.className = 'msg-error';
+      if (d.errors && typeof d.errors === 'object') {
+        const bad = [];
+        Object.entries(d.errors).forEach(([kitId, text]) => {
+          const card = document.querySelector(`.kit-card[data-kit-id="${CSS.escape(kitId)}"]`);
+          if (card) {
+            card.classList.add('has-error');
+            bad.push(`${card.querySelector('.kit-name').textContent}: ${text}`);
+          } else {
+            bad.push(text);
+          }
+        });
+        msg.textContent = bad.join(' | ');
+      } else {
+        msg.textContent = d.error || 'Could not save.';
+      }
+    }
+  } catch (e) {
+    msg.className = 'msg-error';
+    msg.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// The server can't see the fingerprint on first load, so ask it now
+async function bindFromFingerprint() {
+  if (!fpId) return;
+  try {
+    for (const kind of ['vra', 'clerk']) {
+      const d = await api(`/kiems/resolve-${kind}/?fingerprint=${encodeURIComponent(fpId)}`);
+      if (d.bound && d.ward_id) {
+        $('identify-card').classList.add('hidden');
+        $('load-kits-btn').classList.add('hidden');
+        await loadKits(d.ward_id);
+        return;
+      }
+    }
+  } catch (e) { console.warn('Bind lookup failed', e); }
+}
+
+// ---------- init ----------
+(function init() {
+  const cSel = $('constituency-select');
+  const wSel = $('ward-select');
+  const loadBtn = $('load-kits-btn');
+  const refreshBtn = () => { loadBtn.disabled = !(cSel.value && wSel.value); };
+
+  // Attach listeners first so the page works even if fingerprinting is slow or blocked
+  cSel.addEventListener('change', async () => {
+    clearError();
+    resetKits();
+    wSel.innerHTML = '<option value="">Select ward</option>';
+    refreshBtn();
+    if (cSel.value) await loadWards(cSel.value);
+    refreshBtn();
+  });
+  wSel.addEventListener('change', () => { resetKits(); refreshBtn(); });
+  loadBtn.addEventListener('click', loadKits);
+  $('save-all-btn').addEventListener('click', saveAll);
+
+  // Fingerprint runs in the background
+  fpReady = initFingerprint();
+  if (!(BOUND_WARD_ID && BOUND_CONSTITUENCY_ID)) fpReady.then(bindFromFingerprint);
+
+  // Auto-bind path
+  if (BOUND_WARD_ID && BOUND_CONSTITUENCY_ID) {
+    (async () => {
+      cSel.value = BOUND_CONSTITUENCY_ID;
+      await loadWards(BOUND_CONSTITUENCY_ID);
+      wSel.value = BOUND_WARD_ID;
+      $('identify-card').classList.add('hidden');
+      loadBtn.classList.add('hidden');
+      await loadKits();
+    })();
+  }
+})();
+</script>
+</body>
+</html>
