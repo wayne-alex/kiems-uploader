@@ -1,6 +1,7 @@
 from django.contrib import admin
 
-from home.models import Ward, VRA, Clerk, Phase, KIEMSKit, DailyKIEMSEntry
+from home.models import Ward, VRA, Clerk, Phase, KIEMSKit, DailyKIEMSEntry, MovementSchedule, MovementScheduleState, \
+    CronHeartbeat, DailyReportState, MovementScheduleLog, AuditLog
 
 # Register your models here.
 admin.site.register(Ward)
@@ -9,6 +10,12 @@ admin.site.register(Clerk)
 admin.site.register(Phase)
 admin.site.register(KIEMSKit)
 admin.site.register(DailyKIEMSEntry)
+admin.site.register(MovementSchedule)
+admin.site.register(MovementScheduleState)
+admin.site.register(MovementScheduleLog)
+admin.site.register(AuditLog)
+admin.site.register(DailyReportState)
+admin.site.register(CronHeartbeat)
 
 from .models import WhatsAppGroup, WhatsAppSetting
 
