@@ -37,38 +37,52 @@ def _sanitize(text: str) -> str:
     """Strip WhatsApp markdown control chars from user-entered text."""
     return (text or "").replace("*", "").replace("_", "").replace("~", "").replace("`", "").strip()
 
+import re
+from collections import defaultdict
+
+
+def _kit_sort_key(kit_name: str):
+    """
+    Extract the numeric part of a kit name for natural ordering,
+    regardless of formatting ("KIT 16", "KIT-10", "KIT-1", etc.).
+    Falls back to a high number + the raw string so unparseable
+    names sort last instead of raising.
+    """
+    match = re.search(r"(\d+)", kit_name or "")
+    return (int(match.group(1)) if match else 10_000_000, kit_name or "")
+
+
 def format_grand_movement_message(constituency, schedule_date):
     """
-    Grand report: 'Kits Movement Schedule' with globally-sequential kit
-    numbering across all wards (1..N for the whole constituency), and
-    WhatsApp bold on the header lines and ward names.
-
-    Example output:
-
-        *Uasin Gishu County — Turbo Constituency*
-        *Kits Movement Schedule*
-        *25/09/2026*
-
-        *Ngenyilel Ward*
-        • Kit 1: Siriat village.
-        • Kit 2: Emgoin village.
-        • Kit 3: Bukwo village.
-
-        *Tapsagoi Ward*
-        • Kit 4: Silanga.
-        • Kit 5: Chukura.
-        • Kit 6: Besiabor.
-
-        ...
+    Grand report: 'Kits Movement Schedule', kits numbered and ordered
+    by the numeric part of their own kit_name. Wards are ordered by
+    the lowest kit number they contain (so the ward with kits 1-3
+    appears first, the ward with 16-18 appears last), not
+    alphabetically. The OFFICE ward is excluded entirely since its
+    venue is always the office.
     """
     schedules = list(
         MovementSchedule.objects
         .filter(constituency=constituency, schedule_date=schedule_date)
+        .exclude(ward__name__iexact="OFFICE")
         .select_related("ward", "kiems_kit")
-        .order_by("ward__name", "kiems_kit__kit_name")
     )
 
-    # County name — fall back to constituency name if the county FK isn't set.
+    # Precompute each schedule's kit number, then find the lowest
+    # kit number per ward to decide ward ordering.
+    ward_min_kit = defaultdict(lambda: (10_000_001, ""))
+    for s in schedules:
+        key = _kit_sort_key(s.kiems_kit.kit_name)
+        if key < ward_min_kit[s.ward.name]:
+            ward_min_kit[s.ward.name] = key
+
+    schedules.sort(
+        key=lambda s: (
+            ward_min_kit[s.ward.name],           # ward order: by its lowest kit number
+            _kit_sort_key(s.kiems_kit.kit_name),  # kit order within the ward
+        )
+    )
+
     county_name = (
         constituency.county.name
         if getattr(constituency, "county", None)
@@ -87,7 +101,6 @@ def format_grand_movement_message(constituency, schedule_date):
 
     body_lines = []
     current_ward = None
-    kit_number = 0  # global counter, does NOT reset per ward
 
     for s in schedules:
         if s.ward.name != current_ward:
@@ -96,13 +109,12 @@ def format_grand_movement_message(constituency, schedule_date):
             current_ward = s.ward.name
             body_lines.append(f"*{current_ward} Ward*")
 
-        kit_number += 1
-
         venue = _sanitize(s.venue)
         if venue and not venue.endswith("."):
             venue += "."
 
-        body_lines.append(f"• Kit {kit_number}: {venue}")
+        kit_num, _ = _kit_sort_key(s.kiems_kit.kit_name)
+        body_lines.append(f"• Kit {kit_num}: {venue}")
 
     return "\n".join(header_lines + body_lines)
 
