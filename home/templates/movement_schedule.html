@@ -4,83 +4,604 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Tomorrow's Movement Plan</title>
+<title>Movement Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&family=Space+Grotesk:wght@700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Space+Grotesk:wght@600;700&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/iconfont/tabler-icons.min.css">
 <script src="https://openfpcdn.io/fingerprintjs/v4/iife.min.js" async></script>
 <style>
-  body { margin:0; font-family:'Inter',sans-serif; background:#F0F1EC; color:#1C1C1E; }
-  .navbar { position:sticky; top:0; background:rgba(240,241,236,.86); backdrop-filter:blur(20px);
-            border-bottom:1px solid #E7E7E2; padding:10px 16px; z-index:10; }
-  .title { font-family:'Space Grotesk',sans-serif; font-size:21px; font-weight:700; margin:0; }
-  .content { max-width:780px; margin:0 auto; padding:12px 14px 36px; }
-  .group { background:#fff; border-radius:13px; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,.05); margin-bottom:12px; }
-  .row { padding:9px 14px; border-bottom:.5px solid #E7E7E2; position:relative; }
-  .row:last-child { border-bottom:none; }
-  .row label { font-size:10px; color:#6E6E73; display:block; margin-bottom:1px; font-weight:600; text-transform:uppercase; }
-  .row select, .row input { border:none; outline:none; font-size:14.5px; width:100%; background:transparent; padding:1px 0; font-family:inherit; font-weight:500; }
-  .btn-primary { padding:11px 16px; border:none; border-radius:9px; background:linear-gradient(180deg,#78ab4c,#6B9C3F);
-                 color:#fff; font-weight:700; font-size:13px; cursor:pointer; width:100%; font-family:inherit; }
-  .btn-primary:disabled { background:#D1D1D6; cursor:not-allowed; }
-  .kit-card { background:#fff; border-radius:13px; padding:12px 14px; margin-bottom:10px; box-shadow:0 1px 2px rgba(0,0,0,.05); border-left:3px solid transparent; }
-  .kit-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px; }
-  .kit-name { font-weight:700; font-size:14px; }
-  .kit-serial { font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#6E6E73; }
-  .kit-card input.venue { width:100%; box-sizing:border-box; border:1px solid #E7E7E2; border-radius:7px; padding:8px 10px; font-size:16px; font-family:inherit; }
-  .kit-card input.venue:focus { outline:none; border-color:#6B9C3F; box-shadow:0 0 0 3px #EAF3DD; }
-  .kit-card.saved { border-left-color:#4C7128; }
-  .kit-card.has-error { border-left-color:#D3372A; }
-  .msg-success { color:#4C7128; background:#EAF3DD; padding:8px 12px; border-radius:9px; font-size:12px; margin-top:8px; }
-  .msg-error { color:#D3372A; background:#FBE8E6; padding:8px 12px; border-radius:9px; font-size:12px; margin-top:8px; }
-  .empty { color:#6E6E73; font-size:13px; padding:12px 2px; }
-  .hidden { display:none!important; }
-  .date-badge { display:inline-block; background:#EAF3DD; color:#2F5A18; font-size:11px; font-weight:600; padding:3px 10px; border-radius:12px; margin-bottom:10px; }
+  :root {
+    --green: #6B9C3F;
+    --green-dark: #4C7128;
+    --green-tint: #EAF3DD;
+    --paper: #F4F5F0;
+    --surface: #FFFFFF;
+    --surface-2: #F6F6F2;
+    --ink: #1C1C1E;
+    --ink-2: #6E6E73;
+    --ink-3: #ACACA8;
+    --border: #E7E7E2;
+    --error: #D3372A;
+    --error-tint: #FBE8E6;
+    --gold: #B8860B;
+    --gold-tint: #FBEBC4;
+    --gold-border: #E8C97A;
+    --gold-ink: #7A5A0A;
+    --ease: cubic-bezier(.4,0,.2,1);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.3;
+    font-size: 14px;
+  }
+
+  /* ==================== NAVBAR ==================== */
+  .navbar {
+    position: sticky;
+    top: 0;
+    background: rgba(244,245,240,.88);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px 10px;
+    z-index: 10;
+  }
+  .navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--green-dark);
+    margin-bottom: 2px;
+  }
+  .navbar-brand i { font-size: 11px; opacity: 0.7; }
+  .title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  /* ==================== LAYOUT ==================== */
+  .content { max-width: 780px; margin: 0 auto; padding: 14px 14px 40px; }
+
+  /* ==================== DATE BADGE ==================== */
+  .date-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--green-tint);
+    color: var(--green-dark);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 12px;
+    margin-bottom: 14px;
+    letter-spacing: 0.2px;
+  }
+  .date-badge i { font-size: 12px; }
+
+  /* ==================== LOCATION BREADCRUMB ==================== */
+  .location-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 7px 14px 7px 12px;
+    margin-bottom: 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .location-bar::-webkit-scrollbar { display: none; }
+
+  .location-icon {
+    font-size: 14px;
+    color: var(--green);
+    flex-shrink: 0;
+  }
+
+  .crumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    flex-shrink: 0;
+    letter-spacing: -0.1px;
+  }
+
+  .crumb-county {
+    color: var(--gold-ink);
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .crumb-county::before {
+    content: "";
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--gold);
+    margin-right: 2px;
+  }
+
+  .crumb-sep {
+    font-size: 11px;
+    color: var(--ink-3);
+    flex-shrink: 0;
+  }
+
+  .crumb-btn {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--ink-2);
+    padding: 4px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .15s var(--ease);
+  }
+  .crumb-btn:hover {
+    border-color: #C8D9B0;
+    background: #FAFBF7;
+    color: var(--ink);
+  }
+  .crumb-btn:active { transform: scale(0.97); }
+  .crumb-btn i { font-size: 11px; color: var(--ink-3); }
+  .crumb-btn[data-empty="1"] {
+    color: var(--ink-3);
+    font-weight: 500;
+  }
+  .crumb-btn[data-empty="0"] {
+    background: linear-gradient(180deg, #78ab4c, var(--green));
+    border-color: var(--green-dark);
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(107,156,63,.24);
+  }
+  .crumb-btn[data-empty="0"] i { color: rgba(255,255,255,.8); }
+
+  /* ==================== PICKER POPOVERS ==================== */
+  .picker-pop {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 10px 6px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 14px rgba(20,22,18,.06);
+    animation: pickerIn .18s var(--ease);
+  }
+  @keyframes pickerIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ==================== PILLS (one-line scroll) ==================== */
+  .pill-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 7px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 3px 2px 4px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .pill-row::-webkit-scrollbar { display: none; }
+
+  .pill {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 13px;
+    background: var(--surface-2);
+    border: 1.5px solid var(--border);
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 1.2;
+    white-space: nowrap;
+    user-select: none;
+    transition: all .18s var(--ease);
+    letter-spacing: -0.1px;
+  }
+  .pill i { font-size: 12px; color: var(--ink-3); transition: color .15s; }
+  .pill:hover { border-color: #C8D9B0; background: #FAFBF7; }
+  .pill:active { transform: scale(0.96); }
+  .pill.selected {
+    background: linear-gradient(180deg, #78ab4c, var(--green));
+    border-color: var(--green-dark);
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(107,156,63,.28);
+  }
+  .pill.selected i { color: #fff; }
+
+  .pill-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    background: var(--surface-2);
+    border: 1.5px dashed #E0E0DA;
+    border-radius: 999px;
+    font-size: 11.5px;
+    color: var(--ink-3);
+    font-weight: 500;
+  }
+  .pill-loading .spinner {
+    width: 11px;
+    height: 11px;
+    border: 2px solid #D8D8D2;
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: pillSpin .8s linear infinite;
+  }
+  @keyframes pillSpin { to { transform: rotate(360deg); } }
+
+  .pill-empty {
+    font-size: 11.5px;
+    color: var(--ink-3);
+    padding: 8px 4px;
+    font-style: italic;
+  }
+
+  /* ==================== BUTTONS ==================== */
+  .btn-primary {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #78ab4c, var(--green));
+    color: #fff;
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: 0.1px;
+    cursor: pointer;
+    width: 100%;
+    font-family: inherit;
+    transition: transform .15s var(--ease), opacity .15s var(--ease), box-shadow .15s var(--ease);
+    box-shadow: 0 2px 8px rgba(107,156,63,.22);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .btn-primary:disabled {
+    background: #D1D1D6;
+    box-shadow: none;
+    cursor: not-allowed;
+    opacity: 0.75;
+  }
+  .btn-primary:active:not(:disabled) { transform: scale(0.98); }
+  .btn-primary i { font-size: 13px; }
+
+  /* ==================== KIT CARDS ==================== */
+  .kit-card {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 11px 13px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    border-left: 3px solid transparent;
+    transition: border-color .2s var(--ease);
+  }
+  .kit-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 7px;
+    gap: 8px;
+  }
+  .kit-name {
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: -0.1px;
+  }
+  .kit-serial {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    font-weight: 500;
+    color: var(--ink-2);
+    background: var(--surface-2);
+    padding: 2px 7px;
+    border-radius: 6px;
+  }
+  .kit-card input.venue {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 11px;
+    font-size: 13.5px;
+    font-family: inherit;
+    color: var(--ink);
+    background: var(--surface);
+    transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
+  }
+  .kit-card input.venue:focus {
+    outline: none;
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px var(--green-tint);
+  }
+  .kit-card.saved { border-left-color: var(--green-dark); }
+  .kit-card.has-error { border-left-color: var(--error); }
+
+  /* ==================== MESSAGES ==================== */
+  .msg-success {
+    color: var(--green-dark);
+    background: var(--green-tint);
+    padding: 8px 12px;
+    border-radius: 9px;
+    font-size: 11.5px;
+    font-weight: 600;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .msg-error {
+    color: var(--error);
+    background: var(--error-tint);
+    padding: 8px 12px;
+    border-radius: 9px;
+    font-size: 11.5px;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .empty {
+    color: var(--ink-3);
+    font-size: 12px;
+    padding: 12px 4px;
+    text-align: center;
+  }
+
+  .hidden { display: none !important; }
+
+  /* ==================== SUCCESS MODAL ==================== */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(28,28,30,.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s var(--ease);
+  }
+  .modal-backdrop.show { opacity: 1; pointer-events: auto; }
+
+  .success-modal {
+    background: var(--surface);
+    border-radius: 20px;
+    padding: 28px 24px 22px;
+    max-width: 320px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(20,22,18,.30), 0 8px 20px rgba(20,22,18,.14);
+    transform: scale(0.85);
+    opacity: 0;
+    transition: transform .35s cubic-bezier(.34,1.56,.64,1), opacity .25s var(--ease);
+  }
+  .modal-backdrop.show .success-modal { transform: scale(1); opacity: 1; }
+
+  .check-circle {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 14px;
+    display: block;
+  }
+  .check-circle circle {
+    fill: none;
+    stroke: var(--green-dark);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 264;
+    stroke-dashoffset: 264;
+    transform-origin: 50% 50%;
+    transform: rotate(-90deg);
+  }
+  .check-circle .check-path {
+    fill: none;
+    stroke: var(--green-dark);
+    stroke-width: 4.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+  }
+  .modal-backdrop.show .check-circle circle { animation: drawCircle .5s ease-out forwards; }
+  .modal-backdrop.show .check-circle .check-path { animation: drawTick .35s ease-out .45s forwards; }
+  @keyframes drawCircle { to { stroke-dashoffset: 0; } }
+  @keyframes drawTick   { to { stroke-dashoffset: 0; } }
+
+  .success-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 16.5px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0 0 4px;
+    letter-spacing: -0.2px;
+  }
+  .success-body {
+    font-size: 12px;
+    color: var(--green-dark);
+    background: var(--green-tint);
+    padding: 9px 13px;
+    border-radius: 10px;
+    margin: 10px 0 14px;
+    font-weight: 500;
+    line-height: 1.45;
+  }
+  .success-meta {
+    font-size: 10.5px;
+    color: var(--ink-2);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  .success-meta i { color: var(--green-dark); font-size: 13px; }
+
+  .success-done-btn {
+    width: 100%;
+    padding: 11px;
+    border: none;
+    border-radius: 10px;
+    background: var(--green-dark);
+    color: #fff;
+    font-weight: 700;
+    font-size: 12.5px;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform .15s var(--ease), background .15s var(--ease);
+  }
+  .success-done-btn:hover { background: #3d5a20; }
+  .success-done-btn:active { transform: scale(0.97); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .modal-backdrop, .success-modal,
+    .check-circle circle, .check-circle .check-path {
+      animation: none !important;
+      transition: none !important;
+    }
+    .check-circle circle, .check-circle .check-path { stroke-dashoffset: 0; }
+  }
+
+  @media (max-width: 400px) {
+    .content { padding: 10px 10px 32px; }
+    .title { font-size: 17px; }
+  }
 </style>
 </head>
 <body>
 <div class="navbar">
-  <div class="title">Tomorrow's Movement Plan</div>
+  <div class="navbar-brand">
+    <i class="ti ti-map-pin-filled"></i>
+    <span>IEBC · Movement</span>
+  </div>
+  <h1 class="title">Tomorrow's Movement Plan</h1>
 </div>
 <div class="content">
 
   <div class="date-badge">
     <i class="ti ti-calendar"></i>
-    Schedule date: <strong id="sched-date-display">{{ schedule_date }}</strong>
+    <span>Schedule · <strong id="sched-date-display">{{ schedule_date }}</strong></span>
   </div>
 
-  <!-- Identify -->
-  <div id="identify-card" class="group">
-    <div class="row">
-      <label for="constituency-select">Constituency</label>
-      <select id="constituency-select">
-        <option value="">Select constituency</option>
-        {% for c in constituencies %}
-          <option value="{{ c.id }}" {% if bound_constituency and bound_constituency.id == c.id %}selected{% endif %}>{{ c.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="row">
-      <label for="ward-select">Ward</label>
-      <select id="ward-select">
-        <option value="">Select ward</option>
-      </select>
+  <!-- ==================== LOCATION BREADCRUMB ==================== -->
+  <div id="location-bar" class="location-bar">
+    <i class="ti ti-map-pin-filled location-icon"></i>
+
+    <span id="location-county" class="crumb crumb-county hidden">
+      <span id="county-name-display">—</span>
+    </span>
+
+    <i id="sep-county" class="ti ti-chevron-right crumb-sep hidden"></i>
+
+    <button type="button" id="crumb-constituency" class="crumb crumb-btn" data-empty="1">
+      <span id="constituency-label">Select constituency</span>
+      <i class="ti ti-chevron-down"></i>
+    </button>
+
+    <i id="sep-ward" class="ti ti-chevron-right crumb-sep hidden"></i>
+
+    <button type="button" id="crumb-ward" class="crumb crumb-btn hidden" data-empty="1">
+      <span id="ward-label">Select ward</span>
+      <i class="ti ti-chevron-down"></i>
+    </button>
+  </div>
+
+  <!-- ==================== PICKER POPOVERS ==================== -->
+  <div id="picker-constituency" class="picker-pop hidden">
+    <div class="pill-row" id="constituency-pills">
+      {% for c in constituencies %}
+        <button type="button"
+                class="pill {% if bound_constituency and bound_constituency.id == c.id %}selected{% endif %}"
+                data-constituency-id="{{ c.id }}"
+                data-county-name="{{ c.county.name|default:'' }}">
+          <i class="ti ti-map-pin"></i>
+          {{ c.name }}
+        </button>
+      {% empty %}
+        <div class="pill-empty">No constituencies available.</div>
+      {% endfor %}
     </div>
   </div>
-  <button id="load-kits-btn" class="btn-primary" disabled>Load kits</button>
+
+  <div id="picker-ward" class="picker-pop hidden">
+    <div class="pill-row" id="ward-pills">
+      <div class="pill-empty">Pick a constituency first.</div>
+    </div>
+  </div>
+
   <div id="bind-error" class="msg-error hidden" role="alert"></div>
 
-  <!-- Kits -->
+  <!-- ==================== KITS ==================== -->
   <div id="kits-container" class="hidden" style="margin-top:14px;">
-    <h3 id="kits-title" style="font-size:15px; margin:0 0 10px;"></h3>
+    <h3 id="kits-title" style="font-size:13px; font-weight:700; margin:0 0 10px; letter-spacing:-0.1px;"></h3>
     <div id="kits-list"></div>
     <button id="save-all-btn" class="btn-primary" style="margin-top:10px;">
-      <i class="ti ti-device-floppy"></i> Save movement plan
+      <i class="ti ti-device-floppy"></i>
+      Save movement plan
     </button>
     <div id="save-msg" class="hidden" role="status"></div>
   </div>
 
+</div>
+
+<!-- ==================== SUCCESS MODAL ==================== -->
+<div id="successModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="successTitle">
+  <div class="success-modal">
+    <svg class="check-circle" viewBox="0 0 100 100" aria-hidden="true">
+      <circle cx="50" cy="50" r="42"></circle>
+      <path class="check-path" d="M32 52 L45 64 L70 38"></path>
+    </svg>
+    <h2 id="successTitle" class="success-title">Movement Plan Saved</h2>
+    <div id="successBody" class="success-body">Your venues have been submitted.</div>
+    <div id="successMeta" class="success-meta">
+      <i class="ti ti-brand-whatsapp"></i>
+      <span>Notification sent to the constituency group</span>
+    </div>
+    <button type="button" id="successDoneBtn" class="success-done-btn">Done</button>
+  </div>
 </div>
 
 <script>
@@ -89,12 +610,13 @@ const BOUND_WARD_ID = {{ bound_ward.id|default:"null" }};
 const BOUND_CONSTITUENCY_ID = {{ bound_constituency.id|default:"null" }};
 
 let fpId = null;
-let fpReady = null;          // promise, resolves when fingerprint attempt finishes
+let fpReady = null;
 let currentWardId = null;
+let currentConstituencyId = null;
 
 const $ = id => document.getElementById(id);
 
-// ---------- helpers ----------
+// ==================== HELPERS ====================
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => (
     {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
@@ -107,9 +629,7 @@ function showError(msg) {
   el.classList.remove('hidden');
 }
 
-function clearError() {
-  $('bind-error').classList.add('hidden');
-}
+function clearError() { $('bind-error').classList.add('hidden'); }
 
 function resetKits() {
   $('kits-container').classList.add('hidden');
@@ -117,21 +637,46 @@ function resetKits() {
   $('save-msg').classList.add('hidden');
 }
 
-// fetch wrapper: always returns parsed JSON or throws a readable Error
+// ==================== SUCCESS MODAL ====================
+let successAutoCloseTimer = null;
+
+function showSuccessModal({ title, body, showWhatsApp = true, autoCloseMs = 2400 }) {
+  const modal = $('successModal');
+  $('successTitle').textContent = title || 'Movement Plan Saved';
+  $('successBody').textContent = body || 'Your venues have been submitted.';
+  $('successMeta').style.display = showWhatsApp ? 'flex' : 'none';
+
+  modal.classList.remove('show');
+  void modal.offsetWidth;
+  modal.classList.add('show');
+
+  if (successAutoCloseTimer) clearTimeout(successAutoCloseTimer);
+  if (autoCloseMs > 0) {
+    successAutoCloseTimer = setTimeout(hideSuccessModal, autoCloseMs);
+  }
+}
+
+function hideSuccessModal() {
+  $('successModal').classList.remove('show');
+  if (successAutoCloseTimer) {
+    clearTimeout(successAutoCloseTimer);
+    successAutoCloseTimer = null;
+  }
+}
+
+// ==================== FETCH WRAPPER ====================
 async function api(url, options) {
   const r = await fetch(url, options);
   let data = null;
-  try { data = await r.json(); } catch (_) { /* non-JSON response */ }
-  // Your views return JSON with ok:false on 4xx, so hand those back to the caller
+  try { data = await r.json(); } catch (_) { /* non-JSON */ }
   if (data === null) throw new Error(`Server error (${r.status}). Please try again.`);
   return data;
 }
 
-// ---------- fingerprint ----------
+// ==================== FINGERPRINT ====================
 async function initFingerprint() {
   try {
     if (typeof FingerprintJS === 'undefined') {
-      // script is async; wait briefly for it to arrive
       await new Promise((res, rej) => {
         const t0 = Date.now();
         const iv = setInterval(() => {
@@ -153,40 +698,143 @@ async function initFingerprint() {
   }
 }
 
-// ---------- data loading ----------
-async function loadWards(constituencyId) {
-  const sel = $('ward-select');
-  sel.innerHTML = '<option value="">Select ward</option>';
+// ==================== PICKER CONTROL ====================
+function openPicker(which) {
+  const cp = $('picker-constituency');
+  const wp = $('picker-ward');
+  if (which === 'constituency') {
+    cp.classList.remove('hidden');
+    wp.classList.add('hidden');
+  } else if (which === 'ward') {
+    wp.classList.remove('hidden');
+    cp.classList.add('hidden');
+  } else {
+    cp.classList.add('hidden');
+    wp.classList.add('hidden');
+  }
+}
+function closePickers() { openPicker(null); }
+
+// ==================== BREADCRUMB ====================
+function setCountyCrumb(name) {
+  if (!name) {
+    $('location-county').classList.add('hidden');
+    $('sep-county').classList.add('hidden');
+    return;
+  }
+  $('county-name-display').textContent = name;
+  $('location-county').classList.remove('hidden');
+  $('sep-county').classList.remove('hidden');
+}
+
+function setConstituencyCrumb(name) {
+  const btn = $('crumb-constituency');
+  $('constituency-label').textContent = name;
+  btn.dataset.empty = '0';
+}
+
+function resetConstituencyCrumb() {
+  const btn = $('crumb-constituency');
+  $('constituency-label').textContent = 'Select constituency';
+  btn.dataset.empty = '1';
+}
+
+function setWardCrumb(name) {
+  const btn = $('crumb-ward');
+  $('ward-label').textContent = name;
+  btn.dataset.empty = '0';
+  btn.classList.remove('hidden');
+  $('sep-ward').classList.remove('hidden');
+}
+
+function resetWardCrumb() {
+  const btn = $('crumb-ward');
+  $('ward-label').textContent = 'Select ward';
+  btn.dataset.empty = '1';
+  btn.classList.add('hidden');
+  $('sep-ward').classList.add('hidden');
+}
+
+// ==================== CONSTITUENCY PILLS ====================
+function bindConstituencyPills() {
+  const container = $('constituency-pills');
+  container.querySelectorAll('.pill').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      resetKits();
+
+      currentConstituencyId = btn.dataset.constituencyId;
+      setConstituencyCrumb(btn.textContent.trim());
+
+      container.querySelectorAll('.pill').forEach(p => p.classList.remove('selected'));
+      btn.classList.add('selected');
+
+      setCountyCrumb(btn.dataset.countyName || '');
+      resetWardCrumb();
+
+      // Ward pills will be reset by loadWardPills
+      await loadWardPills(currentConstituencyId);
+      openPicker('ward');
+    });
+  });
+}
+
+// ==================== WARD PILLS ====================
+async function loadWardPills(constituencyId) {
+  const container = $('ward-pills');
+  container.innerHTML = '<div class="pill-loading"><span class="spinner"></span> Loading wards...</div>';
+
   try {
     const d = await api(`/api/wards-by-constituency/?constituency_id=${encodeURIComponent(constituencyId)}`);
-    (d.wards || []).forEach(w => {
-      const o = document.createElement('option');
-      o.value = w.id;
-      o.textContent = w.name;
-      sel.appendChild(o);
+    const wards = d.wards || [];
+    if (!wards.length) {
+      container.innerHTML = '<div class="pill-empty">No wards found for this constituency.</div>';
+      return;
+    }
+    container.innerHTML = wards.map(w => `
+      <button type="button" class="pill" data-ward-id="${esc(w.id)}">
+        <i class="ti ti-current-location"></i>
+        ${esc(w.name)}
+      </button>
+    `).join('');
+
+    container.querySelectorAll('.pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('.pill').forEach(p => p.classList.remove('selected'));
+        btn.classList.add('selected');
+        currentWardId = btn.dataset.wardId;
+        setWardCrumb(btn.textContent.trim());
+
+        const keptWard = btn.dataset.wardId;
+        resetKits();
+        currentWardId = keptWard;
+
+        closePickers();
+        loadKits();
+      });
     });
   } catch (e) {
-    showError(e.message);
+    container.innerHTML = `<div class="pill-empty">Could not load wards. ${esc(e.message)}</div>`;
   }
 }
 
+// ==================== KITS ====================
 async function loadKits(forcedWardId) {
   const wardId = (typeof forcedWardId === 'string' || typeof forcedWardId === 'number')
-    ? forcedWardId : $('ward-select').value;
+    ? forcedWardId : currentWardId;
   if (!wardId) return;
-  currentWardId = wardId;
-  clearError();
-  resetKits();
 
-  const btn = $('load-kits-btn');
-  btn.disabled = true;
+  const keptWard = wardId;
+  resetKits();
+  currentWardId = keptWard;
+  clearError();
+
   try {
     const d = await api(`/movement/kits/?ward_id=${encodeURIComponent(wardId)}`);
     if (!d.ok) { showError(d.error); return; }
 
     if (d.schedule_date) $('sched-date-display').textContent = d.schedule_date;
     const kits = d.kits || [];
-    $('kits-title').textContent = `${d.ward_name} \u2014 Kits (${kits.length})`;
+    $('kits-title').textContent = `${d.ward_name} · ${kits.length} kit${kits.length === 1 ? '' : 's'}`;
     $('kits-list').innerHTML = kits.length
       ? kits.map(k => `
         <div class="kit-card ${k.has_schedule ? 'saved' : ''}" data-kit-id="${esc(k.kit_id)}" data-orig="${esc(k.venue)}">
@@ -194,7 +842,8 @@ async function loadKits(forcedWardId) {
             <span class="kit-name">${esc(k.kit_name)}</span>
             <span class="kit-serial">${esc(k.serial_no)}</span>
           </div>
-          <input class="venue" placeholder="Venue for tomorrow" value="${esc(k.venue)}" aria-label="Venue for ${esc(k.kit_name)}">
+          <input class="venue" placeholder="Enter venue for tomorrow" value="${esc(k.venue)}"
+                 aria-label="Venue for ${esc(k.kit_name)}">
         </div>`).join('')
       : '<div class="empty">No kits found for this ward.</div>';
 
@@ -202,19 +851,16 @@ async function loadKits(forcedWardId) {
     $('kits-container').classList.remove('hidden');
   } catch (e) {
     showError(e.message);
-  } finally {
-    btn.disabled = !($('constituency-select').value && $('ward-select').value);
   }
 }
 
+// ==================== SAVE ====================
 async function saveAll() {
   const btn = $('save-all-btn');
   const msg = $('save-msg');
 
-  // give the fingerprint a moment to finish if the user is very fast
   if (fpReady) await fpReady;
 
-  // Send only kits with a venue that changed, so unchanged kits don't trigger "updated" WhatsApp messages
   document.querySelectorAll('.kit-card').forEach(c => c.classList.remove('has-error'));
   const entries = [...document.querySelectorAll('.kit-card')]
     .map(card => ({ card, venue: card.querySelector('.venue').value.trim() }))
@@ -224,9 +870,12 @@ async function saveAll() {
   msg.classList.remove('hidden');
   if (!entries.length) {
     msg.className = 'msg-error';
-    msg.textContent = 'Nothing to save. Enter or change a venue first.';
+    msg.innerHTML = '<i class="ti ti-info-circle"></i> Nothing to save. Enter or change a venue first.';
     return;
   }
+
+  const wardName = ($('kits-title').textContent.split('·')[0] || '').trim() || 'this ward';
+
   btn.disabled = true;
   try {
     const d = await api('/movement/save/', {
@@ -238,12 +887,33 @@ async function saveAll() {
         entries
       })
     });
+
     if (d.ok) {
       msg.className = 'msg-success';
-      msg.textContent = d.message || 'Movement plan saved.';
+      msg.innerHTML = '<i class="ti ti-check"></i> ' + (d.message || 'Movement plan saved.');
       document.querySelectorAll('.kit-card').forEach(card => {
         const v = card.querySelector('.venue').value.trim();
         if (v) { card.dataset.orig = v; card.classList.add('saved'); }
+      });
+
+      const createdCount = d.created || 0;
+      const updatedCount = d.updated || 0;
+      const total = createdCount + updatedCount || entries.length;
+
+      let bodyText;
+      if (createdCount && updatedCount) {
+        bodyText = `${createdCount} new + ${updatedCount} updated kit${total === 1 ? '' : 's'} scheduled for ${wardName}.`;
+      } else if (updatedCount) {
+        bodyText = `${updatedCount} kit${updatedCount === 1 ? '' : 's'} updated for ${wardName}.`;
+      } else {
+        bodyText = `${total} kit${total === 1 ? '' : 's'} scheduled for ${wardName}.`;
+      }
+
+      showSuccessModal({
+        title: 'Movement Plan Saved',
+        body: bodyText,
+        showWhatsApp: true,
+        autoCloseMs: 2400
       });
     } else {
       msg.className = 'msg-error';
@@ -258,67 +928,119 @@ async function saveAll() {
             bad.push(text);
           }
         });
-        msg.textContent = bad.join(' | ');
+        msg.innerHTML = '<i class="ti ti-alert-circle"></i> ' + bad.join(' | ');
       } else {
-        msg.textContent = d.error || 'Could not save.';
+        msg.innerHTML = '<i class="ti ti-alert-circle"></i> ' + (d.error || 'Could not save.');
       }
     }
   } catch (e) {
     msg.className = 'msg-error';
-    msg.textContent = e.message;
+    msg.innerHTML = '<i class="ti ti-alert-circle"></i> ' + e.message;
   } finally {
     btn.disabled = false;
   }
 }
 
-// The server can't see the fingerprint on first load, so ask it now
+// ==================== AUTO-BIND ====================
 async function bindFromFingerprint() {
   if (!fpId) return;
   try {
     for (const kind of ['vra', 'clerk']) {
       const d = await api(`/kiems/resolve-${kind}/?fingerprint=${encodeURIComponent(fpId)}`);
-      if (d.bound && d.ward_id) {
-        $('identify-card').classList.add('hidden');
-        $('load-kits-btn').classList.add('hidden');
-        await loadKits(d.ward_id);
+      if (d.bound && d.ward_id && d.constituency_id) {
+        currentConstituencyId = d.constituency_id;
+        currentWardId = d.ward_id;
+
+        setCountyCrumb(d.county_name || '');
+        setConstituencyCrumb(d.constituency_name || 'Constituency');
+        setWardCrumb(d.ward_name || 'Ward');
+
+        // Mark matching pills selected for consistency
+        const cPill = document.querySelector(
+          `#constituency-pills .pill[data-constituency-id="${d.constituency_id}"]`
+        );
+        if (cPill) {
+          document.querySelectorAll('#constituency-pills .pill').forEach(p => p.classList.remove('selected'));
+          cPill.classList.add('selected');
+          if (cPill.dataset.countyName) setCountyCrumb(cPill.dataset.countyName);
+        }
+        await loadWardPills(d.constituency_id);
+        const wPill = document.querySelector(`#ward-pills .pill[data-ward-id="${d.ward_id}"]`);
+        if (wPill) {
+          document.querySelectorAll('#ward-pills .pill').forEach(p => p.classList.remove('selected'));
+          wPill.classList.add('selected');
+        }
+
+        closePickers();
+        await loadKits();
         return;
       }
     }
   } catch (e) { console.warn('Bind lookup failed', e); }
 }
 
-// ---------- init ----------
+// ==================== INIT ====================
 (function init() {
-  const cSel = $('constituency-select');
-  const wSel = $('ward-select');
-  const loadBtn = $('load-kits-btn');
-  const refreshBtn = () => { loadBtn.disabled = !(cSel.value && wSel.value); };
-
-  // Attach listeners first so the page works even if fingerprinting is slow or blocked
-  cSel.addEventListener('change', async () => {
-    clearError();
-    resetKits();
-    wSel.innerHTML = '<option value="">Select ward</option>';
-    refreshBtn();
-    if (cSel.value) await loadWards(cSel.value);
-    refreshBtn();
-  });
-  wSel.addEventListener('change', () => { resetKits(); refreshBtn(); });
-  loadBtn.addEventListener('click', loadKits);
   $('save-all-btn').addEventListener('click', saveAll);
 
-  // Fingerprint runs in the background
+  // Success modal wiring
+  $('successDoneBtn').addEventListener('click', hideSuccessModal);
+  $('successModal').addEventListener('click', (e) => {
+    if (e.target === $('successModal')) hideSuccessModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { hideSuccessModal(); closePickers(); }
+  });
+
+  // Crumb taps toggle pickers
+  $('crumb-constituency').addEventListener('click', () => {
+    const open = !$('picker-constituency').classList.contains('hidden');
+    openPicker(open ? null : 'constituency');
+  });
+  $('crumb-ward').addEventListener('click', () => {
+    if (!currentConstituencyId) return;
+    const open = !$('picker-ward').classList.contains('hidden');
+    openPicker(open ? null : 'ward');
+  });
+
+  // Click-outside to close pickers
+  document.addEventListener('click', (e) => {
+    const bar = $('location-bar');
+    const cp = $('picker-constituency');
+    const wp = $('picker-ward');
+    if (bar.contains(e.target) || cp.contains(e.target) || wp.contains(e.target)) return;
+    closePickers();
+  });
+
+  bindConstituencyPills();
+
   fpReady = initFingerprint();
   if (!(BOUND_WARD_ID && BOUND_CONSTITUENCY_ID)) fpReady.then(bindFromFingerprint);
 
-  // Auto-bind path
+  // Server-side bound device
   if (BOUND_WARD_ID && BOUND_CONSTITUENCY_ID) {
     (async () => {
-      cSel.value = BOUND_CONSTITUENCY_ID;
-      await loadWards(BOUND_CONSTITUENCY_ID);
-      wSel.value = BOUND_WARD_ID;
-      $('identify-card').classList.add('hidden');
-      loadBtn.classList.add('hidden');
+      currentConstituencyId = BOUND_CONSTITUENCY_ID;
+      currentWardId = BOUND_WARD_ID;
+
+      const cPill = document.querySelector(
+        `#constituency-pills .pill[data-constituency-id="${BOUND_CONSTITUENCY_ID}"]`
+      );
+      if (cPill) {
+        cPill.classList.add('selected');
+        setCountyCrumb(cPill.dataset.countyName || '');
+        setConstituencyCrumb(cPill.textContent.trim());
+      }
+      await loadWardPills(BOUND_CONSTITUENCY_ID);
+      const wPill = document.querySelector(
+        `#ward-pills .pill[data-ward-id="${BOUND_WARD_ID}"]`
+      );
+      if (wPill) {
+        wPill.classList.add('selected');
+        setWardCrumb(wPill.textContent.trim());
+      }
+
+      closePickers();
       await loadKits();
     })();
   }

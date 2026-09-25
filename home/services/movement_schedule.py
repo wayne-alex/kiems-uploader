@@ -33,12 +33,33 @@ def format_single_movement_message(schedule, is_update=False):
         f"Venue: {schedule.venue}\n"
         f"Date: {schedule.schedule_date.strftime('%d %b %Y')}"
     )
-
+def _sanitize(text: str) -> str:
+    """Strip WhatsApp markdown control chars from user-entered text."""
+    return (text or "").replace("*", "").replace("_", "").replace("~", "").replace("`", "").strip()
 
 def format_grand_movement_message(constituency, schedule_date):
     """
-    Grand report: every kit's venue for `schedule_date`, grouped by ward.
-    Safe to call when no schedules exist — returns a friendly 'no plan' line.
+    Grand report: 'Kits Movement Schedule' with globally-sequential kit
+    numbering across all wards (1..N for the whole constituency), and
+    WhatsApp bold on the header lines and ward names.
+
+    Example output:
+
+        *Uasin Gishu County — Turbo Constituency*
+        *Kits Movement Schedule*
+        *25/09/2026*
+
+        *Ngenyilel Ward*
+        • Kit 1: Siriat village.
+        • Kit 2: Emgoin village.
+        • Kit 3: Bukwo village.
+
+        *Tapsagoi Ward*
+        • Kit 4: Silanga.
+        • Kit 5: Chukura.
+        • Kit 6: Besiabor.
+
+        ...
     """
     schedules = list(
         MovementSchedule.objects
@@ -47,30 +68,43 @@ def format_grand_movement_message(constituency, schedule_date):
         .order_by("ward__name", "kiems_kit__kit_name")
     )
 
-    if not schedules:
-        return (
-            f"TOMORROW'S MOVEMENT PLAN — {schedule_date.strftime('%d %b %Y')}\n"
-            f"{constituency.name.upper()}\n\n"
-            "No venues have been scheduled yet."
-        )
+    # County name — fall back to constituency name if the county FK isn't set.
+    county_name = (
+        constituency.county.name
+        if getattr(constituency, "county", None)
+        else "County"
+    )
 
-    lines = [
-        f"*{constituency.name.upper()}* — TOMORROW'S MOVEMENT PLAN",
-        f"_{schedule_date.strftime('%d %b %Y')}_",
-        "------------------------------",
+    header_lines = [
+        f"*{county_name} County — {constituency.name} Constituency*",
+        "*Kits Movement Schedule*",
+        f"*{schedule_date.strftime('%d/%m/%Y')}*",
+        "",
     ]
 
+    if not schedules:
+        return "\n".join(header_lines + ["_No venues have been scheduled yet._"])
+
+    body_lines = []
     current_ward = None
+    kit_number = 0  # global counter, does NOT reset per ward
+
     for s in schedules:
         if s.ward.name != current_ward:
+            if current_ward is not None:
+                body_lines.append("")  # blank line between wards
             current_ward = s.ward.name
-            lines.append(f"\n*{current_ward}*")
-        lines.append(f"  {s.kiems_kit.kit_name}: {s.venue}")
+            body_lines.append(f"*{current_ward} Ward*")
 
-    lines.append("------------------------------")
-    lines.append(f"_{len(schedules)} kit(s) scheduled_")
+        kit_number += 1
 
-    return "\n".join(lines)
+        venue = _sanitize(s.venue)
+        if venue and not venue.endswith("."):
+            venue += "."
+
+        body_lines.append(f"• Kit {kit_number}: {venue}")
+
+    return "\n".join(header_lines + body_lines)
 
 
 # ============================================================

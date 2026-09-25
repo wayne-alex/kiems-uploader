@@ -4,9 +4,24 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
 
+class County(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=20, blank=True)
 
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "Counties"
+
+    def __str__(self):
+        return self.name
 class Constituency(models.Model):
     name = models.CharField(max_length=150, unique=True)
+    county = models.ForeignKey(
+        County,
+        on_delete=models.PROTECT,
+        related_name="constituencies",
+        null=True, blank=True,
+    )
     code = models.CharField(max_length=20, unique=True, blank=True, null=True)
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
