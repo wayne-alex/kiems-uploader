@@ -31,7 +31,7 @@ SECRET_KEY = 'django-insecure-f#jp2g-7cod-*_a9h((lnz#wy#)m_-&5=)*h9s4en_t&_*-amo
 DEBUG = os.getenv('DEBUG') == 'True'
 MOVEMENT_REQUIRE_BOUND_DEVICE = os.getenv('MOVEMENT_REQUIRE_BOUND_DEVICE') == 'True'
 
-ALLOWED_HOSTS = ['.vercel.app', '127.0.0.1']
+ALLOWED_HOSTS = ['.vercel.app', '127.0.0.1', 'localhost']
 LOGIN_URL = 'superadmin:login'
 LOGIN_REDIRECT_URL = 'superadmin:dashboard'
 LOGOUT_REDIRECT_URL = 'superadmin:login'
@@ -148,7 +148,6 @@ else:
         }
     }
 
-CSRF_TRUSTED_ORIGINS = ['https://*.vercel.app']
 IEBC_LOGO_URL = "https://cvr.iebc.or.ke/images/logoiebc.png"
 
 PDF_CO_API_KEY = os.getenv('PDF_CO_API_KEY')
@@ -157,3 +156,15 @@ WHATSAPP_BOT_URL = os.getenv('WHATSAPP_BOT_URL', 'http://localhost:3000')
 
 TIME_ZONE = 'Africa/Nairobi'
 USE_TZ = True
+PWA_URL = 'https://kiems-pwa.vercel.app'
+
+
+CORS_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", 'https://kiems-pwa.vercel.app',   'https://kiems-uploader.vercel.app',     ]
+CORS_ALLOW_CREDENTIALS = False
+
+CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", 'https://*.vercel.app', "http://127.0.0.1:5173", ]
+
+CSRF_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = True

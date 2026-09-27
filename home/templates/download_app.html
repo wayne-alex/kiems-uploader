@@ -1,0 +1,540 @@
+{% load static %}
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
+  <meta name="theme-color" content="#F7F7F5" />
+  <title>Get the IEBC Field App</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap"
+    rel="stylesheet"
+  />
+
+  <style>
+    :root {
+      --paper: #F7F7F5;
+      --paper-2: #F0F0EC;
+      --surface: #FFFFFF;
+      --ink: #0A0A0A;
+      --ink-2: #58585A;
+      --ink-3: #8A8A8C;
+      --ink-4: #B4B4B6;
+      --hairline: rgba(10, 10, 10, .06);
+      --accent: #4C7128;
+      --accent-soft: #E8F0DC;
+      --warn: #9A6B00;
+      --amber-tint: #FFF4DE;
+      --shadow-1: 0 1px 2px rgba(10, 10, 10, .04);
+      --shadow-2: 0 4px 16px rgba(10, 10, 10, .06);
+      --shadow-3: 0 12px 40px rgba(10, 10, 10, .08);
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+      --ease: cubic-bezier(.32, .72, 0, 1);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body { margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--paper);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-size: 14px;
+      line-height: 1.5;
+      letter-spacing: -0.01em;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ═══════════════════════════════════════
+       SHELL
+       ═══════════════════════════════════════ */
+    .shell {
+      max-width: 480px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 32px 24px calc(32px + env(safe-area-inset-bottom));
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ═══════════════════════════════════════
+       BRAND
+       ═══════════════════════════════════════ */
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 40px;
+    }
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-1);
+    }
+    .brand-mark svg { width: 16px; height: 16px; }
+    .brand-text {
+      font-size: 13.5px;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      color: var(--ink);
+    }
+    .brand-sub {
+      font-size: 10.5px;
+      color: var(--ink-3);
+      font-family: var(--font-mono);
+      letter-spacing: 0.04em;
+      margin-top: 1px;
+    }
+
+    /* ═══════════════════════════════════════
+       HERO
+       ═══════════════════════════════════════ */
+    .hero {
+      margin-bottom: 36px;
+    }
+    h1 {
+      font-size: 34px;
+      font-weight: 600;
+      letter-spacing: -0.035em;
+      line-height: 1.1;
+      margin: 0 0 12px;
+      color: var(--ink);
+    }
+    .sub {
+      font-size: 15px;
+      color: var(--ink-2);
+      line-height: 1.55;
+      margin: 0;
+      letter-spacing: -0.005em;
+    }
+
+    /* ═══════════════════════════════════════
+       FEATURE LIST
+       ═══════════════════════════════════════ */
+    .features {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .features li {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .check {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .check svg { width: 12px; height: 12px; }
+    .feature-text {
+      font-size: 14px;
+      color: var(--ink);
+      font-weight: 500;
+      line-height: 1.5;
+    }
+    .feature-text strong {
+      font-weight: 600;
+    }
+    .feature-text small {
+      display: block;
+      font-size: 12.5px;
+      color: var(--ink-3);
+      font-weight: 400;
+      margin-top: 2px;
+      letter-spacing: -0.005em;
+    }
+
+    /* ═══════════════════════════════════════
+       ACTIONS
+       ═══════════════════════════════════════ */
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      width: 100%;
+      padding: 16px 22px;
+      border: none;
+      border-radius: 14px;
+      font-family: inherit;
+      font-size: 14.5px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      transition:
+        transform .18s var(--ease),
+        background .18s var(--ease),
+        box-shadow .22s var(--ease);
+      text-decoration: none;
+    }
+    .btn:active { transform: scale(.975); }
+
+    .btn-primary {
+      background: var(--ink);
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(10, 10, 10, .18);
+    }
+    .btn-primary:hover {
+      background: #1a1a1a;
+      box-shadow: 0 12px 32px rgba(10, 10, 10, .22);
+    }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow:
+        0 1px 2px rgba(10, 10, 10, .05),
+        inset 0 0 0 1px var(--hairline);
+    }
+    .btn-secondary:hover { background: #FAFAF8; }
+
+    .btn-icon {
+      display: inline-flex;
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .btn-icon svg { width: 100%; height: 100%; }
+
+    /* ═══════════════════════════════════════
+       INSTALL INSTRUCTIONS (iOS + fallback)
+       ═══════════════════════════════════════ */
+    .instructions {
+      display: none;
+      background: var(--surface);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-top: 4px;
+      box-shadow: var(--shadow-1);
+      animation: fadeUp .35s var(--ease) both;
+    }
+    .instructions.show { display: block; }
+
+    .instr-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--ink-3);
+      margin: 0 0 12px;
+    }
+    .instr-steps {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: step;
+    }
+    .instr-steps li {
+      counter-increment: step;
+      display: flex;
+      gap: 12px;
+      padding: 8px 0;
+      font-size: 13.5px;
+      color: var(--ink-2);
+      line-height: 1.45;
+      border-top: 1px solid var(--hairline);
+    }
+    .instr-steps li:first-child { border-top: none; padding-top: 0; }
+    .instr-steps li::before {
+      content: counter(step);
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--paper-2);
+      color: var(--ink-2);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 0;
+    }
+    .instr-steps li strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    /* ═══════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════ */
+    .foot {
+      margin-top: auto;
+      padding-top: 40px;
+      text-align: center;
+      font-size: 10.5px;
+      color: var(--ink-4);
+      font-family: var(--font-mono);
+      letter-spacing: 0.04em;
+    }
+
+    /* ═══════════════════════════════════════
+       ANIMATION
+       ═══════════════════════════════════════ */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .hero, .features, .actions {
+      animation: fadeUp .5s var(--ease) both;
+    }
+    .features { animation-delay: .05s; }
+    .actions  { animation-delay: .1s; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+      }
+    }
+
+    /* Desktop frame */
+    @media (min-width: 520px) {
+      body { background: #ECEDE9; padding: 32px 0; }
+      .shell {
+        background: var(--paper);
+        border-radius: 32px;
+        overflow: hidden;
+        box-shadow:
+          0 0 0 1px rgba(0, 0, 0, .05),
+          0 30px 80px rgba(0, 0, 0, .09),
+          0 8px 24px rgba(0, 0, 0, .05);
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ══════════════ BRAND ══════════════ -->
+  <div class="brand">
+    <div class="brand-mark">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M12 2.5 L4.5 6 V12 C4.5 16.5 8 20.5 12 21.5 C16 20.5 19.5 16.5 19.5 12 V6 Z"
+              fill="#fff" fill-opacity="0.18" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M9 12.2 L11.2 14.4 L15.2 9.6"
+              stroke="#fff" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-text">IEBC Field</div>
+      <div class="brand-sub">KIEMS · FIELD REPORTING</div>
+    </div>
+  </div>
+
+  <!-- ══════════════ HERO ══════════════ -->
+  <div class="hero">
+    <h1>Install the Field app</h1>
+    <p class="sub">
+      Record registration entries and plan tomorrow's kit movements —
+      right from your phone, no browser tabs.
+    </p>
+  </div>
+
+  <!-- ══════════════ FEATURES ══════════════ -->
+  <ul class="features">
+    <li>
+      <span class="check">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12 L10 17 L19 7"/>
+        </svg>
+      </span>
+      <span class="feature-text">
+        <strong>Works offline</strong>
+        <small>Enter counts without signal — data syncs automatically when you reconnect.</small>
+      </span>
+    </li>
+    <li>
+      <span class="check">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12 L10 17 L19 7"/>
+        </svg>
+      </span>
+      <span class="feature-text">
+        <strong>One tap to open</strong>
+        <small>Lives on your home screen. No browser, no typing URLs.</small>
+      </span>
+    </li>
+    <li>
+      <span class="check">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12 L10 17 L19 7"/>
+        </svg>
+      </span>
+      <span class="feature-text">
+        <strong>Yours alone</strong>
+        <small>This device is bound to your ward — nobody else can enter your kit's data.</small>
+      </span>
+    </li>
+  </ul>
+
+  <!-- ══════════════ ACTIONS ══════════════ -->
+  <div class="actions">
+    <!-- Install button — Chrome, Edge, Android -->
+    <button id="install-btn" class="btn btn-primary" style="display: none;">
+      <span class="btn-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3 V16 M7 11 L12 16 L17 11 M4 20 H20"/>
+        </svg>
+      </span>
+      Install app
+    </button>
+
+    <!-- Open in browser — always visible -->
+    <a id="open-btn" href="{{ pwa_url }}" class="btn btn-secondary">
+      <span class="btn-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 3 H21 V9 M10 14 L21 3 M5 5 V19 H19 V13"/>
+        </svg>
+      </span>
+      Open in browser
+    </a>
+  </div>
+
+  <!-- ══════════════ INSTRUCTIONS (iOS) ══════════════ -->
+  <div id="ios-instructions" class="instructions">
+    <p class="instr-label">To install on iPhone</p>
+    <ol class="instr-steps">
+      <li>Open this page in <strong>Safari</strong> if you aren't already.</li>
+      <li>Tap the <strong>Share</strong> button (square with an up arrow) at the bottom.</li>
+      <li>Scroll down and choose <strong>Add to Home Screen</strong>.</li>
+      <li>Tap <strong>Add</strong>. The app appears on your home screen.</li>
+    </ol>
+  </div>
+
+  <!-- ══════════════ INSTRUCTIONS (fallback) ══════════════ -->
+  <div id="fallback-instructions" class="instructions">
+    <p class="instr-label">To install on Android</p>
+    <ol class="instr-steps">
+      <li>Open this page in <strong>Chrome</strong>.</li>
+      <li>Tap the <strong>three-dot menu</strong> at the top right.</li>
+      <li>Choose <strong>Install app</strong> or <strong>Add to Home Screen</strong>.</li>
+      <li>Confirm. The app appears on your home screen.</li>
+    </ol>
+  </div>
+
+  <!-- ══════════════ FOOTER ══════════════ -->
+  <div class="foot">
+    IEBC · v0.1
+  </div>
+</div>
+
+<script>
+(function () {
+  var PWA_URL = "{{ pwa_url|escapejs }}";
+  var installBtn = document.getElementById('install-btn');
+  var openBtn = document.getElementById('open-btn');
+  var iosInstr = document.getElementById('ios-instructions');
+  var fallbackInstr = document.getElementById('fallback-instructions');
+  var deferredPrompt = null;
+
+  // ── Already running as installed PWA? Redirect immediately.
+  var isStandalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true;
+
+  if (isStandalone) {
+    window.location.href = PWA_URL;
+    return;
+  }
+
+  // ── Platform detection
+  var ua = navigator.userAgent || '';
+  var isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  var isAndroid = /Android/.test(ua);
+  var isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+
+  // ── iOS Safari: show iOS instructions, hide the install button
+  if (isIOS && isSafari) {
+    iosInstr.classList.add('show');
+  }
+
+  // ── Chrome / Edge / Android: capture the install prompt
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBtn.style.display = 'flex';
+    iosInstr.classList.remove('show');   // irrelevant on this platform
+  });
+
+  // ── Install button clicked
+  installBtn.addEventListener('click', async function () {
+    if (!deferredPrompt) {
+      window.location.href = PWA_URL;
+      return;
+    }
+    deferredPrompt.prompt();
+    var choice = await deferredPrompt.userChoice;
+    if (choice.outcome === 'accepted') {
+      installBtn.style.display = 'none';
+    }
+    deferredPrompt = null;
+  });
+
+  // ── Detect the "already installed" state after install event
+  window.addEventListener('appinstalled', function () {
+    installBtn.style.display = 'none';
+    fallbackInstr.classList.remove('show');
+    iosInstr.classList.remove('show');
+  });
+
+  // ── Fallback: no install prompt after 2 seconds and not iOS → show help
+  setTimeout(function () {
+    if (
+      !deferredPrompt &&
+      installBtn.style.display === 'none' &&
+      !isIOS
+    ) {
+      fallbackInstr.classList.add('show');
+    }
+  }, 2200);
+})();
+</script>
+
+</body>
+</html>

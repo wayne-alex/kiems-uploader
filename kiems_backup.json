@@ -1,0 +1,2558 @@
+[
+{
+  "model": "auth.user",
+  "fields": {
+    "password": "pbkdf2_sha256$1500000$lGXmy4vgiV1mAxMbnffmCv$36975sDaj1fJanEXbm1jeUGcGiEIfQZhqu15FGen+nk=",
+    "last_login": "2026-09-25T07:04:41.994Z",
+    "is_superuser": true,
+    "username": "admin",
+    "first_name": "",
+    "last_name": "",
+    "email": "admin@iebc.or.ke",
+    "is_staff": true,
+    "is_active": true,
+    "date_joined": "2026-08-21T06:21:27.191Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "auth.user",
+  "fields": {
+    "password": "pbkdf2_sha256$1500000$mh6wGilgTfSSsjcz52ncdt$jA1EJx/hMZh4ryrKrHG37jyAHpHd9HglhQn0Bag3VzQ=",
+    "last_login": "2026-09-25T07:26:50.436Z",
+    "is_superuser": false,
+    "username": "WayneICT",
+    "first_name": "Wayne",
+    "last_name": "Alex",
+    "email": "waynealex9914@gmail.com",
+    "is_staff": false,
+    "is_active": true,
+    "date_joined": "2026-09-10T18:26:55.994Z",
+    "groups": [],
+    "user_permissions": []
+  }
+},
+{
+  "model": "home.county",
+  "pk": 1,
+  "fields": {
+    "name": "Uasin Gishu",
+    "code": "27"
+  }
+},
+{
+  "model": "home.constituency",
+  "pk": 1,
+  "fields": {
+    "name": "Turbo",
+    "county": 1,
+    "code": "142",
+    "active": true,
+    "created_at": "2026-09-10T18:25:28.990Z"
+  }
+},
+{
+  "model": "home.ward",
+  "pk": 1,
+  "fields": {
+    "name": "NGENYILEL",
+    "code": "0708",
+    "active": true,
+    "constituency": 1
+  }
+},
+{
+  "model": "home.ward",
+  "pk": 2,
+  "fields": {
+    "name": "KAMAGUT",
+    "code": "0713",
+    "active": true,
+    "constituency": 1
+  }
+},
+{
+  "model": "home.vra",
+  "pk": 1,
+  "fields": {
+    "name": "Peter kisorio",
+    "ward": 1,
+    "active": true,
+    "device_token": "5167ec370363a00db411ceb3718318ec",
+    "device_fingerprint": "5167ec370363a00db411ceb3718318ec",
+    "created_at": "2026-08-21T07:15:32.242Z"
+  }
+},
+{
+  "model": "home.vra",
+  "pk": 2,
+  "fields": {
+    "name": "MURUNGA WAYNE",
+    "ward": 2,
+    "active": true,
+    "device_token": "5f0ea38593a021e2c1aed9ee304765f6",
+    "device_fingerprint": "5f0ea38593a021e2c1aed9ee304765f6",
+    "created_at": "2026-09-01T09:51:53.223Z"
+  }
+},
+{
+  "model": "home.clerk",
+  "pk": 3,
+  "fields": {
+    "name": "Pete Kisorio",
+    "ward": 1,
+    "active": true,
+    "created_at": "2026-08-21T07:06:03.171Z",
+    "device_token": null,
+    "device_fingerprint": ""
+  }
+},
+{
+  "model": "home.clerk",
+  "pk": 4,
+  "fields": {
+    "name": "WAYNEMURUNGA",
+    "ward": 2,
+    "active": true,
+    "created_at": "2026-09-01T09:51:29.223Z",
+    "device_token": null,
+    "device_fingerprint": ""
+  }
+},
+{
+  "model": "home.kiemskit",
+  "pk": 1,
+  "fields": {
+    "kit_name": "KIT 1",
+    "serial_no": "F23M00202019",
+    "status": true,
+    "ward": 1,
+    "created_at": "2026-08-21T07:18:48.808Z",
+    "assigned_clerks": [
+      3
+    ]
+  }
+},
+{
+  "model": "home.kiemskit",
+  "pk": 2,
+  "fields": {
+    "kit_name": "KIT 2",
+    "serial_no": "f23m999440004",
+    "status": true,
+    "ward": 1,
+    "created_at": "2026-08-21T13:06:10.777Z",
+    "assigned_clerks": []
+  }
+},
+{
+  "model": "home.kiemskit",
+  "pk": 3,
+  "fields": {
+    "kit_name": "KIT 7",
+    "serial_no": "F2390JJFJFFJF",
+    "status": true,
+    "ward": 2,
+    "created_at": "2026-09-01T09:52:27.481Z",
+    "assigned_clerks": [
+      4
+    ]
+  }
+},
+{
+  "model": "home.phase",
+  "pk": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+  "fields": {
+    "name": "CVR PHASE 2",
+    "start_date": "2026-08-20",
+    "end_date": "2026-09-20",
+    "created_at": "2026-08-21T06:28:32.001Z",
+    "active": true
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 1,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-08-21",
+    "venue": "Home 1",
+    "registered_male": 2,
+    "registered_female": 4,
+    "total_registered": 6,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-08-21T07:40:25.661Z",
+    "updated_at": "2026-08-29T07:14:40.516Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 2,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 2,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-08-21",
+    "venue": "Home 5",
+    "registered_male": 4,
+    "registered_female": 4,
+    "total_registered": 7,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-08-21T13:06:40.201Z",
+    "updated_at": "2026-08-29T08:05:40.063Z",
+    "edit_count": 1,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 15,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-08-22",
+    "venue": "NGENYILEL",
+    "registered_male": 3,
+    "registered_female": 1,
+    "total_registered": 4,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-08-22T19:45:59.170Z",
+    "updated_at": "2026-08-22T19:45:59.170Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 16,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 2,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-08-22",
+    "venue": "NGENYILEL",
+    "registered_male": 3,
+    "registered_female": 5,
+    "total_registered": 8,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-08-22T19:45:59.188Z",
+    "updated_at": "2026-08-22T19:45:59.188Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 19,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-08-26",
+    "venue": "NGENYILEL",
+    "registered_male": 3,
+    "registered_female": 1,
+    "total_registered": 4,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-08-26T05:24:46.014Z",
+    "updated_at": "2026-08-26T05:24:46.014Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 20,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 2,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-08-26",
+    "venue": "NGENYILEL T",
+    "registered_male": 5,
+    "registered_female": 0,
+    "total_registered": 5,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-08-26T05:24:46.035Z",
+    "updated_at": "2026-08-29T05:34:48.998Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 27,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-08-29",
+    "venue": "NGENYILEL",
+    "registered_male": 6,
+    "registered_female": 5,
+    "total_registered": 8,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-08-29T08:55:04.812Z",
+    "updated_at": "2026-08-29T08:55:58.859Z",
+    "edit_count": 1,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 28,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 2,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-08-29",
+    "venue": "NGENYILEL",
+    "registered_male": 3,
+    "registered_female": 4,
+    "total_registered": 7,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-08-29T08:55:04.828Z",
+    "updated_at": "2026-08-29T08:55:04.828Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 32,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-08-30",
+    "venue": "Mailinne Main Stage",
+    "registered_male": 0,
+    "registered_female": 0,
+    "total_registered": 0,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-08-30T11:50:51.981Z",
+    "updated_at": "2026-08-30T11:50:51.981Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 33,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 2,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-08-30",
+    "venue": "Home 2",
+    "registered_male": 0,
+    "registered_female": 0,
+    "total_registered": 0,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-08-30T11:51:02.653Z",
+    "updated_at": "2026-08-30T11:51:13.163Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 45,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-09-01",
+    "venue": "Test",
+    "registered_male": 3,
+    "registered_female": 5,
+    "total_registered": 8,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-01T11:06:33.974Z",
+    "updated_at": "2026-09-01T11:07:51.818Z",
+    "edit_count": 1,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 46,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 2,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-09-01",
+    "venue": "Test",
+    "registered_male": 4,
+    "registered_female": 2,
+    "total_registered": 6,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-01T11:06:47.067Z",
+    "updated_at": "2026-09-01T11:07:51.841Z",
+    "edit_count": 1,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 47,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-01",
+    "venue": "Sugoi chiefs office",
+    "registered_male": 9,
+    "registered_female": 5,
+    "total_registered": 14,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-01T11:07:04.217Z",
+    "updated_at": "2026-09-12T06:40:10.012Z",
+    "edit_count": 1,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 48,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 2,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-09-05",
+    "venue": "OFFICE",
+    "registered_male": 9,
+    "registered_female": 5,
+    "total_registered": 14,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-05T12:22:14.195Z",
+    "updated_at": "2026-09-05T12:36:24.709Z",
+    "edit_count": 1,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 49,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-05",
+    "venue": "NGENYILEL",
+    "registered_male": 5,
+    "registered_female": 5,
+    "total_registered": 10,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-05T12:27:44.058Z",
+    "updated_at": "2026-09-12T06:40:09.176Z",
+    "edit_count": 1,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 50,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-09-05",
+    "venue": "TEST3",
+    "registered_male": 2,
+    "registered_female": 0,
+    "total_registered": 2,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-05T12:28:00.112Z",
+    "updated_at": "2026-09-05T12:36:24.702Z",
+    "edit_count": 1,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 54,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-11",
+    "venue": "Ward office",
+    "registered_male": 6,
+    "registered_female": 4,
+    "total_registered": 10,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-11T09:44:13.943Z",
+    "updated_at": "2026-09-12T06:40:07.962Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 55,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-09-11",
+    "venue": "NGENYILEL",
+    "registered_male": 13,
+    "registered_female": 23,
+    "total_registered": 36,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-11T09:54:01.279Z",
+    "updated_at": "2026-09-11T10:30:37.973Z",
+    "edit_count": 2,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 56,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 2,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 1,
+    "clerk": null,
+    "entry_date": "2026-09-11",
+    "venue": "Murgor Hills",
+    "registered_male": 12,
+    "registered_female": 11,
+    "total_registered": 23,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-11T09:54:01.309Z",
+    "updated_at": "2026-09-11T10:54:46.974Z",
+    "edit_count": 1,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 57,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-12",
+    "venue": "U.G. High",
+    "registered_male": 0,
+    "registered_female": 0,
+    "total_registered": 0,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:12:10.759Z",
+    "updated_at": "2026-09-12T06:40:07.735Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "wayneAlex",
+    "office_updated_at": "2026-09-12T06:12:10.759Z"
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 58,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-20",
+    "venue": "Sugoi B dispensary",
+    "registered_male": 0,
+    "registered_female": 0,
+    "total_registered": 0,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:06.689Z",
+    "updated_at": "2026-09-12T06:40:06.689Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 59,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 2,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-19",
+    "venue": "Tangit centre",
+    "registered_male": 0,
+    "registered_female": 0,
+    "total_registered": 0,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:06.705Z",
+    "updated_at": "2026-09-12T06:40:06.705Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 60,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-18",
+    "venue": "Kipkarren river",
+    "registered_male": 0,
+    "registered_female": 0,
+    "total_registered": 0,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:06.719Z",
+    "updated_at": "2026-09-12T06:40:06.872Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 61,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-17",
+    "venue": "Besiober ECDE",
+    "registered_male": 0,
+    "registered_female": 0,
+    "total_registered": 0,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:06.883Z",
+    "updated_at": "2026-09-12T06:40:07.017Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 62,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-16",
+    "venue": "Flyover",
+    "registered_male": 0,
+    "registered_female": 0,
+    "total_registered": 0,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:07.026Z",
+    "updated_at": "2026-09-12T06:40:07.132Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 63,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-15",
+    "venue": "IVC Church",
+    "registered_male": 0,
+    "registered_female": 0,
+    "total_registered": 0,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:07.140Z",
+    "updated_at": "2026-09-12T06:40:07.274Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 64,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-14",
+    "venue": "M.V. Patel Hall",
+    "registered_male": 0,
+    "registered_female": 0,
+    "total_registered": 0,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:07.287Z",
+    "updated_at": "2026-09-12T06:40:07.414Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 65,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-13",
+    "venue": "Muzembe",
+    "registered_male": 0,
+    "registered_female": 0,
+    "total_registered": 0,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:07.422Z",
+    "updated_at": "2026-09-12T06:40:07.560Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 66,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-10",
+    "venue": "Laboiwet",
+    "registered_male": 0,
+    "registered_female": 6,
+    "total_registered": 6,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:07.975Z",
+    "updated_at": "2026-09-12T06:40:08.149Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 67,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-09",
+    "venue": "Chemalal-teldet",
+    "registered_male": 4,
+    "registered_female": 2,
+    "total_registered": 6,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:08.160Z",
+    "updated_at": "2026-09-12T06:40:08.366Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 68,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-08",
+    "venue": "Kapchumba",
+    "registered_male": 5,
+    "registered_female": 1,
+    "total_registered": 6,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:08.378Z",
+    "updated_at": "2026-09-12T06:40:08.555Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 69,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-07",
+    "venue": "U.G High",
+    "registered_male": 12,
+    "registered_female": 1,
+    "total_registered": 13,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:08.563Z",
+    "updated_at": "2026-09-12T06:40:08.750Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 70,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-06",
+    "venue": "IVC Church",
+    "registered_male": 10,
+    "registered_female": 3,
+    "total_registered": 13,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:08.764Z",
+    "updated_at": "2026-09-12T06:40:08.964Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 71,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-04",
+    "venue": "Roady",
+    "registered_male": 20,
+    "registered_female": 1,
+    "total_registered": 21,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:09.185Z",
+    "updated_at": "2026-09-12T06:40:09.399Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 72,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-03",
+    "venue": "OFFICE",
+    "registered_male": 0,
+    "registered_female": 1,
+    "total_registered": 1,
+    "total_transferred": 2,
+    "total_updated": 1,
+    "created_at": "2026-09-12T06:40:09.411Z",
+    "updated_at": "2026-09-12T06:40:09.594Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 73,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-02",
+    "venue": "Lamaywet primary",
+    "registered_male": 4,
+    "registered_female": 10,
+    "total_registered": 14,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:09.605Z",
+    "updated_at": "2026-09-12T06:40:09.806Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 74,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-31",
+    "venue": "Kapjinja",
+    "registered_male": 1,
+    "registered_female": 4,
+    "total_registered": 5,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:10.020Z",
+    "updated_at": "2026-09-12T06:40:10.199Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 75,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-30",
+    "venue": "KIPLOMBE",
+    "registered_male": 1,
+    "registered_female": 4,
+    "total_registered": 5,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:10.212Z",
+    "updated_at": "2026-09-12T06:40:10.401Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 76,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-29",
+    "venue": "LESERU",
+    "registered_male": 3,
+    "registered_female": 5,
+    "total_registered": 8,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:10.413Z",
+    "updated_at": "2026-09-12T06:40:10.612Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 77,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-28",
+    "venue": "Tembu",
+    "registered_male": 6,
+    "registered_female": 8,
+    "total_registered": 14,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:10.621Z",
+    "updated_at": "2026-09-12T06:40:10.825Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 78,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-27",
+    "venue": "Senior Village",
+    "registered_male": 9,
+    "registered_female": 9,
+    "total_registered": 18,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:10.832Z",
+    "updated_at": "2026-09-12T06:40:11.023Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 79,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-26",
+    "venue": "KAPNGETUNY",
+    "registered_male": 2,
+    "registered_female": 2,
+    "total_registered": 4,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:11.033Z",
+    "updated_at": "2026-09-12T06:40:11.214Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 80,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-25",
+    "venue": "Pilot",
+    "registered_male": 7,
+    "registered_female": 2,
+    "total_registered": 9,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:11.229Z",
+    "updated_at": "2026-09-12T06:40:11.438Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 81,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-24",
+    "venue": "Mailinne Stage",
+    "registered_male": 8,
+    "registered_female": 3,
+    "total_registered": 11,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:11.453Z",
+    "updated_at": "2026-09-12T06:40:11.653Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 82,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-23",
+    "venue": "OFFICE",
+    "registered_male": 0,
+    "registered_female": 0,
+    "total_registered": 0,
+    "total_transferred": 1,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:11.662Z",
+    "updated_at": "2026-09-12T06:40:11.861Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 83,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-22",
+    "venue": "BAHARINI",
+    "registered_male": 2,
+    "registered_female": 5,
+    "total_registered": 7,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:11.872Z",
+    "updated_at": "2026-09-12T06:40:12.064Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 84,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-21",
+    "venue": "OFFICE",
+    "registered_male": 3,
+    "registered_female": 5,
+    "total_registered": 8,
+    "total_transferred": 23,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:12.076Z",
+    "updated_at": "2026-09-12T06:40:12.259Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 85,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-20",
+    "venue": "Kinyozi",
+    "registered_male": 1,
+    "registered_female": 7,
+    "total_registered": 8,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:12.268Z",
+    "updated_at": "2026-09-12T06:40:12.452Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 86,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 1,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-08-19",
+    "venue": "OFFICE",
+    "registered_male": 0,
+    "registered_female": 1,
+    "total_registered": 1,
+    "total_transferred": 9,
+    "total_updated": 0,
+    "created_at": "2026-09-12T06:40:12.461Z",
+    "updated_at": "2026-09-12T06:40:12.471Z",
+    "edit_count": 0,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.dailykiemsentry",
+  "pk": 87,
+  "fields": {
+    "entry_type": "REGISTRATION",
+    "kiems_kit": 3,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "ward": 2,
+    "vra": 2,
+    "clerk": null,
+    "entry_date": "2026-09-26",
+    "venue": "Kamagut",
+    "registered_male": 20,
+    "registered_female": 220,
+    "total_registered": 240,
+    "total_transferred": 0,
+    "total_updated": 0,
+    "created_at": "2026-09-26T20:09:59.133Z",
+    "updated_at": "2026-09-26T20:36:39.894Z",
+    "edit_count": 1,
+    "uploaded": false,
+    "office_updated_by": "",
+    "office_updated_at": null
+  }
+},
+{
+  "model": "home.movementschedule",
+  "pk": "73023ab3-7344-4ef4-b53c-956a7a9b5091",
+  "fields": {
+    "kiems_kit": 3,
+    "ward": 2,
+    "constituency": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "vra": null,
+    "clerk": null,
+    "schedule_date": "2026-09-25",
+    "venue": "Emkoin primary",
+    "notes": "",
+    "created_at": "2026-09-24T07:44:49.977Z",
+    "updated_at": "2026-09-24T07:44:49.977Z",
+    "edit_count": 0
+  }
+},
+{
+  "model": "home.movementschedule",
+  "pk": "810c12a3-0d3f-40f3-8d89-f3ba88322922",
+  "fields": {
+    "kiems_kit": 1,
+    "ward": 1,
+    "constituency": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "vra": null,
+    "clerk": null,
+    "schedule_date": "2026-09-26",
+    "venue": "Test 23",
+    "notes": "",
+    "created_at": "2026-09-25T07:21:04.973Z",
+    "updated_at": "2026-09-25T07:30:56.779Z",
+    "edit_count": 1
+  }
+},
+{
+  "model": "home.movementschedule",
+  "pk": "861d72f0-5cb6-4fb3-9762-d6e8682262e6",
+  "fields": {
+    "kiems_kit": 3,
+    "ward": 2,
+    "constituency": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "vra": null,
+    "clerk": null,
+    "schedule_date": "2026-09-26",
+    "venue": "Test 1",
+    "notes": "",
+    "created_at": "2026-09-25T07:20:13.705Z",
+    "updated_at": "2026-09-25T07:20:13.705Z",
+    "edit_count": 0
+  }
+},
+{
+  "model": "home.movementschedule",
+  "pk": "a9ac2f42-b5a0-46f1-a533-ed375594fcff",
+  "fields": {
+    "kiems_kit": 2,
+    "ward": 1,
+    "constituency": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "vra": null,
+    "clerk": null,
+    "schedule_date": "2026-09-26",
+    "venue": "Test 3",
+    "notes": "",
+    "created_at": "2026-09-25T07:21:04.981Z",
+    "updated_at": "2026-09-25T07:21:04.981Z",
+    "edit_count": 0
+  }
+},
+{
+  "model": "home.movementschedule",
+  "pk": "eb1ae70a-8caf-4d5c-9d67-92d2947fc897",
+  "fields": {
+    "kiems_kit": 3,
+    "ward": 2,
+    "constituency": 1,
+    "phase": "bff76079-d0df-46dd-a7bb-77fe110375ea",
+    "vra": 2,
+    "clerk": null,
+    "schedule_date": "2026-09-27",
+    "venue": "egrggrgw",
+    "notes": "",
+    "created_at": "2026-09-26T20:09:02.484Z",
+    "updated_at": "2026-09-26T20:09:02.484Z",
+    "edit_count": 0
+  }
+},
+{
+  "model": "home.movementschedulestate",
+  "pk": "7a4dff55-84ef-4302-9549-b8bfde1f20af",
+  "fields": {
+    "constituency": 1,
+    "schedule_date": "2026-09-25",
+    "status": "FAILED",
+    "total_wards": 0,
+    "submitted_wards": 0,
+    "ready_at": null,
+    "sent_at": null,
+    "message_hash": "",
+    "attempts": 1,
+    "last_error": "Bot 503: {\"success\":false,\"error\":\"WhatsApp client is not ready\"}",
+    "created_at": "2026-09-24T07:48:28.891Z",
+    "updated_at": "2026-09-24T07:48:28.891Z"
+  }
+},
+{
+  "model": "home.movementschedulestate",
+  "pk": "9e90464f-c167-4ca6-99c8-b79b25a4a32f",
+  "fields": {
+    "constituency": 1,
+    "schedule_date": "2026-09-26",
+    "status": "SENT",
+    "total_wards": 0,
+    "submitted_wards": 0,
+    "ready_at": null,
+    "sent_at": "2026-09-25T07:27:13.596Z",
+    "message_hash": "",
+    "attempts": 1,
+    "last_error": "",
+    "created_at": "2026-09-25T07:27:12.977Z",
+    "updated_at": "2026-09-25T07:27:12.978Z"
+  }
+},
+{
+  "model": "home.movementschedulelog",
+  "pk": "3d3cfcce-f188-4bd5-9611-9dafe4bd9595",
+  "fields": {
+    "constituency": 1,
+    "schedule_date": "2026-09-25",
+    "kind": "GRAND",
+    "ward": null,
+    "kiems_kit": null,
+    "group_id": "120363428582701512@g.us",
+    "group_name": "",
+    "message": "*TURBO* — TOMORROW'S MOVEMENT PLAN\n_25 Sep 2026_\n------------------------------\n\n*KAMAGUT*\n  KIT 7: Emkoin primary\n------------------------------\n_1 kit(s) scheduled_",
+    "sent_ok": false,
+    "error": "Bot 503: {\"success\":false,\"error\":\"WhatsApp client is not ready\"}",
+    "sent_by": [
+      "WayneICT"
+    ],
+    "created_at": "2026-09-24T07:48:29.412Z"
+  }
+},
+{
+  "model": "home.movementschedulelog",
+  "pk": "d7110d0d-7f79-4c1d-9ef3-f92b5401ca7c",
+  "fields": {
+    "constituency": 1,
+    "schedule_date": "2026-09-26",
+    "kind": "GRAND",
+    "ward": null,
+    "kiems_kit": null,
+    "group_id": "120363428582701512@g.us",
+    "group_name": "",
+    "message": "*Uasin Gishu County — Turbo Constituency*\n*Kits Movement Schedule*\n*26/09/2026*\n\n*KAMAGUT Ward*\n• Kit 1: Test 1.\n\n*NGENYILEL Ward*\n• Kit 2: Test 2.\n• Kit 3: Test 3.",
+    "sent_ok": true,
+    "error": "",
+    "sent_by": [
+      "WayneICT"
+    ],
+    "created_at": "2026-09-25T07:27:13.583Z"
+  }
+},
+{
+  "model": "home.whatsappgroup",
+  "pk": 1,
+  "fields": {
+    "group_id": "120363427791562387@g.us",
+    "name": "IEBC test",
+    "is_active": true,
+    "constituency": null,
+    "created_at": "2026-08-22T15:07:53.630Z",
+    "updated_at": "2026-08-22T15:07:53.630Z"
+  }
+},
+{
+  "model": "home.whatsappgroup",
+  "pk": 2,
+  "fields": {
+    "group_id": "120363427278664031@g.us",
+    "name": "Verdilex Transcription 2nd Cohort",
+    "is_active": true,
+    "constituency": null,
+    "created_at": "2026-08-22T15:07:53.635Z",
+    "updated_at": "2026-08-22T15:07:53.635Z"
+  }
+},
+{
+  "model": "home.whatsappgroup",
+  "pk": 3,
+  "fields": {
+    "group_id": "120363408046959572@g.us",
+    "name": "Project X SWE",
+    "is_active": true,
+    "constituency": null,
+    "created_at": "2026-08-22T15:07:53.639Z",
+    "updated_at": "2026-08-22T15:07:53.639Z"
+  }
+},
+{
+  "model": "home.whatsappgroup",
+  "pk": 4,
+  "fields": {
+    "group_id": "120363407445527728@g.us",
+    "name": "VRAs Turbo Constituency",
+    "is_active": true,
+    "constituency": null,
+    "created_at": "2026-09-11T01:37:34.912Z",
+    "updated_at": "2026-09-11T01:37:34.912Z"
+  }
+},
+{
+  "model": "home.whatsappgroup",
+  "pk": 5,
+  "fields": {
+    "group_id": "120363428582701512@g.us",
+    "name": "Test 2",
+    "is_active": true,
+    "constituency": 1,
+    "created_at": "2026-09-11T09:46:13.328Z",
+    "updated_at": "2026-09-11T09:46:13.328Z"
+  }
+},
+{
+  "model": "home.whatsappsetting",
+  "pk": 1,
+  "fields": {
+    "user": [
+      "admin"
+    ],
+    "default_group": 5,
+    "notify_vra": true,
+    "notify_edit": true,
+    "notify_daily": true,
+    "notify_grand_total": true,
+    "created_at": "2026-08-22T14:47:06.925Z",
+    "updated_at": "2026-09-11T09:46:22.345Z"
+  }
+},
+{
+  "model": "home.whatsappsetting",
+  "pk": 2,
+  "fields": {
+    "user": [
+      "WayneICT"
+    ],
+    "default_group": 5,
+    "notify_vra": true,
+    "notify_edit": true,
+    "notify_daily": true,
+    "notify_grand_total": true,
+    "created_at": "2026-09-11T01:28:36.705Z",
+    "updated_at": "2026-09-11T09:50:23.549Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 9,
+  "fields": {
+    "fingerprint": "5911dda9564d2d33d4d69bc868bc69eb4d0de3379c819257b156624585f6e8aa",
+    "user_agent": "Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "360x740",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": "2026-08-25T09:29:54.606Z",
+    "burn_notes": "",
+    "vra": 1,
+    "clerk": null,
+    "first_seen": "2026-08-25T08:23:58.242Z",
+    "last_seen": "2026-08-25T09:29:54.606Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 11,
+  "fields": {
+    "fingerprint": "eb4beb25f1ebb4c45a086ae844131c9777c867aa6c7b68d8c5f28b6ea33636da",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "1920x1080",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": 1,
+    "clerk": null,
+    "first_seen": "2026-08-25T09:30:21.963Z",
+    "last_seen": "2026-08-25T09:30:21.964Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 12,
+  "fields": {
+    "fingerprint": "w2qa0u",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "1920x1080",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": 1,
+    "clerk": null,
+    "first_seen": "2026-08-25T10:58:44.388Z",
+    "last_seen": "2026-08-25T10:58:44.389Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 13,
+  "fields": {
+    "fingerprint": "uvcyf7",
+    "user_agent": "Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "360x740",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": 1,
+    "clerk": null,
+    "first_seen": "2026-08-25T10:59:40.565Z",
+    "last_seen": "2026-08-25T10:59:40.566Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 14,
+  "fields": {
+    "fingerprint": "hmqudb",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "1920x1080",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": 1,
+    "clerk": null,
+    "first_seen": "2026-08-28T17:34:55.470Z",
+    "last_seen": "2026-08-28T17:34:55.470Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 15,
+  "fields": {
+    "fingerprint": "-8xjetq",
+    "user_agent": "Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "360x740",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": null,
+    "clerk": null,
+    "first_seen": "2026-08-29T03:44:18.146Z",
+    "last_seen": "2026-08-29T03:44:18.146Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 16,
+  "fields": {
+    "fingerprint": "-43fuvy",
+    "user_agent": "Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "360x740",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": 1,
+    "clerk": null,
+    "first_seen": "2026-08-29T04:17:43.734Z",
+    "last_seen": "2026-08-29T04:17:43.734Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 17,
+  "fields": {
+    "fingerprint": "e176d35602bf3fa3108b753847110b8d",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "1920x1080",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": null,
+    "clerk": null,
+    "first_seen": "2026-08-29T04:46:42.548Z",
+    "last_seen": "2026-08-29T04:46:42.548Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 18,
+  "fields": {
+    "fingerprint": "1c3a7f581702798f5646ac1e49de92fc",
+    "user_agent": "Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "360x740",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": null,
+    "clerk": null,
+    "first_seen": "2026-08-29T04:47:28.324Z",
+    "last_seen": "2026-08-29T04:47:28.324Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 28,
+  "fields": {
+    "fingerprint": "5167ec370363a00db411ceb3718318ec",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "1920x1080",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": 1,
+    "clerk": null,
+    "first_seen": "2026-09-11T09:53:08.815Z",
+    "last_seen": "2026-09-11T09:53:08.815Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 29,
+  "fields": {
+    "fingerprint": "7aa29ab53f37ec488e2068698d958136",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "",
+    "language": "",
+    "platform": "",
+    "timezone": "",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": null,
+    "clerk": null,
+    "first_seen": "2026-09-24T06:49:55.727Z",
+    "last_seen": "2026-09-24T06:49:55.727Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 30,
+  "fields": {
+    "fingerprint": "3ad891b4659f92b688eacaeacdc681dd",
+    "user_agent": "Mozilla/5.0 (Linux; Android 14; SM-A556B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "",
+    "language": "",
+    "platform": "",
+    "timezone": "",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": null,
+    "clerk": null,
+    "first_seen": "2026-09-24T07:44:34.848Z",
+    "last_seen": "2026-09-24T07:44:34.848Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 31,
+  "fields": {
+    "fingerprint": "5f0ea38593a021e2c1aed9ee304765f6",
+    "user_agent": "Mozilla/5.0 (Linux; Android 14; SM-A556B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "360x800",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": 2,
+    "clerk": null,
+    "first_seen": "2026-09-26T20:08:24.171Z",
+    "last_seen": "2026-09-26T20:08:24.171Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 32,
+  "fields": {
+    "fingerprint": "c24917b8a366b349226ea51465746751",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.137.0 Chrome/148.0.7778.280 Electron/42.10.0 Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "1920x1080",
+    "language": "en-US",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": null,
+    "clerk": null,
+    "first_seen": "2026-09-26T20:28:50.525Z",
+    "last_seen": "2026-09-26T20:28:50.525Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 33,
+  "fields": {
+    "fingerprint": "38e76c429bc4dd74527f5a7e1deee233",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "1920x1080",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": null,
+    "clerk": null,
+    "first_seen": "2026-09-26T21:26:02.365Z",
+    "last_seen": "2026-09-26T21:26:02.365Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 34,
+  "fields": {
+    "fingerprint": "8453d6226b05cbece5fcee5bc76984fb",
+    "user_agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Mobile Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "384x854",
+    "language": "en-GB",
+    "platform": "Linux armv81",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": null,
+    "clerk": null,
+    "first_seen": "2026-09-26T21:27:01.063Z",
+    "last_seen": "2026-09-26T21:27:01.063Z"
+  }
+},
+{
+  "model": "home.device",
+  "pk": 35,
+  "fields": {
+    "fingerprint": "81c6b92b07f582304445079b0284a5f6",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+    "ip_address": "127.0.0.1",
+    "screen_resolution": "1920x1080",
+    "language": "en-GB",
+    "platform": "Linux x86_64",
+    "timezone": "Africa/Nairobi",
+    "is_burned": true,
+    "is_active": true,
+    "burn_date": null,
+    "burn_notes": "",
+    "vra": null,
+    "clerk": null,
+    "first_seen": "2026-09-26T21:29:11.009Z",
+    "last_seen": "2026-09-26T21:29:11.009Z"
+  }
+},
+{
+  "model": "home.deviceburnlog",
+  "pk": 5,
+  "fields": {
+    "device": 9,
+    "action": "UNBURN",
+    "performed_by": [
+      "admin"
+    ],
+    "notes": "",
+    "created_at": "2026-08-25T08:33:04.845Z"
+  }
+},
+{
+  "model": "home.deviceburnlog",
+  "pk": 6,
+  "fields": {
+    "device": 9,
+    "action": "UNBURN",
+    "performed_by": [
+      "admin"
+    ],
+    "notes": "",
+    "created_at": "2026-08-25T08:33:48.735Z"
+  }
+},
+{
+  "model": "home.deviceburnlog",
+  "pk": 7,
+  "fields": {
+    "device": 9,
+    "action": "UNBURN",
+    "performed_by": [
+      "admin"
+    ],
+    "notes": "",
+    "created_at": "2026-08-25T08:50:22.825Z"
+  }
+},
+{
+  "model": "home.deviceburnlog",
+  "pk": 8,
+  "fields": {
+    "device": 9,
+    "action": "BURN",
+    "performed_by": [
+      "admin"
+    ],
+    "notes": "",
+    "created_at": "2026-08-25T09:29:54.613Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 1,
+  "fields": {
+    "actor": [
+      "admin"
+    ],
+    "constituency": null,
+    "action": "CREATE",
+    "model_name": "ICTOfficerProfile",
+    "object_id": "1",
+    "object_repr": "Turbo",
+    "description": "Created constituency Turbo",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-10T18:25:28.996Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 2,
+  "fields": {
+    "actor": [
+      "admin"
+    ],
+    "constituency": 1,
+    "action": "CREATE",
+    "model_name": "ICTOfficerProfile",
+    "object_id": "1",
+    "object_repr": "Wayne Alex — Turbo",
+    "description": "Created ICT officer wayneAlex for Turbo",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-10T18:26:56.972Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 3,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "UNBURN",
+    "model_name": "Device",
+    "object_id": "22",
+    "object_repr": "5167ec370363... (Unburned)",
+    "description": "Unburned device 5167ec370363",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T03:45:02.294Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 4,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "BURN",
+    "model_name": "Device",
+    "object_id": "22",
+    "object_repr": "5167ec370363... (Authorized)",
+    "description": "Authorized device 5167ec370363",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T06:11:33.774Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 5,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "UNBURN",
+    "model_name": "Device",
+    "object_id": "22",
+    "object_repr": "5167ec370363... (Not Authorized)",
+    "description": "Revoked authorization for device 5167ec370363",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T06:14:56.645Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 6,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "UPDATE",
+    "model_name": "VRA",
+    "object_id": "1",
+    "object_repr": "Peter kisorio (NGENYILEL)",
+    "description": "Updated VRA Peter kisorio",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T06:15:19.261Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 7,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "BURN",
+    "model_name": "Device",
+    "object_id": "22",
+    "object_repr": "5167ec370363... (Authorized)",
+    "description": "Authorized device 5167ec370363",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T06:15:52.168Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 8,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "UNBURN",
+    "model_name": "Device",
+    "object_id": "22",
+    "object_repr": "5167ec370363... (Not Authorized)",
+    "description": "Revoked authorization for device 5167ec370363",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T06:15:56.527Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 9,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "UPDATE",
+    "model_name": "VRA",
+    "object_id": "2",
+    "object_repr": "MURUNGA WAYNE (KAMAGUT)",
+    "description": "Updated VRA MURUNGA WAYNE",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T06:24:46.804Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 10,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "DELETE",
+    "model_name": "Device",
+    "object_id": "23",
+    "object_repr": "5167ec370363a00db411ceb3718318",
+    "description": "Deleted device 5167ec370363",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T06:25:49.724Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 11,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "DELETE",
+    "model_name": "Device",
+    "object_id": "24",
+    "object_repr": "5167ec370363a00db411ceb3718318",
+    "description": "Deleted device 5167ec370363",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T07:15:05.563Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 12,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "UPDATE",
+    "model_name": "VRA",
+    "object_id": "1",
+    "object_repr": "Peter kisorio (NGENYILEL)",
+    "description": "Deactivated VRA Peter kisorio",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T07:15:41.168Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 13,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "UPDATE",
+    "model_name": "VRA",
+    "object_id": "1",
+    "object_repr": "Peter kisorio (NGENYILEL)",
+    "description": "Activated VRA Peter kisorio",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T07:15:58.912Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 14,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "UPDATE",
+    "model_name": "VRA",
+    "object_id": "1",
+    "object_repr": "Peter kisorio (NGENYILEL)",
+    "description": "Updated VRA Peter kisorio",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T07:16:06.194Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 15,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "DELETE",
+    "model_name": "Device",
+    "object_id": "25",
+    "object_repr": "5167ec370363a00db411ceb3718318",
+    "description": "Deleted device 5167ec370363",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T07:16:14.852Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 16,
+  "fields": {
+    "actor": [
+      "admin"
+    ],
+    "constituency": 1,
+    "action": "UPDATE",
+    "model_name": "ICTOfficerProfile",
+    "object_id": "1",
+    "object_repr": "Wayne Alex — Turbo",
+    "description": "Updated ICT officer wayneAlex",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T09:48:57.955Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 17,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "DELETE",
+    "model_name": "Device",
+    "object_id": "26",
+    "object_repr": "5167ec370363a00db411ceb3718318",
+    "description": "Deleted device 5167ec370363",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T09:51:57.415Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 18,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "UPDATE",
+    "model_name": "VRA",
+    "object_id": "2",
+    "object_repr": "MURUNGA WAYNE (KAMAGUT)",
+    "description": "Updated VRA MURUNGA WAYNE",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T09:52:45.384Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 19,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "DELETE",
+    "model_name": "Device",
+    "object_id": "27",
+    "object_repr": "5167ec370363a00db411ceb3718318",
+    "description": "Deleted device 5167ec370363",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-11T09:53:05.619Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 20,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "CREATE",
+    "model_name": "DailyKIEMSEntry",
+    "object_id": "57",
+    "object_repr": "KIT 7 - 2026-09-12",
+    "description": "Manual entry 2026-09-12 · KAMAGUT · KIT 7",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-12T06:12:10.768Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 21,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "CREATE",
+    "model_name": "DailyKIEMSEntry",
+    "object_id": "",
+    "object_repr": "bulk-538",
+    "description": "Imported 538 entries from CSV",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-12T06:40:12.476Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 22,
+  "fields": {
+    "actor": [
+      "admin"
+    ],
+    "constituency": 1,
+    "action": "UPDATE",
+    "model_name": "ICTOfficerProfile",
+    "object_id": "1",
+    "object_repr": "Wayne Alex — Turbo",
+    "description": "Updated ICT officer WayneICT",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-24T07:40:57.638Z"
+  }
+},
+{
+  "model": "home.auditlog",
+  "pk": 23,
+  "fields": {
+    "actor": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "action": "SUBMIT",
+    "model_name": "MovementScheduleState",
+    "object_id": "9e90464f-c167-4ca6-99c8-b79b25a4a32f",
+    "object_repr": "Turbo 2026-09-26 — SENT",
+    "description": "Manual grand movement report sent for 2026-09-26",
+    "ip_address": "127.0.0.1",
+    "created_at": "2026-09-25T07:27:13.612Z"
+  }
+},
+{
+  "model": "home.dailyreportstate",
+  "pk": "66c1b819-c1c8-4cb6-8aca-d4be11e7b284",
+  "fields": {
+    "constituency": 1,
+    "report_date": "2026-09-11",
+    "status": "SENT",
+    "total_wards": 2,
+    "submitted_wards": 2,
+    "ready_at": "2026-09-11T07:16:41.356Z",
+    "sent_at": "2026-09-11T07:19:58.400Z",
+    "message_hash": "404dd2d187049e6c6e4191ca0e269236df349e8db06e1a10ad35f7916f4ea059",
+    "attempts": 1,
+    "last_error": "",
+    "last_attempt_at": "2026-09-11T07:19:57.541Z",
+    "locked_at": null,
+    "locked_by": "",
+    "created_at": "2026-09-11T07:13:09.281Z",
+    "updated_at": "2026-09-11T10:54:47.553Z"
+  }
+},
+{
+  "model": "home.dailyreportstate",
+  "pk": "a95f9844-f36d-4663-80eb-86e37fb45299",
+  "fields": {
+    "constituency": 1,
+    "report_date": "2026-09-26",
+    "status": "PENDING",
+    "total_wards": 2,
+    "submitted_wards": 1,
+    "ready_at": null,
+    "sent_at": null,
+    "message_hash": "",
+    "attempts": 0,
+    "last_error": "",
+    "last_attempt_at": null,
+    "locked_at": null,
+    "locked_by": "",
+    "created_at": "2026-09-26T20:09:59.526Z",
+    "updated_at": "2026-09-26T20:36:39.933Z"
+  }
+},
+{
+  "model": "home.dailyreportstate",
+  "pk": "c2173a22-5d10-42b6-9a6c-9b18e23a1b64",
+  "fields": {
+    "constituency": 1,
+    "report_date": "2026-09-12",
+    "status": "PENDING",
+    "total_wards": 2,
+    "submitted_wards": 1,
+    "ready_at": null,
+    "sent_at": null,
+    "message_hash": "",
+    "attempts": 0,
+    "last_error": "",
+    "last_attempt_at": null,
+    "locked_at": null,
+    "locked_by": "",
+    "created_at": "2026-09-12T06:12:10.787Z",
+    "updated_at": "2026-09-12T06:12:10.788Z"
+  }
+},
+{
+  "model": "ict.ictofficerprofile",
+  "pk": 1,
+  "fields": {
+    "user": [
+      "WayneICT"
+    ],
+    "constituency": 1,
+    "phone_number": "+254712644581",
+    "active": true,
+    "created_at": "2026-09-10T18:26:56.967Z"
+  }
+}
+]

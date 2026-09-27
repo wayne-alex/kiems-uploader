@@ -7,7 +7,7 @@ from django.db.models import Sum, Q
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods, require_GET, require_POST
 
 from home.models import MovementSchedule
@@ -1913,3 +1913,20 @@ def save_movement_schedule(request):
         message = f"{saved} venue(s) saved for {schedule_date}."
 
     return JsonResponse({"ok": True, "message": message, **counts})
+
+@require_GET
+def constituencies_list(request):
+    qs = Constituency.objects.filter(active=True).order_by('name').values('id', 'name')
+    return JsonResponse({'ok': True, 'constituencies': list(qs)})
+
+@ensure_csrf_cookie
+def csrf_seed(request):
+    """Force Django to set the csrftoken cookie for cross-origin clients."""
+    return JsonResponse({'ok': True})
+
+
+def download_app_view(request):
+    """Landing page for installing the IEBC Field PWA."""
+    return render(request, 'download_app.html', {
+        'pwa_url': settings.PWA_URL,
+    })

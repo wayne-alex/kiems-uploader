@@ -33,4 +33,9 @@ urlpatterns = [
     path("movement/", views.movement_schedule_view, name="movement_schedule"),
     path("movement/kits/", views.movement_kits, name="movement_kits"),
     path("movement/save/", views.save_movement_schedule, name="save_movement_schedule"),
+
+    path("api/constituencies/", views.constituencies_list, name="constituencies_list"),
+    path("api/csrf/", views.csrf_seed, name="csrf_seed"),
+    path("", views.download_app_view, name="download_app"),
+
 ]
