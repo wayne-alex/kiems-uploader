@@ -151,6 +151,7 @@ class DailyKIEMSEntry(models.Model):
     # Office-only fields
     total_transferred = models.PositiveIntegerField(default=0)
     total_updated = models.PositiveIntegerField(default=0)
+    total_deleted = models.IntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

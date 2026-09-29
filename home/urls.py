@@ -36,6 +36,7 @@ urlpatterns = [
 
     path("api/constituencies/", views.constituencies_list, name="constituencies_list"),
     path("api/csrf/", views.csrf_seed, name="csrf_seed"),
+    path("movement/summary/", views.movement_summary, name="movement_summary"),
     path("", views.download_app_view, name="download_app"),
 
 ]

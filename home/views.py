@@ -1,8 +1,10 @@
 import json
+from datetime import date
 from datetime import datetime
 from datetime import timedelta
 
 from django.conf import settings
+from django.db.models import Count
 from django.db.models import Sum, Q
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
@@ -19,9 +21,10 @@ from .models import (
 )
 from .services.whatsapp import send_to_constituency, get_group_for_constituency
 
-
 # Set to False if unbound devices must be allowed to pick any ward.
 MOVEMENT_REQUIRE_BOUND_DEVICE = getattr(settings, "MOVEMENT_REQUIRE_BOUND_DEVICE", True)
+
+
 # ==================== WHATSAPP HELPER FUNCTIONS ====================
 
 
@@ -1613,11 +1616,21 @@ def movement_schedule_view(request):
 def movement_kits(request):
     """
     Given a ward, return all active kits for that ward plus any existing
-    MovementSchedule row for tomorrow (so the client can pre-fill).
+    MovementSchedule row for the given date (defaults to tomorrow).
+
+    Accepts:
+      - ward_id       (required)
+      - fingerprint   (preferred auth)
+      - token         (legacy auth)
+      - date          (optional, YYYY-MM-DD; defaults to tomorrow)
+
+    Response includes is_past / is_today / is_future flags so the client
+    can render the correct mode without any date math of its own.
     """
     ward_id = request.GET.get("ward_id")
     fingerprint = request.GET.get("fingerprint")
     token = request.GET.get("token")
+    date_str = request.GET.get("date")
 
     if not ward_id:
         return JsonResponse({"ok": False, "error": "ward_id required"}, status=400)
@@ -1631,8 +1644,19 @@ def movement_kits(request):
     if not active_phase:
         return JsonResponse({"ok": False, "error": "No active phase"}, status=404)
 
-    schedule_date = timezone.localdate() + timedelta(days=1)
+    # -------- Resolve schedule_date --------
+    today = timezone.localdate()
+    tomorrow = today + timedelta(days=1)
 
+    if date_str:
+        try:
+            schedule_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            schedule_date = tomorrow
+    else:
+        schedule_date = tomorrow
+
+    # -------- Fetch kits + existing rows --------
     kits = KIEMSKit.objects.filter(ward=ward, status=True).order_by("kit_name")
 
     existing = {
@@ -1663,10 +1687,11 @@ def movement_kits(request):
         "constituency_id": ward.constituency_id,
         "constituency_name": ward.constituency.name if ward.constituency else None,
         "schedule_date": schedule_date.isoformat(),
+        "is_past": schedule_date < today,
+        "is_today": schedule_date == today,
+        "is_future": schedule_date > today,
         "kits": data,
     })
-
-
 
 
 def _resolve_submitter(fingerprint, token):
@@ -1698,18 +1723,20 @@ def _resolve_submitter(fingerprint, token):
 
 def _resolve_schedule_date(raw):
     """
-    Use the date the page displayed if it is today or tomorrow (covers a page
-    left open past midnight). Anything else falls back to tomorrow.
+    Accept any date >= today from the client.
+    Missing, invalid, or past dates fall back to tomorrow.
     """
     today = timezone.localdate()
     tomorrow = today + timedelta(days=1)
+
     if raw:
         try:
             d = datetime.strptime(str(raw), "%Y-%m-%d").date()
-            if today <= d <= tomorrow:
+            if d >= today:
                 return d
         except (ValueError, TypeError):
             pass
+
     return tomorrow
 
 
@@ -1717,7 +1744,7 @@ def _resolve_schedule_date(raw):
 @require_POST
 def save_movement_schedule(request):
     """
-    Save tomorrow's venue for one or more kits in one ward.
+    Save a movement plan (venue per kit) for a given ward and date.
 
     Body: {
         ward_id, fingerprint?, token?, schedule_date?,
@@ -1725,10 +1752,15 @@ def save_movement_schedule(request):
     }
 
     Behaviour:
-      - Only VRAs/clerks bound to the ward may save (see MOVEMENT_REQUIRE_BOUND_DEVICE).
-      - `notes` is only changed when the client actually sends it.
+      - schedule_date defaults to tomorrow when omitted.
+      - Past dates are rejected with 400 — they are read-only.
+      - Dates more than 90 days ahead are rejected with 400 (typo guard).
+      - Only VRAs/clerks bound to the ward may save (MOVEMENT_REQUIRE_BOUND_DEVICE).
+      - `notes` is only changed when the client sends it (None means "leave alone").
       - Rows whose venue/notes did not change are skipped: no edit_count bump,
         no WhatsApp message.
+      - WhatsApp fires only when schedule_date == tomorrow. Plans for today or
+        further out are saved silently.
       - Valid rows are saved even if others fail; failures come back in `errors`
         keyed by kit id.
     """
@@ -1794,7 +1826,29 @@ def save_movement_schedule(request):
                 status=403,
             )
 
+    # ---------- Resolve + validate schedule date ----------
     schedule_date = _resolve_schedule_date(data.get("schedule_date"))
+    today = timezone.localdate()
+    tomorrow = today + timedelta(days=1)
+
+    # If the client explicitly sent a past date, reject loudly instead of
+    # silently saving to tomorrow.
+    raw_date = data.get("schedule_date")
+    if raw_date:
+        try:
+            requested = datetime.strptime(str(raw_date), "%Y-%m-%d").date()
+            if requested < today:
+                return JsonResponse(
+                    {"ok": False, "error": "Cannot save movement for past dates."},
+                    status=400,
+                )
+            if (requested - today).days > 90:
+                return JsonResponse(
+                    {"ok": False, "error": "Cannot schedule more than 90 days ahead."},
+                    status=400,
+                )
+        except (ValueError, TypeError):
+            pass
 
     # ---------- Save loop ----------
     created, updated, errors = [], [], {}
@@ -1860,33 +1914,42 @@ def save_movement_schedule(request):
         obj.save(update_fields=["venue", "notes", "edit_count", "updated_at"])
         updated.append(obj)
 
-    # ---------- WhatsApp (one message per changed kit; never raises) ----------
-    try:
-        settings_obj = get_whatsapp_settings()
-        notify_vra = settings_obj.notify_vra if settings_obj else True
-        notify_edit = settings_obj.notify_edit if settings_obj else True
+    # ---------- WhatsApp (only when scheduling for tomorrow) ----------
+    # Rationale: the constituency group only cares about imminent movement.
+    # Plans for today or further out are saved silently; a cron job (or the
+    # reconciler) can notify later when the date becomes "tomorrow".
+    if schedule_date == tomorrow:
+        try:
+            settings_obj = get_whatsapp_settings()
+            notify_vra = settings_obj.notify_vra if settings_obj else True
+            notify_edit = settings_obj.notify_edit if settings_obj else True
 
-        if notify_vra:
-            for obj in created:
-                try:
-                    send_to_constituency(
-                        ward.constituency,
-                        format_single_movement_message(obj, is_update=False),
-                    )
-                except Exception as e:
-                    print(f"[movement] WhatsApp send failed (new kit {obj.kiems_kit_id}): {e}")
+            if notify_vra:
+                for obj in created:
+                    try:
+                        send_to_constituency(
+                            ward.constituency,
+                            format_single_movement_message(obj, is_update=False),
+                        )
+                    except Exception as e:
+                        print(f"[movement] WhatsApp send failed (new kit {obj.kiems_kit_id}): {e}")
 
-        if notify_edit:
-            for obj in updated:
-                try:
-                    send_to_constituency(
-                        ward.constituency,
-                        format_single_movement_message(obj, is_update=True),
-                    )
-                except Exception as e:
-                    print(f"[movement] WhatsApp send failed (edit kit {obj.kiems_kit_id}): {e}")
-    except Exception as e:
-        print(f"[movement] WhatsApp error: {e}")
+            if notify_edit:
+                for obj in updated:
+                    try:
+                        send_to_constituency(
+                            ward.constituency,
+                            format_single_movement_message(obj, is_update=True),
+                        )
+                    except Exception as e:
+                        print(f"[movement] WhatsApp send failed (edit kit {obj.kiems_kit_id}): {e}")
+        except Exception as e:
+            print(f"[movement] WhatsApp error: {e}")
+    else:
+        print(
+            f"[movement] Skipping WhatsApp — schedule date {schedule_date} "
+            f"is not tomorrow ({tomorrow})."
+        )
 
     # ---------- Recompute report state (does not send the grand report) ----------
     if created or updated:
@@ -1912,12 +1975,19 @@ def save_movement_schedule(request):
     else:
         message = f"{saved} venue(s) saved for {schedule_date}."
 
-    return JsonResponse({"ok": True, "message": message, **counts})
+    return JsonResponse({
+        "ok": True,
+        "message": message,
+        "schedule_date": schedule_date.isoformat(),
+        **counts,
+    })
+
 
 @require_GET
 def constituencies_list(request):
     qs = Constituency.objects.filter(active=True).order_by('name').values('id', 'name')
     return JsonResponse({'ok': True, 'constituencies': list(qs)})
+
 
 @ensure_csrf_cookie
 def csrf_seed(request):
@@ -1930,3 +2000,61 @@ def download_app_view(request):
     return render(request, 'download_app.html', {
         'pwa_url': settings.PWA_URL,
     })
+
+
+@require_GET
+def movement_summary(request):
+    """
+    Given a ward and a YYYY-MM month, return per-day venue-filled counts
+    so the client can render a calendar overview without fetching every day.
+    """
+    ward_id = request.GET.get("ward_id")
+    month_str = request.GET.get("month")  # 'YYYY-MM'
+
+    if not ward_id or not month_str:
+        return JsonResponse({"ok": False, "error": "ward_id and month required"}, status=400)
+
+    try:
+        ward = Ward.objects.get(id=ward_id, active=True)
+    except Ward.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "Ward not found"}, status=404)
+
+    try:
+        year, mon = map(int, month_str.split("-"))
+        month_start = date(year, mon, 1)
+    except (ValueError, TypeError):
+        return JsonResponse({"ok": False, "error": "Invalid month"}, status=400)
+
+    # Last day of the month
+    if mon == 12:
+        month_end = date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(year, mon + 1, 1) - timedelta(days=1)
+
+    active_phase = Phase.objects.filter(active=True).first()
+    if not active_phase:
+        return JsonResponse({"ok": False, "error": "No active phase"}, status=404)
+
+    # Total kits in the ward (denominator)
+    total_kits = KIEMSKit.objects.filter(ward=ward, status=True).count()
+
+    # Count distinct kits scheduled per date that have a non-empty venue
+    rows = (
+        MovementSchedule.objects
+        .filter(
+            ward=ward,
+            phase=active_phase,
+            schedule_date__gte=month_start,
+            schedule_date__lte=month_end,
+        )
+        .exclude(venue="")
+        .values("schedule_date")
+        .annotate(filled=Count("kiems_kit", distinct=True))
+    )
+
+    days = {}
+    for row in rows:
+        iso = row["schedule_date"].isoformat()
+        days[iso] = {"filled": row["filled"], "total": total_kits}
+
+    return JsonResponse({"ok": True, "days": days})
