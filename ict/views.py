@@ -2356,6 +2356,230 @@ def movement_edit(request, pk):
     return redirect(request.META.get("HTTP_REFERER") or "ict:movement_list")
 
 
+from collections import defaultdict
+from django.template.loader import render_to_string
+from django.http import HttpResponse
+from datetime import datetime
+
+
+def _movement_report_context(request):
+    """Build context for movement schedule PDF report."""
+    c = request.constituency
+    date_str = request.GET.get("date")
+
+    try:
+        schedule_date = datetime.strptime(date_str,
+                                          "%Y-%m-%d").date() if date_str else timezone.localdate() + timedelta(days=1)
+    except ValueError:
+        schedule_date = timezone.localdate() + timedelta(days=1)
+
+    # Fetch movement schedules for this constituency/date
+    schedules = (
+        MovementSchedule.objects
+        .filter(constituency=c, schedule_date=schedule_date)
+        .select_related("ward", "kiems_kit", "vra", "clerk")
+        .order_by("ward__name", "kiems_kit__kit_name")
+    )
+
+    # Group by (ward, kit) — same structure as superadmin's report_groups
+    grouped = defaultdict(list)
+    for s in schedules:
+        ward_name = s.ward.name if s.ward else "Unknown"
+        kit_no = f"{s.kiems_kit.kit_name} ({s.kiems_kit.serial_no})" if s.kiems_kit.serial_no else s.kiems_kit.kit_name
+        grouped[(ward_name, kit_no)].append(s)
+
+    report_groups = []
+    for (ward_name, kit_no), items in grouped.items():
+        schedule_rows = [{
+            "date": item.schedule_date.strftime("%d %b %Y"),
+            "day": item.schedule_date.strftime("%A"),
+            "venue": item.venue or "Unknown",
+            "time": "8:00 AM – 5:00 PM",
+        } for item in items]
+        report_groups.append({
+            "ward": ward_name,
+            "kit_no": kit_no,
+            "schedule": schedule_rows,
+        })
+
+    return {
+        "constituency": c.name,
+        "report_groups": report_groups,
+        "has_entries": bool(report_groups),
+        "schedule_date": schedule_date,
+        "generated_at": timezone.localtime().strftime("%d %b %Y, %H:%M"),
+    }
+
+
+@ict_required
+def movement_report_preview(request):
+    """HTML preview of the movement notice."""
+    ctx = _movement_report_context(request)
+    return render(request, "ict/movement/report_pdf.html", ctx)
+
+
+@ict_required
+def movement_report_download(request):
+    """PDF download via PDF.co with ReportLab fallback."""
+    ctx = _movement_report_context(request)
+
+    try:
+        api_key = getattr(settings, "PDF_CO_API_KEY", None)
+        if not api_key:
+            raise RuntimeError("PDF_CO_API_KEY not configured")
+
+        html_string = render_to_string("ict/movement/report_pdf.html", ctx, request=request)
+
+        api_url = f"{getattr(settings, 'PDF_CO_API_URL', 'https://api.pdf.co/v1')}/pdf/convert/from/html"
+        payload = json.dumps({
+            "name": f"Movement_{ctx['constituency'].replace(' ', '_')}_{ctx['schedule_date'].isoformat()}.pdf",
+            "html": html_string,
+            "margin": "0px",
+            "paperSize": "Letter",
+            "orientation": "Portrait",
+            "printBackground": "true",
+            "async": False,
+        })
+        headers = {"x-api-key": api_key, "Content-Type": "application/json"}
+
+        r = requests.post(api_url, headers=headers, data=payload, timeout=60)
+        if r.status_code != 200:
+            raise RuntimeError(f"PDF.co returned {r.status_code}")
+
+        result = r.json()
+        if result.get("error"):
+            raise RuntimeError(result["error"])
+
+        pdf_url = result.get("url")
+        if not pdf_url:
+            raise RuntimeError("No PDF URL returned")
+
+        pdf = requests.get(pdf_url, timeout=30)
+        if pdf.status_code != 200:
+            raise RuntimeError("Failed to download PDF")
+
+        response = HttpResponse(pdf.content, content_type="application/pdf")
+        filename = f"Movement_{ctx['constituency'].replace(' ', '_')}_{ctx['schedule_date'].isoformat()}.pdf"
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    except Exception as e:
+        messages.warning(request, f"PDF service unavailable, falling back: {e}")
+        return _movement_report_reportlab(request, ctx)
+
+
+def _movement_report_reportlab(request, ctx):
+    """ReportLab fallback for movement report."""
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+    except ImportError:
+        messages.error(request, "ReportLab not installed and PDF.co unavailable.")
+        return redirect("ict:movement_list")
+
+    response = HttpResponse(content_type="application/pdf")
+    filename = f"Movement_{ctx['constituency'].replace(' ', '_')}_{ctx['schedule_date'].isoformat()}.pdf"
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    doc = SimpleDocTemplate(response, pagesize=letter,
+                            rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    story = []
+
+    for group in ctx["report_groups"]:
+        # Title
+        story.append(Paragraph(
+            "NOTICE OF KIEMS KIT MOVEMENT SCHEDULE",
+            ParagraphStyle("T", parent=styles["Title"], fontSize=16,
+                           textColor=colors.HexColor("#1B5E20"), alignment=TA_CENTER, spaceAfter=4)
+        ))
+        story.append(Paragraph(
+            f"Voter Registration — {ctx['constituency']} Constituency • Generated: {ctx['generated_at']}",
+            ParagraphStyle("S", parent=styles["Normal"], fontSize=9,
+                           textColor=colors.HexColor("#6b7280"), alignment=TA_CENTER, spaceAfter=14)
+        ))
+
+        # Meta table
+        meta_data = [["Constituency", "Ward", "Kit No."], [ctx["constituency"], group["ward"], group["kit_no"]]]
+        meta_table = Table(meta_data, colWidths=[150, 180, 180])
+        meta_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E7D32")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 9),
+            ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 1), (-1, 1), 11),
+            ("BACKGROUND", (0, 1), (-1, 1), colors.HexColor("#F5F5F5")),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#DDDDDD")),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(meta_table)
+        story.append(Spacer(1, 14))
+
+        # Body
+        story.append(Paragraph(
+            f"This is to inform the general public, especially potential eligible applicants for registration "
+            f"as voters, that the KIEMS Kit will be availed for registration of voters within "
+            f"<b>{group['ward']}</b> County Assembly Ward as follows:",
+            ParagraphStyle("B", parent=styles["Normal"], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=14)
+        ))
+
+        # Schedule table
+        table_data = [["Date", "Day", "Venue", "Time"]]
+        for row in group["schedule"]:
+            table_data.append([row["date"], row["day"], row["venue"], row["time"]])
+        if len(table_data) == 1:
+            table_data.append(["No schedule entries available", "", "", ""])
+
+        schedule_table = Table(table_data, colWidths=[90, 90, 220, 110])
+        schedule_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E7D32")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 9),
+            ("FONTSIZE", (0, 1), (-1, -1), 9),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#DDDDDD")),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F9F9F9")]),
+        ]))
+        story.append(schedule_table)
+        story.append(Spacer(1, 18))
+
+        # Requirements
+        req_style = ParagraphStyle(
+            "Req", parent=styles["Normal"], fontSize=9.5, textColor=colors.HexColor("#1B5E20"),
+            backColor=colors.HexColor("#E8F5E9"), borderPadding=10, spaceAfter=30,
+        )
+        story.append(Paragraph(
+            "<b>Requirements:</b> You must physically present yourself in person for biometric capture and be in "
+            "possession of your original National ID or valid Kenyan Passport in order to register as a voter.",
+            req_style
+        ))
+
+        # Signature
+        sig_data = [["Signed: " + "." * 30, "Date: " + "." * 20, "Official Stamp: " + "." * 15]]
+        sig_table = Table(sig_data, colWidths=[220, 150, 180])
+        sig_table.setStyle(TableStyle([("FONTSIZE", (0, 0), (-1, -1), 9), ("VALIGN", (0, 0), (-1, -1), "BOTTOM")]))
+        story.append(sig_table)
+
+        # Page break between kits
+        story.append(Spacer(1, 30))
+        if group != ctx["report_groups"][-1]:
+            from reportlab.platypus import PageBreak
+            story.append(PageBreak())
+
+    doc.build(story)
+    return response
+
 @ict_required
 @require_POST
 def movement_delete(request, pk):

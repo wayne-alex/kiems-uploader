@@ -8,6 +8,14 @@
     <p>Plan and confirm venue assignments per KIEMS kit across all wards.</p>
   </div>
   <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="{% url 'ict:movement_report_preview' %}?date={{ schedule_date_iso }}"
+   target="_blank" class="btn btn-outline">
+  <i class="bi bi-eye"></i> Preview Notice
+</a>
+<a href="{% url 'ict:movement_report_download' %}?date={{ schedule_date_iso }}"
+   class="btn btn-outline">
+  <i class="bi bi-file-pdf"></i> Download PDF
+</a>
     <a href="{% url 'ict:movement_status' %}" class="btn btn-outline">
       <i class="bi bi-bar-chart"></i> Status
     </a>
