@@ -22,7 +22,9 @@ urlpatterns = [
     path("kiems/submit-entries/", views.submit_daily_entries, name="submit_daily_entries"),
 
     # Clerk mapping API endpoints
-    path('mapping/', views.clerk_venue_mapping_view, name='clerk_venue_mapping'),
+    path('movement/', views.clerk_venue_mapping_view, name='clerk_venue_mapping'),
+    path('save-clerk-movement-venues/', views.save_clerk_movement_venues, name='save_clerk_movement_venues'),
+    path('clerk-movement-records/', views.clerk_movement_records, name='clerk_movement_records'),
     path('ward-list/', views.ward_list, name='ward_list'),
     path('kit-list/', views.kit_list, name='kit_list'),
     path('clerk-records/', views.clerk_records, name='clerk_records'),
@@ -30,7 +32,6 @@ urlpatterns = [
     path('register-device/', views.register_device, name='register_device'),
     path('auto-bind-clerk/', views.auto_bind_clerk, name='auto_bind_clerk'),
 
-    path("movement/", views.movement_schedule_view, name="movement_schedule"),
     path("movement/kits/", views.movement_kits, name="movement_kits"),
     path("movement/save/", views.save_movement_schedule, name="save_movement_schedule"),
 

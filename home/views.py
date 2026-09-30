@@ -2058,3 +2058,276 @@ def movement_summary(request):
         days[iso] = {"filled": row["filled"], "total": total_kits}
 
     return JsonResponse({"ok": True, "days": days})
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def save_clerk_movement_venues(request):
+    """
+    Save venue pre-mappings from the clerk tool into MovementSchedule.
+
+    Unlike save_clerk_venues (which writes DailyKIEMSEntry), this endpoint
+    writes MovementSchedule rows so that VRAs see the pre-filled venues
+    when they open the movement schedule page for the same date.
+
+    Default date = tomorrow (movement is always forward-looking).
+    Past dates are rejected.
+    """
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Invalid JSON data'}, status=400)
+
+    updates = data.get('updates', [])
+    fallback_date_str = data.get('date')
+    ward_id = data.get('ward_id')
+    fingerprint = data.get('fingerprint')
+
+    if not updates:
+        return JsonResponse({'ok': False, 'error': 'No updates provided'}, status=400)
+
+    active_phase = Phase.objects.filter(active=True).first()
+    if not active_phase:
+        return JsonResponse({'ok': False, 'error': 'No active phase found'}, status=404)
+
+    today = timezone.localdate()
+    tomorrow = today + timedelta(days=1)
+
+    # Fallback date: default to tomorrow, never the past
+    try:
+        fallback_date_obj = (
+            datetime.strptime(fallback_date_str, '%Y-%m-%d').date()
+            if fallback_date_str else tomorrow
+        )
+    except ValueError:
+        fallback_date_obj = tomorrow
+
+    # ---------- Resolve clerk / vra from device ----------
+    clerk = None
+    vra = None
+
+    if fingerprint:
+        try:
+            device = Device.objects.select_related(
+                'clerk', 'clerk__ward', 'vra', 'vra__ward'
+            ).get(fingerprint=fingerprint, is_burned=True, is_active=True)
+            clerk = device.clerk
+            vra = device.vra
+        except Device.DoesNotExist:
+            pass
+
+    if not clerk and not vra:
+        token = request.GET.get('token') or request.POST.get('token')
+        if token:
+            clerk = Clerk.objects.filter(device_token=token, active=True).first()
+            if not clerk:
+                vra = VRA.objects.filter(device_token=token, active=True).first()
+
+    saved_count = 0
+    created_count = 0
+    updated_count = 0
+    unchanged_count = 0
+    errors = []
+
+    for update in updates:
+        entry_id = update.get('entry_id')  # NOTE: for movement this is the schedule id (or <=0 for new)
+        venue = (update.get('venue') or '').strip()
+        kit_id = update.get('kit_id')
+        row_date_str = update.get('date')
+
+        # Per-row date, defaulting to fallback
+        try:
+            row_date_obj = (
+                datetime.strptime(row_date_str, '%Y-%m-%d').date()
+                if row_date_str else fallback_date_obj
+            )
+        except ValueError:
+            row_date_obj = fallback_date_obj
+
+        # Reject past dates for movement (forward-looking only)
+        if row_date_obj < today:
+            errors.append(f'Cannot schedule movement for past date {row_date_obj}.')
+            continue
+
+        if not kit_id:
+            errors.append('Missing kit_id.')
+            continue
+
+        if not venue:
+            errors.append(f'Kit {kit_id}: venue is required.')
+            continue
+
+        try:
+            kit = KIEMSKit.objects.select_related('ward', 'ward__constituency').get(
+                id=kit_id, status=True
+            )
+        except KIEMSKit.DoesNotExist:
+            errors.append(f'Kit {kit_id} not found.')
+            continue
+
+        # If a ward_id was supplied, verify the kit actually belongs to it
+        if ward_id and str(kit.ward_id) != str(ward_id):
+            errors.append(f'Kit {kit_id} does not belong to ward {ward_id}.')
+            continue
+
+        # Create-or-update the MovementSchedule row
+        obj, was_created = MovementSchedule.objects.get_or_create(
+            kiems_kit=kit,
+            schedule_date=row_date_obj,
+            defaults={
+                'ward': kit.ward,
+                'constituency': kit.ward.constituency,
+                'phase': active_phase,
+                'vra': vra,
+                'clerk': clerk,
+                'venue': venue,
+                'notes': '',
+            },
+        )
+
+        if was_created:
+            created_count += 1
+            saved_count += 1
+            continue
+
+        # Unchanged? Skip the edit_count bump
+        if obj.venue == venue:
+            unchanged_count += 1
+            continue
+
+        obj.venue = venue
+        obj.edit_count += 1
+        # Remember who last touched it
+        if clerk and not obj.clerk:
+            obj.clerk = clerk
+        if vra and not obj.vra:
+            obj.vra = vra
+        obj.save(update_fields=['venue', 'edit_count', 'clerk', 'vra', 'updated_at'])
+        updated_count += 1
+        saved_count += 1
+
+    # ---------- WhatsApp (only when scheduling for tomorrow) ----------
+    if fallback_date_obj == tomorrow and saved_count:
+        try:
+            settings_obj = get_whatsapp_settings()
+            notify_vra = settings_obj.notify_vra if settings_obj else True
+            notify_edit = settings_obj.notify_edit if settings_obj else True
+
+            # Fire per-kit movement messages into the constituency group
+            for update in updates:
+                kit_id = update.get('kit_id')
+                venue = (update.get('venue') or '').strip()
+                if not kit_id or not venue:
+                    continue
+                try:
+                    kit = KIEMSKit.objects.get(id=kit_id)
+                    row = MovementSchedule.objects.filter(
+                        kiems_kit=kit, schedule_date=fallback_date_obj
+                    ).first()
+                    if not row:
+                        continue
+
+                    # Reuse the same message formatter as the ICT officer's tool
+                    from home.services.movement_schedule import format_single_movement_message
+                    is_update = not row._state.adding  # always False here, but harmless
+                    send_to_constituency(
+                        kit.ward.constituency,
+                        format_single_movement_message(row, is_update=is_update),
+                    )
+                except Exception as e:
+                    print(f"[clerk-movement] WhatsApp send failed for kit {kit_id}: {e}")
+        except Exception as e:
+            print(f"[clerk-movement] WhatsApp error: {e}")
+
+    # ---------- Recompute report state (does not send grand report) ----------
+    if created_count or updated_count:
+        try:
+            from home.services.movement_schedule import reevaluate_movement_schedule
+            ward_obj = Ward.objects.filter(id=ward_id).first() if ward_id else None
+            if ward_obj:
+                reevaluate_movement_schedule(ward_obj.constituency, fallback_date_obj)
+        except Exception as e:
+            print(f"[clerk-movement] State re-evaluation error: {e}")
+
+    return JsonResponse({
+        'ok': True,
+        'saved': saved_count,
+        'created': created_count,
+        'updated': updated_count,
+        'unchanged': unchanged_count,
+        'errors': errors if errors else None,
+        'message': f'Saved {saved_count} venue(s).',
+    })
+
+@require_http_methods(["GET"])
+def clerk_movement_records(request):
+    """
+    Return MovementSchedule rows for a kit, across all future dates
+    (today onwards), plus a placeholder for tomorrow if none exist.
+    """
+    kit_id = request.GET.get('kit_id')
+    fingerprint = request.GET.get('fingerprint')
+
+    if not kit_id:
+        return JsonResponse({'error': 'Kit ID is required'}, status=400)
+
+    try:
+        kit = KIEMSKit.objects.get(id=kit_id, status=True)
+    except KIEMSKit.DoesNotExist:
+        return JsonResponse({'error': 'Kit not found'}, status=404)
+
+    active_phase = Phase.objects.filter(active=True).first()
+    if not active_phase:
+        return JsonResponse({'error': 'No active phase found'}, status=404)
+
+    today = timezone.localdate()
+
+    # Only show today and future movement schedules
+    schedules = MovementSchedule.objects.filter(
+        kiems_kit=kit,
+        phase=active_phase,
+        schedule_date__gte=today,
+    ).order_by('schedule_date')
+
+    records = [{
+        'entry_id': s.id,          # keep field name so the JS doesn't change
+        'date': s.schedule_date.isoformat(),
+        'venue': s.venue or '',
+        'editable': True,
+        'entry_type': 'MOVEMENT',
+    } for s in schedules]
+
+    # Always surface tomorrow, even if empty
+    tomorrow = today + timedelta(days=1)
+    if not any(r['date'] == tomorrow.isoformat() for r in records):
+        records.insert(0, {
+            'entry_id': 0,
+            'date': tomorrow.isoformat(),
+            'venue': '',
+            'editable': True,
+            'is_new': True,
+            'entry_type': 'MOVEMENT',
+        })
+
+    clerk_data = None
+    if fingerprint:
+        try:
+            device = Device.objects.select_related('clerk', 'clerk__ward').get(
+                fingerprint=fingerprint, is_burned=True, is_active=True
+            )
+            if device.clerk:
+                clerk_data = {
+                    'id': device.clerk.id,
+                    'name': device.clerk.name,
+                    'ward_name': device.clerk.ward.name if device.clerk.ward else None,
+                }
+        except Device.DoesNotExist:
+            pass
+
+    return JsonResponse({
+        'ok': True,
+        'kit_name': kit.kit_name,
+        'kit_serial': kit.serial_no,
+        'records': records,
+        'count': len(records),
+        'clerk': clerk_data,
+    })
