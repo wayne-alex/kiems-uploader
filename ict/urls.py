@@ -82,6 +82,7 @@ urlpatterns = [
     path("movement/<uuid:pk>/delete/", views.movement_delete, name="movement_delete"),
     path("movement/preview-grand/", views.movement_preview_grand, name="movement_preview_grand"),
     path("movement/send-grand/", views.movement_send_grand, name="movement_send_grand"),
+path("movement/export/excel/", views.movement_export_excel, name="movement_export_excel"),
 
     # ict/urls.py
     path("movement/report/preview/", views.movement_report_preview, name="movement_report_preview"),

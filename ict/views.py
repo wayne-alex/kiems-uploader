@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 import openpyxl
 import requests
+from django.urls import reverse
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 from django.conf import settings
@@ -2198,99 +2199,7 @@ def cron_send_reports(request):
     return JsonResponse({"ok": True, "summary": summary})
 
 
-@ict_required
-def movement_list(request):
-    """
-    Filterable list of movement schedules for the officer's constituency.
-    Filters: schedule_date, ward, kit, only_missing (wards without schedules).
-    """
-    c = request.constituency
 
-    qs = (
-        MovementSchedule.objects
-        .filter(constituency=c)
-        .select_related("ward", "kiems_kit", "vra", "clerk")
-    )
-
-    date_str = request.GET.get("date")
-    ward_id = request.GET.get("ward")
-    kit_id = request.GET.get("kit")
-    only_missing = request.GET.get("missing") == "1"
-
-    # Default to tomorrow
-    if date_str:
-        try:
-            schedule_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        except ValueError:
-            schedule_date = timezone.localdate() + timedelta(days=1)
-    else:
-        schedule_date = timezone.localdate() + timedelta(days=1)
-
-    qs = qs.filter(schedule_date=schedule_date)
-
-    if ward_id:
-        qs = qs.filter(ward_id=ward_id)
-    if kit_id:
-        qs = qs.filter(kiems_kit_id=kit_id)
-
-    wards = Ward.objects.filter(constituency=c, active=True).order_by("name")
-    kits = KIEMSKit.objects.filter(
-        ward__constituency=c, ward__active=True, status=True
-    ).order_by("ward__name", "kit_name")
-
-    # Ward coverage stats for the selected date
-    total_wards = wards.count()
-    submitted_wards = (
-        MovementSchedule.objects
-        .filter(constituency=c, schedule_date=schedule_date)
-        .values("ward_id").distinct().count()
-    )
-    missing_wards = list(
-        wards.exclude(
-            id__in=MovementSchedule.objects
-                    .filter(constituency=c, schedule_date=schedule_date)
-                    .values_list("ward_id", flat=True)
-        ).values("id", "name")
-    )
-
-    total_kits = kits.count()
-    scheduled_kits = (
-        MovementSchedule.objects
-        .filter(constituency=c, schedule_date=schedule_date, kiems_kit__in=kits)
-        .values("kiems_kit_id").distinct().count()
-    )
-
-    if only_missing:
-        qs = qs.filter(ward_id__in=[w["id"] for w in missing_wards])
-
-    state = MovementScheduleState.objects.filter(
-        constituency=c, schedule_date=schedule_date
-    ).first()
-
-    schedule_rows = qs.order_by("ward__name", "kiems_kit__kit_name")
-
-    return render(request, "ict/movement/list.html", {
-        "constituency": c,
-        "schedule_date": schedule_date,
-        "schedule_date_iso": schedule_date.isoformat(),
-        "schedule_rows": schedule_rows,
-        "wards": wards,
-        "kits": kits,
-        "state": state,
-        "stats": {
-            "total_wards": total_wards,
-            "submitted_wards": submitted_wards,
-            "missing_wards_count": total_wards - submitted_wards,
-            "ward_pct": int(submitted_wards / total_wards * 100) if total_wards else 0,
-            "total_kits": total_kits,
-            "scheduled_kits": scheduled_kits,
-            "kit_pct": int(scheduled_kits / total_kits * 100) if total_kits else 0,
-        },
-        "missing_wards": missing_wards,
-        "ward_id": ward_id or "",
-        "kit_id": kit_id or "",
-        "only_missing": only_missing,
-    })
 
 
 @ict_required
@@ -2749,3 +2658,307 @@ def movement_status(request):
         "total_wards": total_wards,
         "total_kits": total_kits,
     })
+
+
+# ==================== MOVEMENT SCHEDULE EXCEL EXPORT ====================
+
+_MOVEMENT_XLSX_MAX_DAYS = 62
+
+
+def _build_movement_workbook(constituency_name, dates, ward_blocks, venue_lookup):
+    """
+    Build the KIEMS movement schedule workbook in the office template layout.
+
+    dates         : sorted list of datetime.date (one column each)
+    ward_blocks   : list of (ward_name, [(kit_key, kit_label), ...]) in display order
+    venue_lookup  : dict {(kit_key, date): venue}
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "KIEMS SCHEDULES"
+
+    FONT = "Maiandra GD"
+    header_fill = PatternFill("solid", fgColor="9BBB59")
+    thin = Side(style="thin")
+    med = Side(style="medium")
+
+    FIXED = 2                       # WARD | KIT NUMBER
+    first_date_col = FIXED + 1
+    last_col = FIXED + len(dates)
+
+    # ---- Title (row 4) + underlined blank strip (row 5), same as template
+    first, last = dates[0], dates[-1]
+    period = first.strftime("%B-%Y").upper()
+    if (first.year, first.month) != (last.year, last.month):
+        period += " TO " + last.strftime("%B-%Y").upper()
+    ws["A4"] = f"{constituency_name.upper()} CONSTITUENCY KIT MOVEMENT SCHEDULE {period}"
+    ws["A4"].font = Font(name=FONT, size=11, bold=True, color="000000")
+    ws["A4"].alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[4].height = 13.2
+
+    ws.merge_cells("A5:F5")
+    for col in range(1, 7):
+        ws.cell(row=5, column=col).border = Border(bottom=thin)
+
+    # ---- Header row (row 6)
+    HEADER_ROW = 6
+    ws.row_dimensions[HEADER_ROW].height = 22
+    headers = {1: "WARD", 2: "KIT NUMBER"}
+    for col in range(1, last_col + 1):
+        cell = ws.cell(row=HEADER_ROW, column=col)
+        if col in headers:
+            cell.value = headers[col]
+        else:
+            cell.value = dates[col - first_date_col]
+            cell.number_format = "mm-dd-yy"
+        cell.font = Font(name=FONT, size=10, bold=True, color="000000")
+        cell.fill = header_fill
+        cell.alignment = Alignment(
+            horizontal="left" if col == 1 else None, vertical="center"
+        )
+        cell.border = Border(
+            left=thin if col < last_col else None,
+            right=thin,
+            top=thin,
+        )
+
+    # ---- Ward blocks
+    row = HEADER_ROW + 1
+    for ward_name, kits in ward_blocks:
+        block_start = row
+        block_end = row + len(kits) - 1
+
+        for k_idx, (kit_key, kit_label) in enumerate(kits):
+            r = block_start + k_idx
+            ws.row_dimensions[r].height = 22
+
+            for col in range(1, last_col + 1):
+                cell = ws.cell(row=r, column=col)
+
+                if col == 1:
+                    if k_idx == 0:
+                        cell.value = ward_name
+                    cell.font = Font(name=FONT, size=11, bold=True, color="000000")
+                    cell.alignment = Alignment(horizontal="left", vertical="center",
+                                               shrink_to_fit=True)
+                elif col == 2:
+                    cell.value = kit_label
+                    cell.font = Font(name=FONT, size=10, color="000000")
+                    cell.alignment = Alignment(vertical="center")
+                else:
+                    d = dates[col - first_date_col]
+                    cell.value = venue_lookup.get((kit_key, d)) or None
+                    cell.font = Font(name=FONT, size=10, color="000000")
+                    cell.alignment = Alignment(vertical="center", shrink_to_fit=True)
+
+                # Thin grid inside, medium frame around the whole ward block
+                cell.border = Border(
+                    left=med if col == 1 else thin,
+                    right=med if col == last_col else thin,
+                    top=med if r == block_start else thin,
+                    bottom=med if r == block_end else thin,
+                )
+
+        if len(kits) > 1:
+            ws.merge_cells(start_row=block_start, start_column=1,
+                           end_row=block_end, end_column=1)
+        row = block_end + 1
+
+    # ---- Column widths (template values)
+    ws.column_dimensions["A"].width = 20.43
+    ws.column_dimensions["B"].width = 12.72
+    for col in range(first_date_col, last_col + 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 29.43
+
+    ws.freeze_panes = ws.cell(row=HEADER_ROW + 1, column=first_date_col).coordinate
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.paperSize = 9  # A4
+    ws.print_title_rows = f"{HEADER_ROW}:{HEADER_ROW}"
+
+    return wb
+
+def _parse_iso_date(value):
+    """'YYYY-MM-DD' -> date, or None if empty/invalid."""
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date() if value else None
+    except ValueError:
+        return None
+
+
+@ict_required
+def movement_list(request):
+    """
+    Filterable list of movement schedules for the officer's constituency.
+    Filters: date_from, date_to, ward, kit, only_missing (wards without schedules).
+
+    The table shows every schedule in the From-To range. The coverage cards,
+    missing-wards banner, report state, PDF notice and grand report are
+    per-day, so they use the From date.
+    """
+    c = request.constituency
+
+    qs = (
+        MovementSchedule.objects
+        .filter(constituency=c)
+        .select_related("ward", "kiems_kit", "vra", "clerk")
+    )
+
+    ward_id = request.GET.get("ward")
+    kit_id = request.GET.get("kit")
+    only_missing = request.GET.get("missing") == "1"
+
+    # ---- Date range (defaults to tomorrow; legacy ?date= still works)
+    tomorrow = timezone.localdate() + timedelta(days=1)
+    date_from = (
+        _parse_iso_date(request.GET.get("date_from"))
+        or _parse_iso_date(request.GET.get("date"))
+        or tomorrow
+    )
+    date_to = _parse_iso_date(request.GET.get("date_to")) or date_from
+    if date_to < date_from:
+        date_to = date_from
+
+    schedule_date = date_from  # day used for coverage stats / grand report
+
+    qs = qs.filter(schedule_date__range=(date_from, date_to))
+
+    if ward_id:
+        qs = qs.filter(ward_id=ward_id)
+    if kit_id:
+        qs = qs.filter(kiems_kit_id=kit_id)
+
+    wards = Ward.objects.filter(constituency=c, active=True).order_by("name")
+    kits = KIEMSKit.objects.filter(
+        ward__constituency=c, ward__active=True, status=True
+    ).order_by("ward__name", "kit_name")
+
+    # ---- Ward coverage stats for the From date
+    total_wards = wards.count()
+    submitted_wards = (
+        MovementSchedule.objects
+        .filter(constituency=c, schedule_date=schedule_date)
+        .values("ward_id").distinct().count()
+    )
+    missing_wards = list(
+        wards.exclude(
+            id__in=MovementSchedule.objects
+                    .filter(constituency=c, schedule_date=schedule_date)
+                    .values_list("ward_id", flat=True)
+        ).values("id", "name")
+    )
+
+    total_kits = kits.count()
+    scheduled_kits = (
+        MovementSchedule.objects
+        .filter(constituency=c, schedule_date=schedule_date, kiems_kit__in=kits)
+        .values("kiems_kit_id").distinct().count()
+    )
+
+    if only_missing:
+        qs = qs.filter(ward_id__in=[w["id"] for w in missing_wards])
+
+    state = MovementScheduleState.objects.filter(
+        constituency=c, schedule_date=schedule_date
+    ).first()
+
+    schedule_rows = qs.order_by("schedule_date", "ward__name", "kiems_kit__kit_name")
+
+    return render(request, "ict/movement/list.html", {
+        "constituency": c,
+        "schedule_date": schedule_date,
+        "schedule_date_iso": schedule_date.isoformat(),
+        "date_from_iso": date_from.isoformat(),
+        "date_to_iso": date_to.isoformat(),
+        "is_range": date_to > date_from,
+        "schedule_rows": schedule_rows,
+        "wards": wards,
+        "kits": kits,
+        "state": state,
+        "stats": {
+            "total_wards": total_wards,
+            "submitted_wards": submitted_wards,
+            "missing_wards_count": total_wards - submitted_wards,
+            "ward_pct": int(submitted_wards / total_wards * 100) if total_wards else 0,
+            "total_kits": total_kits,
+            "scheduled_kits": scheduled_kits,
+            "kit_pct": int(scheduled_kits / total_kits * 100) if total_kits else 0,
+        },
+        "missing_wards": missing_wards,
+        "ward_id": ward_id or "",
+        "kit_id": kit_id or "",
+        "only_missing": only_missing,
+    })
+
+
+@ict_required
+@require_GET
+def movement_export_excel(request):
+    """
+    Download the movement schedule as Excel in the office template layout:
+    WARD | KIT NUMBER | one column per date, one block of kit rows per ward.
+
+    Query params:
+      date_from (YYYY-MM-DD)  first day; default = tomorrow (legacy ?date= works)
+      date_to   (YYYY-MM-DD)  last day; default = last day that has a schedule
+                              (or the first day if none). Capped at 62 days.
+    """
+    c = request.constituency
+
+    start = (
+        _parse_iso_date(request.GET.get("date_from"))
+        or _parse_iso_date(request.GET.get("date"))
+        or timezone.localdate() + timedelta(days=1)
+    )
+
+    qs = MovementSchedule.objects.filter(constituency=c, schedule_date__gte=start)
+
+    end = _parse_iso_date(request.GET.get("date_to"))
+    if end is None:
+        end = (
+            qs.order_by("-schedule_date")
+            .values_list("schedule_date", flat=True)
+            .first()
+        ) or start
+    if end < start:
+        end = start
+    end = min(end, start + timedelta(days=_MOVEMENT_XLSX_MAX_DAYS - 1))
+
+    schedules = list(
+        qs.filter(schedule_date__lte=end).select_related("kiems_kit", "ward")
+    )
+    if not schedules:
+        messages.warning(request, "No movement schedules to export for that period.")
+        return redirect(
+            f"{reverse('ict:movement_list')}"
+            f"?date_from={start.isoformat()}&date_to={end.isoformat()}"
+        )
+
+    dates = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+    venue_lookup = {(s.kiems_kit_id, s.schedule_date): s.venue for s in schedules}
+
+    scheduled_kit_ids = {s.kiems_kit_id for s in schedules}
+    kits = (
+        KIEMSKit.objects
+        .filter(ward__constituency=c)
+        .filter(Q(ward__active=True, status=True) | Q(id__in=scheduled_kit_ids))
+        .select_related("ward")
+        .order_by("ward__name", "kit_name")
+    )
+
+    blocks = {}
+    for kit in kits:
+        blocks.setdefault(kit.ward.name, []).append((kit.id, kit.kit_name))
+    ward_blocks = list(blocks.items())
+
+    wb = _build_movement_workbook(c.name, dates, ward_blocks, venue_lookup)
+
+    filename = (
+        f"{c.name.replace(' ', '_')}_Movement_Schedule_"
+        f"{start.strftime('%Y%m%d')}_{end.strftime('%Y%m%d')}.xlsx"
+    )
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
