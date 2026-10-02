@@ -178,7 +178,130 @@ def _kit_number(kit_name):
         return int(m.group(1))
     nums = re.findall(r"\d+", kit_name)
     return int(nums[-1]) if nums else None
+import re
+from django.db.models import Sum
+from home.models import DailyKIEMSEntry, Ward
 
+_KIT_RE    = re.compile(r"^\s*KIT[-\s]*(\d+)\s*$", re.IGNORECASE)
+_OFFICE_RE = re.compile(r"\boffice\b", re.IGNORECASE)
+
+
+def _is_office_kit(name):
+    return bool(_OFFICE_RE.search(name or ""))
+
+
+def _kit_number(name):
+    if not name:
+        return None
+    m = _KIT_RE.match(name)
+    if m:
+        return int(m.group(1))
+    nums = re.findall(r"\d+", name)
+    return int(nums[-1]) if nums else None
+
+
+def build_daily_report_text(constituency, report_date):
+    """
+    Plain-text WhatsApp message for one constituency / one day.
+
+    Layout:
+        UASIN GISHU COUNTY
+        AINABKOI SUB COUNTY
+        DAILY REPORT PER KIT
+        01/10/2026
+
+        *KAPTAGAT WARD*
+        KIT 1 - Registered......007
+        KIT 2 - Registered......005
+
+        *KAPSOYA WARD*
+        KIT 1 - Registered......005
+        ...
+        TOTALS – 67
+        MALE-  36
+        FEMALE - 31
+
+    Returns None if nothing to show.
+    """
+    entries = (
+        DailyKIEMSEntry.objects
+        .filter(
+            ward__constituency=constituency,
+            entry_date=report_date,
+            entry_type="REGISTRATION",
+        )
+        .select_related("ward", "kiems_kit")
+    )
+    if not entries.exists():
+        return None
+
+    kit_rows = list(
+        entries
+        .values("ward_id", "ward__name", "kiems_kit_id", "kiems_kit__kit_name")
+        .annotate(
+            male=Sum("registered_male"),
+            female=Sum("registered_female"),
+            total=Sum("total_registered"),
+            transferred=Sum("total_transferred"),
+        )
+    )
+
+    printable = [
+        r for r in kit_rows
+        if (r["total"] or 0) > 0
+        or (r["transferred"] or 0) > 0
+        or _is_office_kit(r["kiems_kit__kit_name"])
+    ]
+    if not printable:
+        return None
+
+    wards = {}
+    for r in printable:
+        wards.setdefault(r["ward_id"], {"name": r["ward__name"], "kits": []})["kits"].append(r)
+
+    def _key(row):
+        n = _kit_number(row["kiems_kit__kit_name"])
+        return (n if n is not None else 10 ** 9, row["kiems_kit__kit_name"] or "")
+
+    for w in wards.values():
+        w["kits"].sort(key=_key)
+
+    grand_male   = sum(r["male"]   or 0 for r in printable)
+    grand_female = sum(r["female"] or 0 for r in printable)
+    grand_total  = sum(r["total"]  or 0 for r in printable)
+    grand_trans  = sum(r["transferred"] or 0 for r in printable)
+
+    county_name     = getattr(getattr(constituency, "county", None), "name", None)
+    sub_county_name = getattr(constituency, "sub_county", None) or constituency.name
+
+    lines = []
+    if county_name:
+        lines.append(f"{county_name.upper()} COUNTY")
+    lines.append(f"{str(sub_county_name).upper()} SUB COUNTY")
+    lines.append("DAILY REPORT PER KIT")
+    lines.append(report_date.strftime("%d/%m/%Y"))
+
+    for w in sorted(wards.values(), key=lambda x: x["name"]):
+        lines.append("")
+        lines.append(f"*{w['name'].upper()} WARD*")
+        for r in w["kits"]:
+            kit_name = r["kiems_kit__kit_name"] or ""
+            total    = r["total"] or 0
+            if _is_office_kit(kit_name):
+                lines.append(f"OFFICE KIT – Registered … {total}")
+            else:
+                n = _kit_number(kit_name)
+                label = f"KIT {n}" if n is not None else kit_name.upper()
+                lines.append(f"{label} - Registered......{int(total):03d}")
+
+    lines.append("")
+    lines.append(f"TOTALS – {grand_total}")
+    lines.append(f"MALE-  {grand_male}")
+    lines.append(f"FEMALE - {grand_female}")
+    if grand_trans:
+        lines.append(f"Transferred: {grand_trans}")
+
+    return "\n".join(lines)
 
 def _build_grand_total_payload(state):
     """

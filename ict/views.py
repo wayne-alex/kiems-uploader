@@ -33,7 +33,7 @@ from home.services.daily_report import (
     reap_stuck_sending_states,
     send_ready_reports,
     reevaluate_constituency_report,
-    run_daily_report_tick,
+    run_daily_report_tick, build_daily_report_text,
 )
 from .decorators import ict_required
 from .forms import (
@@ -2962,3 +2962,48 @@ def movement_export_excel(request):
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response
+
+
+def daily_report_preview(request):
+    """
+    Show today's per-kit WhatsApp report as plain text.
+    The user can copy it straight into WhatsApp.
+
+    Query params:
+      - constituency : Constituency PK (optional; falls back to first active)
+      - date         : YYYY-MM-DD (optional; defaults to today)
+    """
+    constituency_id = request.GET.get("constituency")
+    if constituency_id:
+        constituency = get_object_or_404(Constituency, pk=constituency_id)
+    else:
+        constituency = Constituency.objects.filter(active=True).order_by("name").first()
+        if not constituency:
+            return JsonResponse({"ok": False, "error": "No active constituency"}, status=404)
+
+    date_str = request.GET.get("date")
+    try:
+        report_date = (
+            datetime.strptime(date_str, "%Y-%m-%d").date()
+            if date_str else timezone.localdate()
+        )
+    except (ValueError, TypeError):
+        report_date = timezone.localdate()
+
+    text = build_daily_report_text(constituency, report_date)
+
+    # If asked for raw text (used by a fetch() to open WhatsApp), return it
+    if request.GET.get("format") == "txt":
+        return JsonResponse({
+            "ok": True,
+            "text": text or "",
+            "constituency": constituency.name,
+            "date": report_date.isoformat(),
+        })
+
+    return render(request, "ict/daily_report_preview.html", {
+        "constituency": constituency,
+        "report_date": report_date,
+        "report_text": text or "",
+        "has_data": bool(text),
+    })

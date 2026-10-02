@@ -137,6 +137,11 @@
             <button type="button" class="btn btn-outline btn-sm" onclick="toggleModal('importModal')">
                 <i class="bi bi-file-earmark-arrow-up"></i> Import CSV
             </button>
+            <a href="{% url 'ict:daily_report_preview' %}?constituency={{ constituency.pk }}&date={{ today|date:'Y-m-d' }}"
+   class="btn btn-primary btn-sm"
+   target="_blank" rel="noopener">
+    <i class="bi bi-whatsapp"></i> Preview WhatsApp
+</a>
             <a href="{% url 'ict:entry_export_excel' %}?{{ request.GET.urlencode }}"
                class="btn btn-outline btn-sm">
                 <i class="bi bi-file-earmark-excel"></i> Export Excel

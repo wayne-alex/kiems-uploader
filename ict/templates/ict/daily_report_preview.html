@@ -1,0 +1,60 @@
+{% extends "ict/base.html" %}
+{% block title %}WhatsApp Preview &mdash; {{ constituency.name }}{% endblock %}
+
+{% block content %}
+<div style="max-width:820px; margin:0 auto; display:flex; flex-direction:column; gap:14px;">
+
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+    <div>
+      <h2 style="font-size:20px; font-weight:700;">WhatsApp Report Preview</h2>
+      <p style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+        {{ constituency.name }} &middot; {{ report_date|date:"d/m/Y" }}
+      </p>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <a href="{% url 'ict:entry_list' %}" class="btn btn-outline btn-sm">
+        <i class="bi bi-arrow-left"></i> Back
+      </a>
+      <button type="button" id="copyBtn" class="btn btn-primary btn-sm">
+        <i class="bi bi-clipboard"></i> Copy for WhatsApp
+      </button>
+    </div>
+  </div>
+
+  {% if not has_data %}
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:24px; text-align:center; color:var(--text-muted);">
+    <i class="bi bi-inbox" style="font-size:28px; opacity:.4; display:block; margin-bottom:8px;"></i>
+    No registration entries for {{ report_date|date:"d/m/Y" }}.
+  </div>
+  {% else %}
+
+  <textarea id="reportText" readonly
+    style="width:100%; min-height:520px; padding:14px 16px; font-family:'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+           font-size:12.5px; line-height:1.55; border:1px solid var(--border-strong); border-radius:8px;
+           background:#f7f8fa; color:var(--text); resize:vertical; white-space:pre;">{{ report_text }}</textarea>
+
+  <div style="font-size:11px; color:var(--text-muted);">
+    Copy the block above and paste it directly into the constituency WhatsApp group.
+    Bold markers (<code>*ward*</code>) render as <b>bold</b> in WhatsApp.
+  </div>
+
+  {% endif %}
+</div>
+
+<script>
+document.getElementById('copyBtn')?.addEventListener('click', async () => {
+  const ta = document.getElementById('reportText');
+  if (!ta) return;
+  try {
+    await navigator.clipboard.writeText(ta.value);
+    const btn = document.getElementById('copyBtn');
+    const html = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check2"></i> Copied!';
+    setTimeout(() => { btn.innerHTML = html; }, 1600);
+  } catch (e) {
+    ta.select();
+    document.execCommand('copy');
+  }
+});
+</script>
+{% endblock %}
