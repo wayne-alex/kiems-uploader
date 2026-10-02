@@ -149,6 +149,19 @@ def reevaluate_constituency_report(constituency, report_date=None):
 def _build_grand_total_payload(state):
     """
     Build (message_text, data_hash) for a given DailyReportState.
+
+    Format:
+        CONSTITUENCY — DAILY REPORT
+        02 Oct 2026
+        ------------------------------
+        Kit 1:  M 12  F 8   = 20
+        Kit 2:  M 5   F 3   = 8
+        Kit 4:  M 0   F 0   = 0   (0/0 kits are skipped)
+        ------------------------------
+        TOTAL:  M 17  F 11  = 28
+
+    Kits are ordered Kit 1 → Kit N (numeric, not alphabetical).
+    Kits with 0 male, 0 female AND no transfers are omitted.
     Returns (None, None) if there's nothing to report.
     """
     entries = (
@@ -158,48 +171,79 @@ def _build_grand_total_payload(state):
             entry_date=state.report_date,
             entry_type="REGISTRATION",
         )
-        .select_related("ward")
+        .select_related("ward", "kiems_kit")
     )
 
     if not entries.exists():
         return None, None
 
-    totals = entries.aggregate(
-        male=Sum("registered_male"),
-        female=Sum("registered_female"),
-        total=Sum("total_registered"),
-        transferred=Sum("total_transferred"),
-    )
-    by_ward = list(
-        entries.values("ward__name").annotate(
+    # --- Per-kit aggregation -------------------------------------------
+    # Group by kit only (not ward) so the report reads as a single
+    # "kit → male / female / total" table for the whole constituency.
+    kit_rows = list(
+        entries
+        .values("kiems_kit__kit_name", "kiems_kit_id")
+        .annotate(
             male=Sum("registered_male"),
             female=Sum("registered_female"),
             total=Sum("total_registered"),
-        ).order_by("ward__name")
+            transferred=Sum("total_transferred"),
+        )
     )
 
-    # Stable hash of the underlying data — same numbers => same hash
+    # Drop kits with nothing to show: 0 registered AND no transfers
+    kit_rows = [
+        r for r in kit_rows
+        if (r["total"] or 0) > 0 or (r["transferred"] or 0) > 0
+    ]
+
+    if not kit_rows:
+        return None, None
+
+    # Numeric sort: "Kit 1", "Kit 2", "Kit 10" … not "Kit 1", "Kit 10", "Kit 2"
+    import re
+    def _kit_sort_key(row):
+        name = row["kiems_kit__kit_name"] or ""
+        nums = re.findall(r"\d+", name)
+        return (int(nums[0]) if nums else 10**9, name)
+
+    kit_rows.sort(key=_kit_sort_key)
+
+    # --- Totals ---------------------------------------------------------
+    grand_male   = sum(r["male"]   or 0 for r in kit_rows)
+    grand_female = sum(r["female"] or 0 for r in kit_rows)
+    grand_total  = sum(r["total"]  or 0 for r in kit_rows)
+    grand_trans  = sum(r["transferred"] or 0 for r in kit_rows)
+
+    # --- Stable hash ----------------------------------------------------
     fingerprint_payload = {
         "c": state.constituency_id,
         "d": state.report_date.isoformat(),
-        "t": int(totals["total"] or 0),
-        "m": int(totals["male"] or 0),
-        "f": int(totals["female"] or 0),
-        "w": [(w["ward__name"], int(w["total"] or 0)) for w in by_ward],
+        "t": int(grand_total),
+        "m": int(grand_male),
+        "f": int(grand_female),
+        "kits": [(r["kiems_kit__kit_name"], int(r["total"] or 0)) for r in kit_rows],
     }
     data_hash = hashlib.sha256(
         json.dumps(fingerprint_payload, sort_keys=True).encode()
     ).hexdigest()
 
-    msg = f"*{state.constituency.name.upper()} — DAILY REPORT*\n"
+    # --- Message --------------------------------------------------------
+    msg  = f"*{state.constituency.name.upper()} — DAILY REPORT*\n"
     msg += f"_{state.report_date.strftime('%d %b %Y')}_\n"
     msg += "------------------------------\n"
-    for w in by_ward:
-        msg += f"{w['ward__name']}: M {w['male'] or 0}  F {w['female'] or 0}  = {w['total'] or 0}\n"
+    msg += "*Kit*        *M*   *F*   *Total*\n"
+
+    for r in kit_rows:
+        kit = r["kiems_kit__kit_name"] or "?"
+        msg += f"{kit}:  M {r['male'] or 0}  F {r['female'] or 0}  = {r['total'] or 0}\n"
+        if r["transferred"]:
+            msg += f"   Transferred: {r['transferred']}\n"
+
     msg += "------------------------------\n"
-    msg += f"*TOTAL:* M {totals['male'] or 0}  F {totals['female'] or 0}  = *{totals['total'] or 0}*"
-    if totals["transferred"]:
-        msg += f"\nTransferred: {totals['transferred']}"
+    msg += f"*TOTAL:*  M {grand_male}  F {grand_female}  = *{grand_total}*"
+    if grand_trans:
+        msg += f"\nTransferred: {grand_trans}"
     msg += f"\n\n_{state.submitted_wards}/{state.total_wards} wards submitted_"
 
     return msg, data_hash
