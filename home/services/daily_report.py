@@ -146,23 +146,99 @@ def reevaluate_constituency_report(constituency, report_date=None):
 # SENDER — daily registration report (the ONLY place that sends it)
 # ============================================================
 
+import re
+
+
+# Matches 'KIT-1', 'KIT 1', 'KIT-12', 'KIT 7', etc.
+# Deliberately does NOT match 'KIT-OFFICE ...' because the next
+# character after 'KIT' must be a digit (after optional - or space).
+_KIT_RE = re.compile(r"^\s*KIT[-\s]*(\d+)\s*$", re.IGNORECASE)
+_OFFICE_RE = re.compile(r"\boffice\b", re.IGNORECASE)
+
+
+def _is_office_kit(kit_name):
+    """Office kits always print, even at 0/0."""
+    return bool(_OFFICE_RE.search(kit_name or ""))
+
+
+def _kit_number(kit_name):
+    """
+    Extract the number from a kit name.
+      'KIT-1'    -> 1
+      'KIT 7'    -> 7
+      'KIT-13'   -> 13
+      'KIT-OFFICE 001' -> None  (office kits have no KIT n)
+      'Nyenyilel 3'    -> 3     (fallback: last integer in the name)
+    Returns None if no number can be found.
+    """
+    if not kit_name:
+        return None
+    m = _KIT_RE.match(kit_name)
+    if m:
+        return int(m.group(1))
+    nums = re.findall(r"\d+", kit_name)
+    return int(nums[-1]) if nums else None
+
+
 def _build_grand_total_payload(state):
     """
     Build (message_text, data_hash) for a given DailyReportState.
 
-    Format:
-        CONSTITUENCY — DAILY REPORT
-        02 Oct 2026
-        ------------------------------
-        Kit 1:  M 12  F 8   = 20
-        Kit 2:  M 5   F 3   = 8
-        Kit 4:  M 0   F 0   = 0   (0/0 kits are skipped)
-        ------------------------------
-        TOTAL:  M 17  F 11  = 28
+    Output format (kit number taken from the kit's own name, which in
+    this deployment already runs 1..18 across the whole constituency):
 
-    Kits are ordered Kit 1 → Kit N (numeric, not alphabetical).
-    Kits with 0 male, 0 female AND no transfers are omitted.
-    Returns (None, None) if there's nothing to report.
+        UASIN GISHU COUNTY
+        AINABKOI SUB COUNTY
+        DAILY REPORT PER KIT
+        01/10/2026
+
+        *NGENYILEL WARD*
+        KIT 1 - Registered......007
+        KIT 2 - Registered......005
+        KIT 3 - Registered......009
+
+        *TAPSAGOI WARD*
+        KIT 4 - Registered......005
+        KIT 5 - Registered......014
+        KIT 6 - Registered......010
+
+        *KAMAGUT WARD*
+        KIT 7 - Registered......011
+        KIT 8 - Registered......006
+        KIT 9 - Registered......004
+
+        *KIPLOMBE WARD*
+        KIT 10 - Registered......008
+        KIT 11 - Registered......000
+        KIT 12 - Registered......009
+
+        *KAPSAOS WARD*
+        KIT 13 - Registered......007
+        KIT 14 - Registered......012
+        KIT 15 - Registered......010
+
+        *HURUMA WARD*
+        KIT 16 - Registered......006
+        KIT 17 - Registered......014
+        KIT 18 - Registered......008
+
+        *OFFICE WARD*
+        OFFICE KIT – Registered … 0
+        OFFICE KIT – Registered … 0
+
+        TOTALS – 67
+        MALE-  36
+        FEMALE - 31
+
+    Rules:
+      - Ward name in bold above its kits.
+      - KIT n comes from the kit's own trailing number, so 'KIT-1',
+        'KIT 7', 'KIT-13' all normalise to 'KIT 1', 'KIT 7', 'KIT 13'.
+      - Kits sorted numerically WITHIN each ward (1,2,3 then 4,5,6 ...).
+      - Kits with 0 registered AND no transfers are dropped, EXCEPT
+        office kits, which always print as 'OFFICE KIT – Registered … n'.
+      - Wards with no printable kits are omitted entirely.
+      - Returns (None, None) if there's nothing to report.
     """
     entries = (
         DailyKIEMSEntry.objects
@@ -178,11 +254,14 @@ def _build_grand_total_payload(state):
         return None, None
 
     # --- Per-kit aggregation -------------------------------------------
-    # Group by kit only (not ward) so the report reads as a single
-    # "kit → male / female / total" table for the whole constituency.
     kit_rows = list(
         entries
-        .values("kiems_kit__kit_name", "kiems_kit_id")
+        .values(
+            "ward_id",
+            "ward__name",
+            "kiems_kit_id",
+            "kiems_kit__kit_name",
+        )
         .annotate(
             male=Sum("registered_male"),
             female=Sum("registered_female"),
@@ -191,29 +270,38 @@ def _build_grand_total_payload(state):
         )
     )
 
-    # Drop kits with nothing to show: 0 registered AND no transfers
-    kit_rows = [
-        r for r in kit_rows
-        if (r["total"] or 0) > 0 or (r["transferred"] or 0) > 0
-    ]
+    # --- Drop empty kits, keep office kits ------------------------------
+    printable = []
+    for r in kit_rows:
+        total = r["total"] or 0
+        trans = r["transferred"] or 0
+        if total == 0 and trans == 0 and not _is_office_kit(r["kiems_kit__kit_name"]):
+            continue
+        printable.append(r)
 
-    if not kit_rows:
+    if not printable:
         return None, None
 
-    # Numeric sort: "Kit 1", "Kit 2", "Kit 10" … not "Kit 1", "Kit 10", "Kit 2"
-    import re
-    def _kit_sort_key(row):
-        name = row["kiems_kit__kit_name"] or ""
-        nums = re.findall(r"\d+", name)
-        return (int(nums[0]) if nums else 10**9, name)
+    # --- Group by ward, sort kits numerically within each ward ----------
+    wards = {}
+    for r in printable:
+        wards.setdefault(r["ward_id"], {
+            "name": r["ward__name"],
+            "kits": [],
+        })["kits"].append(r)
 
-    kit_rows.sort(key=_kit_sort_key)
+    def _sort_key(row):
+        n = _kit_number(row["kiems_kit__kit_name"])
+        return (n if n is not None else 10 ** 9, row["kiems_kit__kit_name"] or "")
 
-    # --- Totals ---------------------------------------------------------
-    grand_male   = sum(r["male"]   or 0 for r in kit_rows)
-    grand_female = sum(r["female"] or 0 for r in kit_rows)
-    grand_total  = sum(r["total"]  or 0 for r in kit_rows)
-    grand_trans  = sum(r["transferred"] or 0 for r in kit_rows)
+    for w in wards.values():
+        w["kits"].sort(key=_sort_key)
+
+    # --- Constituency totals --------------------------------------------
+    grand_male   = sum(r["male"]   or 0 for r in printable)
+    grand_female = sum(r["female"] or 0 for r in printable)
+    grand_total  = sum(r["total"]  or 0 for r in printable)
+    grand_trans  = sum(r["transferred"] or 0 for r in printable)
 
     # --- Stable hash ----------------------------------------------------
     fingerprint_payload = {
@@ -222,29 +310,53 @@ def _build_grand_total_payload(state):
         "t": int(grand_total),
         "m": int(grand_male),
         "f": int(grand_female),
-        "kits": [(r["kiems_kit__kit_name"], int(r["total"] or 0)) for r in kit_rows],
+        "kits": [
+            (r["ward__name"], r["kiems_kit__kit_name"], int(r["total"] or 0))
+            for r in printable
+        ],
     }
     data_hash = hashlib.sha256(
         json.dumps(fingerprint_payload, sort_keys=True).encode()
     ).hexdigest()
 
-    # --- Message --------------------------------------------------------
-    msg  = f"*{state.constituency.name.upper()} — DAILY REPORT*\n"
-    msg += f"_{state.report_date.strftime('%d %b %Y')}_\n"
-    msg += "------------------------------\n"
-    msg += "*Kit*        *M*   *F*   *Total*\n"
+    # --- Header ---------------------------------------------------------
+    constituency = state.constituency
+    county_name     = getattr(getattr(constituency, "county", None), "name", None)
+    sub_county_name = (
+        getattr(constituency, "sub_county", None)
+        or getattr(constituency, "name", None)
+    )
 
-    for r in kit_rows:
-        kit = r["kiems_kit__kit_name"] or "?"
-        msg += f"{kit}:  M {r['male'] or 0}  F {r['female'] or 0}  = {r['total'] or 0}\n"
-        if r["transferred"]:
-            msg += f"   Transferred: {r['transferred']}\n"
+    msg  = ""
+    if county_name:
+        msg += f"{county_name.upper()} COUNTY\n"
+    msg += f"{str(sub_county_name).upper()} SUB COUNTY\n"
+    msg += "DAILY REPORT PER KIT\n"
+    msg += f"{state.report_date.strftime('%d/%m/%Y')}\n"
 
-    msg += "------------------------------\n"
-    msg += f"*TOTAL:*  M {grand_male}  F {grand_female}  = *{grand_total}*"
+    # --- Ward blocks ----------------------------------------------------
+    for w in sorted(wards.values(), key=lambda x: x["name"]):
+        msg += f"\n*{w['name'].upper()} WARD*\n"
+
+        for r in w["kits"]:
+            kit_name = r["kiems_kit__kit_name"] or ""
+            total    = r["total"] or 0
+
+            if _is_office_kit(kit_name):
+                msg += f"OFFICE KIT – Registered … {total}\n"
+                continue
+
+            n = _kit_number(kit_name)
+            label = f"KIT {n}" if n is not None else kit_name.upper()
+            msg += f"{label} - Registered......{int(total):03d}\n"
+
+    # --- Footer ---------------------------------------------------------
+    msg += f"\nTOTALS – {grand_total}\n"
+    msg += f"MALE-  {grand_male}\n"
+    msg += f"FEMALE - {grand_female}"
+
     if grand_trans:
         msg += f"\nTransferred: {grand_trans}"
-    msg += f"\n\n_{state.submitted_wards}/{state.total_wards} wards submitted_"
 
     return msg, data_hash
 
