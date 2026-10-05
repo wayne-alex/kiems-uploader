@@ -36,6 +36,7 @@ urlpatterns = [
     path("devices/<int:pk>/authorize/", views.device_authorize, name="device_authorize"),
     path("devices/<int:pk>/revoke/", views.device_revoke, name="device_revoke"),
     path("devices/<int:pk>/delete/", views.device_delete, name="device_delete"),
+    path("devices/bulk-delete/", views.device_bulk_delete, name="device_bulk_delete"),
 
     # Entries
 
@@ -82,8 +83,12 @@ urlpatterns = [
     path("movement/<uuid:pk>/delete/", views.movement_delete, name="movement_delete"),
     path("movement/preview-grand/", views.movement_preview_grand, name="movement_preview_grand"),
     path("movement/send-grand/", views.movement_send_grand, name="movement_send_grand"),
-path("movement/export/excel/", views.movement_export_excel, name="movement_export_excel"),
-path("daily-report/preview/", views.daily_report_preview, name="daily_report_preview"),
+    path("movement/export/excel/", views.movement_export_excel, name="movement_export_excel"),
+    path("daily-report/preview/", views.daily_report_preview, name="daily_report_preview"),
+    path("system-status/send-override/<int:constituency_id>/",
+         views.system_status_send_override, name="system_status_send_override"),
+    path("system-status/send-ward/<int:ward_id>/",
+         views.system_status_send_ward, name="system_status_send_ward"),
 
     # ict/urls.py
     path("movement/report/preview/", views.movement_report_preview, name="movement_report_preview"),

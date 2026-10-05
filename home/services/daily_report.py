@@ -17,14 +17,14 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# HELPERS — ward / kit submission state
+# HELPERS ? ward / kit submission state
 # ============================================================
 
 def _submitted_kit_ids(ward, phase, report_date):
     """
     Kits in this ward that have an explicit REGISTRATION submission for
     the given day. Includes honest 0/0/0 submissions, because the VRA
-    still had to save the row — that's the signal "I'm done".
+    still had to save the row ? that's the signal "I'm done".
     """
     return set(
         DailyKIEMSEntry.objects
@@ -89,7 +89,7 @@ def constituency_kit_progress(constituency, report_date=None):
 
 
 # ============================================================
-# TRIGGER — called from submission views (never sends)
+# TRIGGER ? called from submission views (never sends)
 # ============================================================
 
 def reevaluate_constituency_report(constituency, report_date=None):
@@ -126,12 +126,12 @@ def reevaluate_constituency_report(constituency, report_date=None):
         state.submitted_wards = submitted
 
         if submitted < total_wards:
-            # Still partial — make sure we're not falsely READY
+            # Still partial ? make sure we're not falsely READY
             if state.status != "SENT":
                 state.status = "PENDING"
                 state.ready_at = None
         else:
-            # All wards in — transition to READY if not already sent
+            # All wards in ? transition to READY if not already sent
             if state.status in ("PENDING", "FAILED"):
                 state.status = "READY"
                 state.ready_at = timezone.now()
@@ -143,7 +143,7 @@ def reevaluate_constituency_report(constituency, report_date=None):
 
 
 # ============================================================
-# SENDER — daily registration report (the ONLY place that sends it)
+# SENDER ? daily registration report (the ONLY place that sends it)
 # ============================================================
 
 import re
@@ -157,7 +157,7 @@ _OFFICE_RE = re.compile(r"\boffice\b", re.IGNORECASE)
 
 
 def _is_office_kit(kit_name):
-    """Office kits always print, even at 0/0."""
+    """Office kits are identified by the word 'office' in their name."""
     return bool(_OFFICE_RE.search(kit_name or ""))
 
 
@@ -178,48 +178,15 @@ def _kit_number(kit_name):
         return int(m.group(1))
     nums = re.findall(r"\d+", kit_name)
     return int(nums[-1]) if nums else None
-import re
-from django.db.models import Sum
-from home.models import DailyKIEMSEntry, Ward
-
-_KIT_RE    = re.compile(r"^\s*KIT[-\s]*(\d+)\s*$", re.IGNORECASE)
-_OFFICE_RE = re.compile(r"\boffice\b", re.IGNORECASE)
-
-
-def _is_office_kit(name):
-    return bool(_OFFICE_RE.search(name or ""))
-
-
-def _kit_number(name):
-    if not name:
-        return None
-    m = _KIT_RE.match(name)
-    if m:
-        return int(m.group(1))
-    nums = re.findall(r"\d+", name)
-    return int(nums[-1]) if nums else None
 
 
 def build_daily_report_text(constituency, report_date):
     """
     Plain-text WhatsApp message for one constituency / one day.
 
-    Layout:
-        UASIN GISHU COUNTY
-        AINABKOI SUB COUNTY
-        DAILY REPORT PER KIT
-        01/10/2026
-
-        *KAPTAGAT WARD*
-        KIT 1 - Registered......007
-        KIT 2 - Registered......005
-
-        *KAPSOYA WARD*
-        KIT 1 - Registered......005
-        ...
-        TOTALS – 67
-        MALE-  36
-        FEMALE - 31
+    Wards are ordered by the lowest kit number they contain (so NGENYILEL
+    with KIT 1-3 comes first, HURUMA with KIT 16-18 comes last). Office
+    kits only print when they carry more than one registration.
 
     Returns None if nothing to show.
     """
@@ -246,26 +213,44 @@ def build_daily_report_text(constituency, report_date):
         )
     )
 
-    printable = [
-        r for r in kit_rows
-        if (r["total"] or 0) > 0
-        or (r["transferred"] or 0) > 0
-        or _is_office_kit(r["kiems_kit__kit_name"])
-    ]
+    # --- Printable filter: drop empty regular kits; office kits need total > 1 ---
+    printable = []
+    for r in kit_rows:
+        total = r["total"] or 0
+        trans = r["transferred"] or 0
+        kit_name = r["kiems_kit__kit_name"]
+
+        if _is_office_kit(kit_name):
+            if total > 1:
+                printable.append(r)
+        else:
+            if total > 0 or trans > 0:
+                printable.append(r)
+
     if not printable:
         return None
 
+    # --- Group by ward ---
     wards = {}
     for r in printable:
-        wards.setdefault(r["ward_id"], {"name": r["ward__name"], "kits": []})["kits"].append(r)
+        wards.setdefault(
+            r["ward_id"], {"name": r["ward__name"], "kits": []}
+        )["kits"].append(r)
 
-    def _key(row):
+    def _kit_sort_key(row):
         n = _kit_number(row["kiems_kit__kit_name"])
         return (n if n is not None else 10 ** 9, row["kiems_kit__kit_name"] or "")
 
-    for w in wards.values():
-        w["kits"].sort(key=_key)
+    def _ward_sort_key(w):
+        """Order wards by the lowest kit number they contain."""
+        nums = [_kit_number(k["kiems_kit__kit_name"]) for k in w["kits"]]
+        nums = [n for n in nums if n is not None]
+        return (min(nums) if nums else 10 ** 9, w["name"])
 
+    for w in wards.values():
+        w["kits"].sort(key=_kit_sort_key)
+
+    # --- Totals ---
     grand_male   = sum(r["male"]   or 0 for r in printable)
     grand_female = sum(r["female"] or 0 for r in printable)
     grand_total  = sum(r["total"]  or 0 for r in printable)
@@ -281,21 +266,21 @@ def build_daily_report_text(constituency, report_date):
     lines.append("DAILY REPORT PER KIT")
     lines.append(report_date.strftime("%d/%m/%Y"))
 
-    for w in sorted(wards.values(), key=lambda x: x["name"]):
+    for w in sorted(wards.values(), key=_ward_sort_key):
         lines.append("")
         lines.append(f"*{w['name'].upper()} WARD*")
         for r in w["kits"]:
             kit_name = r["kiems_kit__kit_name"] or ""
             total    = r["total"] or 0
             if _is_office_kit(kit_name):
-                lines.append(f"OFFICE KIT – Registered … {total}")
+                lines.append(f"OFFICE KIT ? Registered ? {total}")
             else:
                 n = _kit_number(kit_name)
                 label = f"KIT {n}" if n is not None else kit_name.upper()
                 lines.append(f"{label} - Registered......{int(total):03d}")
 
     lines.append("")
-    lines.append(f"TOTALS – {grand_total}")
+    lines.append(f"TOTALS ? {grand_total}")
     lines.append(f"MALE-  {grand_male}")
     lines.append(f"FEMALE - {grand_female}")
     if grand_trans:
@@ -303,65 +288,18 @@ def build_daily_report_text(constituency, report_date):
 
     return "\n".join(lines)
 
+
 def _build_grand_total_payload(state):
     """
     Build (message_text, data_hash) for a given DailyReportState.
 
-    Output format (kit number taken from the kit's own name, which in
-    this deployment already runs 1..18 across the whole constituency):
+    Ward order: wards are sorted by the lowest kit number they hold, so
+    NGENYILEL (KIT 1-3) prints first, HURUMA (KIT 16-18) prints last.
 
-        UASIN GISHU COUNTY
-        AINABKOI SUB COUNTY
-        DAILY REPORT PER KIT
-        01/10/2026
+    Office kits: only printed when their registered total is > 1.
+    Regular kits: printed when total > 0 OR transferred > 0.
 
-        *NGENYILEL WARD*
-        KIT 1 - Registered......007
-        KIT 2 - Registered......005
-        KIT 3 - Registered......009
-
-        *TAPSAGOI WARD*
-        KIT 4 - Registered......005
-        KIT 5 - Registered......014
-        KIT 6 - Registered......010
-
-        *KAMAGUT WARD*
-        KIT 7 - Registered......011
-        KIT 8 - Registered......006
-        KIT 9 - Registered......004
-
-        *KIPLOMBE WARD*
-        KIT 10 - Registered......008
-        KIT 11 - Registered......000
-        KIT 12 - Registered......009
-
-        *KAPSAOS WARD*
-        KIT 13 - Registered......007
-        KIT 14 - Registered......012
-        KIT 15 - Registered......010
-
-        *HURUMA WARD*
-        KIT 16 - Registered......006
-        KIT 17 - Registered......014
-        KIT 18 - Registered......008
-
-        *OFFICE WARD*
-        OFFICE KIT – Registered … 0
-        OFFICE KIT – Registered … 0
-
-        TOTALS – 67
-        MALE-  36
-        FEMALE - 31
-
-    Rules:
-      - Ward name in bold above its kits.
-      - KIT n comes from the kit's own trailing number, so 'KIT-1',
-        'KIT 7', 'KIT-13' all normalise to 'KIT 1', 'KIT 7', 'KIT 13'.
-      - Kits sorted numerically WITHIN each ward (1,2,3 then 4,5,6 ...).
-      - Kits with 0 registered AND no transfers are dropped, EXCEPT
-        office kits, which always print as 'OFFICE KIT – Registered … n'.
-      - Wards with no printable kits are omitted entirely.
-      - Returns (None, None) if there's nothing to report.
+    Returns (None, None) if there's nothing to report.
     """
     entries = (
         DailyKIEMSEntry.objects
@@ -393,19 +331,26 @@ def _build_grand_total_payload(state):
         )
     )
 
-    # --- Drop empty kits, keep office kits ------------------------------
+    # --- Drop empty kits ------------------------------------------------
+    # Regular kits: keep when total > 0 OR transferred > 0.
+    # Office kits:  keep ONLY when total > 1.
     printable = []
     for r in kit_rows:
         total = r["total"] or 0
         trans = r["transferred"] or 0
-        if total == 0 and trans == 0 and not _is_office_kit(r["kiems_kit__kit_name"]):
-            continue
-        printable.append(r)
+        kit_name = r["kiems_kit__kit_name"]
+
+        if _is_office_kit(kit_name):
+            if total > 1:
+                printable.append(r)
+        else:
+            if total > 0 or trans > 0:
+                printable.append(r)
 
     if not printable:
         return None, None
 
-    # --- Group by ward, sort kits numerically within each ward ----------
+    # --- Group by ward --------------------------------------------------
     wards = {}
     for r in printable:
         wards.setdefault(r["ward_id"], {
@@ -413,12 +358,18 @@ def _build_grand_total_payload(state):
             "kits": [],
         })["kits"].append(r)
 
-    def _sort_key(row):
+    def _kit_sort_key(row):
         n = _kit_number(row["kiems_kit__kit_name"])
         return (n if n is not None else 10 ** 9, row["kiems_kit__kit_name"] or "")
 
+    def _ward_sort_key(w):
+        """Order wards by the lowest kit number they contain."""
+        nums = [_kit_number(k["kiems_kit__kit_name"]) for k in w["kits"]]
+        nums = [n for n in nums if n is not None]
+        return (min(nums) if nums else 10 ** 9, w["name"])
+
     for w in wards.values():
-        w["kits"].sort(key=_sort_key)
+        w["kits"].sort(key=_kit_sort_key)
 
     # --- Constituency totals --------------------------------------------
     grand_male   = sum(r["male"]   or 0 for r in printable)
@@ -457,8 +408,8 @@ def _build_grand_total_payload(state):
     msg += "DAILY REPORT PER KIT\n"
     msg += f"{state.report_date.strftime('%d/%m/%Y')}\n"
 
-    # --- Ward blocks ----------------------------------------------------
-    for w in sorted(wards.values(), key=lambda x: x["name"]):
+    # --- Ward blocks (ordered by lowest kit number) ---------------------
+    for w in sorted(wards.values(), key=_ward_sort_key):
         msg += f"\n*{w['name'].upper()} WARD*\n"
 
         for r in w["kits"]:
@@ -466,7 +417,7 @@ def _build_grand_total_payload(state):
             total    = r["total"] or 0
 
             if _is_office_kit(kit_name):
-                msg += f"OFFICE KIT – Registered … {total}\n"
+                msg += f"OFFICE KIT ? Registered ? {total}\n"
                 continue
 
             n = _kit_number(kit_name)
@@ -474,7 +425,7 @@ def _build_grand_total_payload(state):
             msg += f"{label} - Registered......{int(total):03d}\n"
 
     # --- Footer ---------------------------------------------------------
-    msg += f"\nTOTALS – {grand_total}\n"
+    msg += f"\nTOTALS ? {grand_total}\n"
     msg += f"MALE-  {grand_male}\n"
     msg += f"FEMALE - {grand_female}"
 
@@ -550,7 +501,7 @@ def send_ready_reports(limit=20, max_attempts=5):
                 s.last_error = ""
                 results["sent"] += 1
             else:
-                # Exhausted attempts — park as FAILED; otherwise retry next tick
+                # Exhausted attempts ? park as FAILED; otherwise retry next tick
                 s.status = "FAILED" if s.attempts >= max_attempts else "READY"
                 s.last_error = (
                         f"{err or 'Unknown error'}"
@@ -563,7 +514,7 @@ def send_ready_reports(limit=20, max_attempts=5):
 
 
 # ============================================================
-# MOVEMENT SCHEDULE — evaluation + sender
+# MOVEMENT SCHEDULE ? evaluation + sender
 # ============================================================
 
 def reevaluate_movement_schedule(constituency, schedule_date=None):
@@ -650,7 +601,7 @@ def _build_movement_payload(state):
         json.dumps(fingerprint_payload, sort_keys=True).encode()
     ).hexdigest()
 
-    msg = f"*{state.constituency.name.upper()} — TOMORROW'S MOVEMENT PLAN*\n"
+    msg = f"*{state.constituency.name.upper()} ? TOMORROW'S MOVEMENT PLAN*\n"
     msg += f"_{state.schedule_date.strftime('%d %b %Y')}_\n"
     msg += "------------------------------\n"
 
@@ -739,7 +690,7 @@ def send_ready_movement_reports(limit=20, max_attempts=5):
 
 
 # ============================================================
-# REAPER — heals stuck SENDING rows (both daily + movement)
+# REAPER ? heals stuck SENDING rows (both daily + movement)
 # ============================================================
 
 def reap_stuck_sending_states(stale_after_minutes=10):
@@ -760,7 +711,7 @@ def reap_stuck_sending_states(stale_after_minutes=10):
         last_error="Reaped stale SENDING lock",
     )
 
-    # MovementScheduleState has no locked_at field — use updated_at instead
+    # MovementScheduleState has no locked_at field ? use updated_at instead
     movement_reaped = MovementScheduleState.objects.filter(
         status="SENDING",
         updated_at__lt=cutoff,
@@ -773,7 +724,7 @@ def reap_stuck_sending_states(stale_after_minutes=10):
 
 
 # ============================================================
-# ONE-CALL TICK — used by cron / management command / button
+# ONE-CALL TICK ? used by cron / management command / button
 # ============================================================
 
 def run_daily_report_tick(max_send=20, max_movement_send=20):
@@ -782,7 +733,7 @@ def run_daily_report_tick(max_send=20, max_movement_send=20):
     for BOTH daily registration reports AND movement schedules.
     Safe to call repeatedly (idempotent).
 
-    max_send / max_movement_send cap how many reports are sent per tick —
+    max_send / max_movement_send cap how many reports are sent per tick ?
     useful on Vercel's serverless timeouts. Split so a backlog of one
     workflow can't starve the other.
     """

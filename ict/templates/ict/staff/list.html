@@ -1,212 +1,115 @@
 {% extends "ict/base.html" %}
 
-{% block title %}Staff Directory — {{ constituency.name }}{% endblock %}
+{% block title %}Staff Directory | {{ constituency.name }}{% endblock %}
 
 {% block extra_css %}
 <style>
-    .staff-container {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-    }
+    .staff-container { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
-    /* Top Action Bar */
+    /* ---------- Header ---------- */
     .staff-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        flex-wrap: wrap;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; flex-wrap: wrap;
     }
-
+    .staff-title { min-width: 0; }
     .staff-title h2 {
-        font-size: 20px;
-        font-weight: 700;
-        letter-spacing: -0.3px;
-        color: var(--text);
-        line-height: 1.2;
+        font-size: clamp(18px, 2.2vw, 24px);
+        font-weight: 700; letter-spacing: -0.3px; line-height: 1.2;
+    }
+    .staff-title p { font-size: 12.5px; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
+
+    .staff-actions { display: flex; gap: 8px; }
+    @media (max-width: 560px) {
+        .staff-header { flex-direction: column; align-items: stretch; }
+        .staff-actions .btn { flex: 1; justify-content: center; }
     }
 
-    .staff-title p {
-        font-size: 12px;
-        color: var(--text-muted);
-        font-weight: 500;
-        margin-top: 2px;
-    }
-
-    /* Panel Card Wrap */
+    /* ---------- Panels ---------- */
     .panel-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-        overflow: hidden;
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius-md); box-shadow: var(--shadow-xs);
+        overflow: hidden; min-width: 0;
     }
-
     .panel-card-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px 16px;
-        border-bottom: 1px solid var(--border);
-        background: var(--surface);
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 16px; border-bottom: 1px solid var(--border);
     }
-
     .panel-card-title {
-        font-size: 13.5px;
-        font-weight: 700;
-        color: var(--text);
-        display: flex;
-        align-items: center;
-        gap: 8px;
+        font-size: 13.5px; font-weight: 700;
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;
     }
-
-    .panel-card-title i {
-        color: var(--text-muted);
-        font-size: 14px;
-    }
-
+    .panel-card-title i { color: var(--text-muted); font-size: 14px; }
     .count-chip {
-        font-size: 11px;
-        font-weight: 700;
-        background: var(--surface-alt);
-        color: var(--text-muted);
-        padding: 2px 7px;
-        border-radius: 10px;
-        border: 1px solid var(--border);
+        font-size: 11px; font-weight: 700; background: var(--surface-alt);
+        color: var(--text-muted); padding: 2px 7px; border-radius: 10px; border: 1px solid var(--border);
     }
 
-    /* Custom Table Styling */
-    .table-custom {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12.5px;
+    /* The table sits inside a panel, so drop the base wrapper's own border/shadow */
+    .panel-card .table-wrap { border: none; box-shadow: none; border-radius: 0; }
+
+    /* Phones: the base script turns each row into a swipe card; give the cards some room */
+    @media (max-width: 680px) {
+        .panel-card .table-wrap { padding: 10px; background: var(--surface-alt); }
+        .panel-card .swipe-card { box-shadow: none; }
     }
 
+    /* ---------- Table ---------- */
+    .table-custom { width: 100%; border-collapse: collapse; font-size: 13px; }
     .table-custom th {
-        text-align: left;
-        padding: 9px 14px;
-        font-size: 10px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: var(--text-muted);
-        background: var(--surface-alt);
-        border-bottom: 1px solid var(--border);
+        text-align: left; padding: 9px 14px; font-size: 10px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);
+        background: var(--surface-alt); border-bottom: 1px solid var(--border); white-space: nowrap;
     }
-
-    .table-custom td {
-        padding: 10px 14px;
-        border-bottom: 1px solid var(--border);
-        color: var(--text);
-        vertical-align: middle;
-    }
-
-    .table-custom tbody tr:last-child td {
-        border-bottom: none;
-    }
-
-    .table-custom tbody tr:hover td {
-        background: var(--primary-soft);
-    }
+    .table-custom td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .table-custom tbody tr:last-child td { border-bottom: none; }
+    @media (hover: hover) { .table-custom tbody tr:hover td { background: var(--primary-soft); } }
 
     .code-tag {
-        font-family: monospace;
-        font-size: 11px;
-        background: var(--surface-alt);
-        padding: 2px 6px;
-        border-radius: 4px;
-        border: 1px solid var(--border);
-        color: var(--text-muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11px; background: var(--surface-alt); padding: 2px 6px;
+        border-radius: 4px; border: 1px solid var(--border); color: var(--text-muted);
+        white-space: nowrap;
     }
 
-    /* Compact Status Badges */
     .status-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 600;
+        display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px;
+        border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap;
     }
+    .status-pill.active   { background: var(--success-soft); color: var(--success); }
+    .status-pill.inactive { background: var(--surface-alt); color: var(--text-muted); border: 1px solid var(--border); }
+    .status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 
-    .status-pill.active {
-        background: var(--success-soft);
-        color: var(--success);
-    }
-
-    .status-pill.inactive {
-        background: var(--surface-alt);
-        color: var(--text-muted);
-        border: 1px solid var(--border);
-    }
-
-    .status-dot {
-        width: 5px;
-        height: 5px;
-        border-radius: 50%;
-        background: currentColor;
-    }
-
-    /* Action Buttons */
-    .action-group {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        justify-content: flex-end;
-    }
-
+    /* ---------- Row actions ---------- */
+    .action-group { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+    .action-group form { display: inline-flex; }
     .action-btn {
-        width: 28px;
-        height: 28px;
-        border-radius: var(--radius-sm);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background: transparent;
-        color: var(--text-muted);
-        text-decoration: none;
-        transition: all 0.15s ease;
-        border: none;
-        cursor: pointer;
+        width: 30px; height: 30px; border-radius: var(--radius-sm);
+        display: inline-flex; align-items: center; justify-content: center;
+        background: transparent; color: var(--text-muted); text-decoration: none;
+        transition: all 0.15s ease; border: none; cursor: pointer;
+    }
+    .action-btn:hover { background: var(--primary-soft); color: var(--primary); }
+    .action-btn.toggle-danger:hover { background: var(--danger-soft); color: var(--danger); }
+    /* Bigger tap targets on touch screens (inside swipe cards too) */
+    @media (pointer: coarse) {
+        .action-btns a.action-btn, .action-btns button.action-btn,
+        .action-btn { width: 38px; height: 38px; }
     }
 
-    .action-btn:hover {
-        background: var(--primary-soft);
-        color: var(--primary);
-    }
-
-    .action-btn.toggle-danger:hover {
-        background: var(--danger-soft);
-        color: var(--danger);
-    }
-
-    .empty-dense {
-        text-align: center;
-        padding: 28px 12px;
-        color: var(--text-muted);
-        font-size: 12px;
-    }
-
-    .empty-dense i {
-        font-size: 22px;
-        display: block;
-        margin-bottom: 4px;
-        opacity: 0.4;
-    }
+    .empty-dense { text-align: center; padding: 28px 12px; color: var(--text-muted); font-size: 12.5px; background: var(--surface); }
+    .empty-dense i { font-size: 22px; display: block; margin-bottom: 4px; opacity: 0.4; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="staff-container">
-    <!-- Header -->
+
     <div class="staff-header">
         <div class="staff-title">
             <h2>Staff Directory</h2>
             <p>Voter Registration Assistants (VRAs) and Clerks in {{ constituency.name }}</p>
         </div>
-        <div style="display: flex; gap: 8px;">
+        <div class="staff-actions">
             <a href="{% url 'ict:vra_create' %}" class="btn btn-primary btn-sm">
                 <i class="bi bi-plus-lg"></i> Add VRA
             </a>
@@ -216,7 +119,7 @@
         </div>
     </div>
 
-    <!-- VRAs Section -->
+    <!-- VRAs -->
     <div class="panel-card">
         <div class="panel-card-head">
             <div class="panel-card-title">
@@ -257,12 +160,12 @@
                         </td>
                         <td style="text-align: right;">
                             <div class="action-btns action-group">
-                                <a href="{% url 'ict:vra_edit' v.pk %}" class="action-btn" title="Edit VRA">
+                                <a href="{% url 'ict:vra_edit' v.pk %}" class="action-btn" title="Edit VRA" aria-label="Edit {{ v.name }}">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <form method="post" action="{% url 'ict:vra_toggle' v.pk %}" style="display: inline;">
+                                <form method="post" action="{% url 'ict:vra_toggle' v.pk %}">
                                     {% csrf_token %}
-                                    <button type="submit" class="action-btn {% if v.active %}toggle-danger{% endif %}" title="Toggle Active Status">
+                                    <button type="submit" class="action-btn {% if v.active %}toggle-danger{% endif %}" title="Toggle Active Status" aria-label="Toggle active status for {{ v.name }}">
                                         <i class="bi bi-power"></i>
                                     </button>
                                 </form>
@@ -281,7 +184,7 @@
         </div>
     </div>
 
-    <!-- Clerks Section -->
+    <!-- Clerks -->
     <div class="panel-card">
         <div class="panel-card-head">
             <div class="panel-card-title">
@@ -314,12 +217,12 @@
                         </td>
                         <td style="text-align: right;">
                             <div class="action-btns action-group">
-                                <a href="{% url 'ict:clerk_edit' c.pk %}" class="action-btn" title="Edit Clerk">
+                                <a href="{% url 'ict:clerk_edit' c.pk %}" class="action-btn" title="Edit Clerk" aria-label="Edit {{ c.name }}">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <form method="post" action="{% url 'ict:clerk_toggle' c.pk %}" style="display: inline;">
+                                <form method="post" action="{% url 'ict:clerk_toggle' c.pk %}">
                                     {% csrf_token %}
-                                    <button type="submit" class="action-btn {% if c.active %}toggle-danger{% endif %}" title="Toggle Active Status">
+                                    <button type="submit" class="action-btn {% if c.active %}toggle-danger{% endif %}" title="Toggle Active Status" aria-label="Toggle active status for {{ c.name }}">
                                         <i class="bi bi-power"></i>
                                     </button>
                                 </form>

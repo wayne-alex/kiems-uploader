@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}ICT Portal{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -56,6 +56,12 @@
             --shadow-xs: 0 1px 2px rgba(15, 23, 22, 0.04);
             --shadow-sm: 0 2px 8px rgba(15, 23, 22, 0.06);
             --shadow-md: 0 8px 24px rgba(15, 23, 22, 0.08);
+
+            --sidebar-w: 264px;
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --safe-left: env(safe-area-inset-left, 0px);
+            --safe-right: env(safe-area-inset-right, 0px);
         }
 
         * {
@@ -66,31 +72,42 @@
             -moz-osx-font-smoothing: grayscale;
         }
 
+        html { -webkit-text-size-adjust: 100%; }
+
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg);
             color: var(--text);
             min-height: 100vh;
+            min-height: 100dvh;
             display: flex;
             overflow-x: hidden;
         }
+        body.nav-open { overflow: hidden; }
 
         h1, h2, h3, .brand-text h1, .stat-card .value, .mobile-brand {
             font-family: 'Space Grotesk', 'Inter', sans-serif;
         }
 
         a { color: inherit; }
+        img { max-width: 100%; }
+
+        :focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
 
         .app-container {
             display: flex;
             width: 100%;
             min-height: 100vh;
+            min-height: 100dvh;
             position: relative;
         }
 
-        /* Sidebar */
+        /* ---------- Sidebar ---------- */
         .sidebar {
-            width: 264px;
+            width: var(--sidebar-w);
             background-color: var(--surface);
             border-right: 1px solid var(--border);
             display: flex;
@@ -101,6 +118,7 @@
             left: 0;
             z-index: 100;
             transition: transform 0.3s ease;
+            padding-top: var(--safe-top);
         }
 
         .sidebar-brand {
@@ -139,6 +157,7 @@
             flex: 1;
             padding: 14px 10px;
             overflow-y: auto;
+            overscroll-behavior: contain;
             list-style: none;
         }
 
@@ -149,7 +168,10 @@
             text-transform: uppercase;
             padding: 16px 10px 6px 10px;
             letter-spacing: 0.6px;
+            list-style: none;
         }
+
+        .menu-item { list-style: none; }
 
         .menu-item a {
             display: flex;
@@ -174,13 +196,12 @@
             flex-shrink: 0;
         }
 
-        .menu-item a:hover {
-            background-color: var(--primary-soft);
-            color: var(--text);
-        }
-
-        .menu-item a:hover svg {
-            color: var(--primary);
+        @media (hover: hover) {
+            .menu-item a:hover {
+                background-color: var(--primary-soft);
+                color: var(--text);
+            }
+            .menu-item a:hover svg { color: var(--primary); }
         }
 
         .menu-item.active a {
@@ -190,9 +211,7 @@
             box-shadow: 0 4px 10px rgba(13, 148, 136, 0.28);
         }
 
-        .menu-item.active svg {
-            color: #ffffff;
-        }
+        .menu-item.active svg { color: #ffffff; }
 
         .menu-item .badge-count {
             margin-left: auto;
@@ -204,12 +223,11 @@
             border-radius: 10px;
         }
 
-        .menu-item.active .badge-count {
-            background: rgba(255, 255, 255, 0.3);
-        }
+        .menu-item.active .badge-count { background: rgba(255, 255, 255, 0.3); }
 
         .sidebar-footer {
             padding: 16px;
+            padding-bottom: calc(16px + var(--safe-bottom));
             border-top: 1px solid var(--border);
             background-color: var(--surface-alt);
         }
@@ -235,6 +253,8 @@
             flex-shrink: 0;
         }
 
+        .user-info { min-width: 0; }
+
         .user-info p {
             font-size: 13.5px;
             font-weight: 600;
@@ -252,7 +272,7 @@
 
         .btn-logout {
             width: 100%;
-            padding: 8px;
+            padding: 10px;
             background: transparent;
             border: 1px solid rgba(229, 72, 77, 0.35);
             color: var(--danger);
@@ -263,13 +283,12 @@
             transition: all 0.2s ease;
         }
 
-        .btn-logout:hover {
-            background: var(--danger-soft);
-        }
+        .btn-logout:hover { background: var(--danger-soft); }
 
+        /* ---------- Main area ---------- */
         .main-wrapper {
             flex: 1;
-            margin-left: 264px;
+            margin-left: var(--sidebar-w);
             display: flex;
             flex-direction: column;
             min-width: 0;
@@ -299,16 +318,13 @@
             border-radius: 20px;
         }
 
-        .constituency-pill svg {
-            width: 14px;
-            height: 14px;
-        }
+        .constituency-pill svg { width: 14px; height: 14px; }
 
         .mobile-header {
             display: none;
             background-color: var(--surface);
-            height: 56px;
-            padding: 0 16px;
+            min-height: calc(56px + var(--safe-top));
+            padding: var(--safe-top) 16px 0 16px;
             align-items: center;
             justify-content: space-between;
             border-bottom: 1px solid var(--border);
@@ -321,9 +337,13 @@
             background: var(--surface-alt);
             border: none;
             cursor: pointer;
-            padding: 8px;
+            width: 40px;
+            height: 40px;
             border-radius: var(--radius-sm);
             display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text);
         }
 
         .mobile-brand {
@@ -331,6 +351,7 @@
             font-weight: 700;
             text-align: center;
             line-height: 1.2;
+            min-width: 0;
         }
 
         .mobile-brand small {
@@ -339,25 +360,31 @@
             font-weight: 500;
             color: var(--text-muted);
             font-family: 'Inter', sans-serif;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 60vw;
         }
 
         .content-body {
             padding: 26px;
             flex: 1;
-            max-width: 1280px;
+            max-width: 1360px;
             width: 100%;
+            margin: 0 auto;
+            min-width: 0;
         }
 
         .sidebar-overlay {
             display: none;
             position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
+            inset: 0;
             background: rgba(10, 20, 18, 0.4);
             backdrop-filter: blur(2px);
             z-index: 95;
         }
 
-        /* Toast/Messages */
+        /* ---------- Messages ---------- */
         .messages { margin-bottom: 20px; }
 
         .alert {
@@ -367,24 +394,43 @@
             font-weight: 500;
             font-size: 14px;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 10px;
+            overflow-wrap: anywhere;
         }
+        .alert i { margin-top: 2px; }
         .alert-success { background: var(--success-soft); color: var(--success); border: 1px solid rgba(31,157,85,0.25); }
         .alert-error   { background: var(--danger-soft);  color: var(--danger);  border: 1px solid rgba(229,72,77,0.25); }
         .alert-warning { background: var(--warning-soft); color: var(--warning); border: 1px solid rgba(181,117,10,0.25); }
         .alert-info    { background: var(--info-soft);    color: var(--info);    border: 1px solid rgba(47,111,196,0.25); }
 
+        /* ---------- Breakpoints ---------- */
+        /* Tablet and below: sidebar becomes a slide-in drawer */
         @media (max-width: 991px) {
-            .sidebar { transform: translateX(-100%); }
+            .sidebar { transform: translateX(-100%); width: min(var(--sidebar-w), 86vw); }
             .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-md); }
             .sidebar-overlay.show { display: block; }
             .main-wrapper { margin-left: 0; }
             .desktop-topbar { display: none; }
             .mobile-header { display: flex; }
-            .content-body { padding: 16px; }
+            .content-body { padding: 18px; padding-left: calc(18px + var(--safe-left)); padding-right: calc(18px + var(--safe-right)); }
         }
 
+        @media (max-width: 560px) {
+            .content-body {
+                padding: 14px;
+                padding-left: calc(14px + var(--safe-left));
+                padding-right: calc(14px + var(--safe-right));
+                padding-bottom: calc(14px + var(--safe-bottom));
+            }
+        }
+
+        /* Very large screens: a little more breathing room */
+        @media (min-width: 1600px) {
+            .content-body { padding: 32px; }
+        }
+
+        /* ---------- Page header ---------- */
         .page-header {
             display: flex;
             align-items: center;
@@ -394,7 +440,7 @@
             gap: 12px;
         }
         .page-header h2 {
-            font-size: 23px;
+            font-size: clamp(19px, 2.4vw, 24px);
             font-weight: 700;
             letter-spacing: -0.4px;
         }
@@ -412,6 +458,7 @@
             .page-header .btn { width: 100%; justify-content: center; }
         }
 
+        /* ---------- Buttons ---------- */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -436,6 +483,13 @@
         .btn-ghost { background: transparent; color: var(--primary); padding: 6px 8px; }
         .btn-ghost:hover { background: var(--primary-soft); }
 
+        /* Bigger touch targets on touch devices */
+        @media (pointer: coarse) {
+            .btn { min-height: 40px; }
+            .btn-sm { min-height: 34px; }
+        }
+
+        /* ---------- Cards / stats ---------- */
         .card {
             background: var(--surface);
             border-radius: var(--radius-lg);
@@ -443,6 +497,7 @@
             box-shadow: var(--shadow-xs);
             border: 1px solid var(--border);
         }
+        @media (max-width: 560px) { .card { padding: 16px; } }
 
         .stat-grid {
             display: grid;
@@ -451,7 +506,7 @@
             margin-bottom: 24px;
         }
         @media (max-width: 560px) {
-            .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
         }
         .stat-card {
             background: var(--surface);
@@ -462,9 +517,10 @@
             display: flex;
             flex-direction: column;
             gap: 6px;
+            min-width: 0;
             transition: box-shadow 0.15s ease, transform 0.15s ease;
         }
-        .stat-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+        @media (hover: hover) { .stat-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); } }
         .stat-card .label {
             font-size: 11.5px;
             color: var(--text-muted);
@@ -493,12 +549,17 @@
         .stat-card.red .icon    { background: var(--danger-soft);  color: var(--danger); }
         .stat-card.purple .icon { background: var(--purple-soft);  color: var(--purple); }
 
+        /* ---------- Tables ---------- */
         .table-wrap {
             background: var(--surface);
             border-radius: var(--radius-lg);
             overflow: hidden;
             border: 1px solid var(--border);
             box-shadow: var(--shadow-xs);
+        }
+        /* Tablet widths: let wide tables scroll instead of breaking the page */
+        @media (min-width: 681px) {
+            .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         }
         .data-table { width: 100%; border-collapse: collapse; }
         .data-table thead { background: var(--surface-alt); }
@@ -520,7 +581,7 @@
             vertical-align: middle;
         }
         .data-table tbody tr:last-child td { border-bottom: none; }
-        .data-table tbody tr:hover { background: var(--surface-alt); }
+        @media (hover: hover) { .data-table tbody tr:hover { background: var(--surface-alt); } }
 
         .badge {
             display: inline-flex;
@@ -537,14 +598,17 @@
         .badge-blue   { background: var(--info-soft);    color: var(--info); }
         .badge-grey   { background: var(--surface-alt);  color: var(--text-muted); }
 
+        /* ---------- Forms ---------- */
         .form-card {
             background: var(--surface);
             border-radius: var(--radius-lg);
             padding: 26px;
             max-width: 640px;
+            width: 100%;
             border: 1px solid var(--border);
             box-shadow: var(--shadow-xs);
         }
+        @media (max-width: 560px) { .form-card { padding: 18px; } }
         .form-card .form-row { margin-bottom: 16px; }
         .form-card label {
             display: block;
@@ -563,6 +627,8 @@
             transition: border 0.15s ease, box-shadow 0.15s ease;
             font-family: inherit;
         }
+        /* 16px on phones stops iOS Safari zooming in when a field is focused */
+        @media (max-width: 680px) { .form-control { font-size: 16px; } }
         .form-control:focus {
             outline: none;
             border-color: var(--primary);
@@ -609,8 +675,8 @@
         .action-btns .danger { color: var(--danger); }
         .action-btns .danger:hover { background: var(--danger-soft); }
 
-        .two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
-        @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+        .two-col { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
+        @media (max-width: 900px) { .two-col { grid-template-columns: minmax(0, 1fr); } }
 
         .list-header {
             display: flex; align-items: center; justify-content: space-between;
@@ -647,9 +713,7 @@
             background: var(--surface-alt);
         }
         .swipe-actions .action-btns a,
-        .swipe-actions .action-btns button {
-            background: var(--surface);
-        }
+        .swipe-actions .action-btns button { background: var(--surface); }
         .swipe-body {
             position: relative;
             background: var(--surface);
@@ -683,12 +747,12 @@
             letter-spacing: 0.3px;
             flex-shrink: 0;
         }
-        .swipe-value { text-align: right; color: var(--text); font-weight: 500; }
+        .swipe-value { text-align: right; color: var(--text); font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
         .swipe-field.primary .swipe-value { text-align: left; font-weight: 700; }
         .swipe-handle {
             position: absolute;
-            top: 10px; right: 8px;
-            width: 26px; height: 26px;
+            top: 8px; right: 6px;
+            width: 30px; height: 30px;
             border-radius: 50%;
             border: none;
             background: var(--surface-alt);
@@ -698,6 +762,10 @@
         }
         .swipe-handle svg { width: 14px; height: 14px; }
         .swipe-card.no-actions .swipe-body { padding-right: 16px; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -705,7 +773,7 @@
 <div class="app-container">
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <aside class="sidebar" id="sidebar">
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
         <div class="sidebar-brand">
             <img src="{% static 'logo.png' %}" alt="IEBC Logo">
             <div class="brand-text">
@@ -714,8 +782,8 @@
             </div>
         </div>
 
-        <nav class="sidebar-menu">
-            <div class="menu-category">Overview</div>
+        <ul class="sidebar-menu">
+            <li class="menu-category">Overview</li>
             <li class="menu-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
                 <a href="{% url 'ict:dashboard' %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -726,7 +794,7 @@
                 </a>
             </li>
 
-            <div class="menu-category">Management</div>
+            <li class="menu-category">Management</li>
             <li class="menu-item {% if 'ward' in request.path %}active{% endif %}">
                 <a href="{% url 'ict:ward_list' %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -768,7 +836,7 @@
                 </a>
             </li>
 
-            <div class="menu-category">Activity</div>
+            <li class="menu-category">Activity</li>
             <li class="menu-item {% if 'entr' in request.path %}active{% endif %}">
                 <a href="{% url 'ict:entry_list' %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -801,24 +869,24 @@
                 </a>
             </li>
             <li class="menu-item {% if 'status' in request.path %}active{% endif %}">
-    <a href="{% url 'ict:system_status' %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-        </svg>
-        System Status
-        {% if report_alert_count %}<span class="badge-count">{{ report_alert_count }}</span>{% endif %}
-    </a>
-</li>
+                <a href="{% url 'ict:system_status' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                    System Status
+                    {% if report_alert_count %}<span class="badge-count">{{ report_alert_count }}</span>{% endif %}
+                </a>
+            </li>
             <li class="menu-item {% if 'movement' in request.path %}active{% endif %}">
-    <a href="{% url 'ict:movement_list' %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z"/>
-            <circle cx="12" cy="10" r="3"/>
-        </svg>
-        Movement Schedule
-    </a>
-</li>
-        </nav>
+                <a href="{% url 'ict:movement_list' %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z"/>
+                        <circle cx="12" cy="10" r="3"/>
+                    </svg>
+                    Movement Schedule
+                </a>
+            </li>
+        </ul>
 
         <div class="sidebar-footer">
             <div class="user-badge">
@@ -850,7 +918,7 @@
         </div>
 
         <header class="mobile-header">
-            <button class="menu-toggle" id="menuToggle" aria-label="Open Navigation Menu">
+            <button class="menu-toggle" id="menuToggle" aria-label="Open navigation menu" aria-controls="sidebar" aria-expanded="false">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="3" y1="12" x2="21" y2="12"/>
                     <line x1="3" y1="6" x2="21" y2="6"/>
@@ -861,7 +929,7 @@
                 ICT Portal
                 <small>{{ constituency.name|default:"Constituency" }}</small>
             </div>
-            <div style="width: 32px;"></div>
+            <div style="width: 40px;"></div>
         </header>
 
         <main class="content-body">
@@ -873,7 +941,7 @@
                     {% if message.tags == 'error' %}<i class="bi bi-exclamation-circle-fill"></i>{% endif %}
                     {% if message.tags == 'warning' %}<i class="bi bi-exclamation-triangle-fill"></i>{% endif %}
                     {% if message.tags == 'info' %}<i class="bi bi-info-circle-fill"></i>{% endif %}
-                    {{ message }}
+                    <span>{{ message }}</span>
                 </div>
                 {% endfor %}
             </div>
@@ -885,19 +953,33 @@
 </div>
 
 <script>
-    // ---- Sidebar toggle (mobile) ----
+    // ---- Sidebar drawer (tablet/mobile) ----
     const menuToggle = document.getElementById('menuToggle');
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('sidebarOverlay');
+    const desktopQuery = window.matchMedia('(min-width: 992px)');
 
-    function toggleSidebar() {
-        sidebar.classList.toggle('open');
-        overlay.classList.toggle('show');
+    function setSidebar(open) {
+        sidebar.classList.toggle('open', open);
+        overlay.classList.toggle('show', open);
+        document.body.classList.toggle('nav-open', open);
+        if (menuToggle) menuToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
 
     if (menuToggle && sidebar && overlay) {
-        menuToggle.addEventListener('click', toggleSidebar);
-        overlay.addEventListener('click', toggleSidebar);
+        menuToggle.addEventListener('click', () => setSidebar(!sidebar.classList.contains('open')));
+        overlay.addEventListener('click', () => setSidebar(false));
+
+        // Close after choosing a page
+        sidebar.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => setSidebar(false)));
+
+        // Close with Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') setSidebar(false);
+        });
+
+        // Reset if the screen grows to desktop while the drawer is open (e.g. rotating a tablet)
+        desktopQuery.addEventListener('change', (e) => { if (e.matches) setSidebar(false); });
     }
 
     // ---- Responsive Swipe-Card Table Transformer ----
@@ -963,24 +1045,18 @@
                     </div>
                 `;
 
-                // Swipe Gesture & Actions Toggle logic
+                // Swipe gesture & actions toggle
                 const swipeBody = card.querySelector(".swipe-body");
                 const handleBtn = card.querySelector(".swipe-handle");
                 let startX = 0, currentX = 0, isOpen = false;
 
-                function setTranslate(x) {
-                    swipeBody.style.transform = `translateX(${x}px)`;
-                }
+                const actionsEl = card.querySelector(".swipe-actions");
+                // Measure the real width of the action buttons (works for 1, 2 or 3 buttons)
+                const actionsWidth = () => (actionsEl ? actionsEl.offsetWidth : 70);
 
-                function openActions() {
-                    setTranslate(-70);
-                    isOpen = true;
-                }
-
-                function closeActions() {
-                    setTranslate(0);
-                    isOpen = false;
-                }
+                function setTranslate(x) { swipeBody.style.transform = `translateX(${x}px)`; }
+                function openActions()  { setTranslate(-actionsWidth()); isOpen = true; }
+                function closeActions() { setTranslate(0);               isOpen = false; }
 
                 if (handleBtn) {
                     handleBtn.addEventListener("click", (e) => {
@@ -990,25 +1066,20 @@
                 }
 
                 swipeBody.addEventListener("touchstart", (e) => {
-                    startX = e.touches[0].clientX;
+                    startX = currentX = e.touches[0].clientX;
                 }, { passive: true });
 
                 swipeBody.addEventListener("touchmove", (e) => {
                     currentX = e.touches[0].clientX;
                     let diff = currentX - startX;
-                    if (isOpen) diff -= 70;
-                    if (diff < 0 && diff > -100) {
-                        setTranslate(diff);
-                    }
+                    const w = actionsWidth();
+                    if (isOpen) diff -= w;
+                    if (diff < 0 && diff > -(w + 30)) setTranslate(diff);
                 }, { passive: true });
 
                 swipeBody.addEventListener("touchend", () => {
-                    let diff = currentX - startX;
-                    if (diff < -35) {
-                        openActions();
-                    } else {
-                        closeActions();
-                    }
+                    const diff = currentX - startX;
+                    if (diff < -35) openActions(); else closeActions();
                 });
 
                 swipeList.appendChild(card);

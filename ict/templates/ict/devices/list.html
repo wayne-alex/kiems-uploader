@@ -137,6 +137,27 @@
         background: var(--primary-soft);
     }
 
+    /* Checkbox column */
+    .checkbox-col {
+        width: 36px;
+        padding-left: 14px !important;
+        padding-right: 4px !important;
+        text-align: center;
+    }
+
+    .row-checkbox,
+    #select-all {
+        width: 15px;
+        height: 15px;
+        cursor: pointer;
+        accent-color: var(--primary, #16a34a);
+        vertical-align: middle;
+    }
+
+    .table-custom tbody tr.selected td {
+        background: var(--primary-soft, #f0fdf4);
+    }
+
     .code-tag {
         font-family: monospace;
         font-size: 11px;
@@ -254,6 +275,75 @@
         margin-bottom: 6px;
         opacity: 0.4;
     }
+
+    /* ---- Bulk action bar ---- */
+    .bulk-bar {
+        position: sticky;
+        bottom: 16px;
+        margin: 0 auto;
+        display: none;
+        align-items: center;
+        gap: 14px;
+        padding: 10px 18px;
+        background: var(--surface, #fff);
+        border: 1px solid var(--border, #e5e7eb);
+        border-radius: 999px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.10);
+        z-index: 50;
+        width: fit-content;
+    }
+
+    .bulk-bar.visible {
+        display: inline-flex;
+    }
+
+    .bulk-bar .count {
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .bulk-bar .count span {
+        color: var(--primary, #16a34a);
+    }
+
+    .bulk-bar .divider {
+        width: 1px;
+        height: 20px;
+        background: var(--border, #e5e7eb);
+    }
+
+    .bulk-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 12.5px;
+        font-weight: 600;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        background: transparent;
+    }
+
+    .bulk-btn.danger {
+        background: var(--danger, #dc2626);
+        color: #fff;
+    }
+
+    .bulk-btn.danger:hover {
+        background: #b91c1c;
+    }
+
+    .bulk-btn.ghost {
+        color: var(--text-muted);
+        border-color: var(--border, #e5e7eb);
+    }
+
+    .bulk-btn.ghost:hover {
+        background: var(--surface-alt, #f3f4f6);
+    }
 </style>
 {% endblock %}
 
@@ -292,125 +382,219 @@
         </div>
     </div>
 
-    <!-- Table Container -->
-    <div class="panel-card">
-        <div class="table-wrap">
-            {% if devices %}
-            <table class="data-table table-custom">
-                <thead>
-                    <tr>
-                        <th>Fingerprint</th>
-                        <th>Assigned To</th>
-                        <th>Platform</th>
-                        <th>Authorization</th>
-                        <th>Last Seen</th>
-                        <th style="text-align: right;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for d in devices %}
-                    <tr>
-                        <td>
-                            <a href="{% url 'ict:device_detail' d.pk %}"
-                               class="code-tag"
-                               style="text-decoration: none;"
-                               title="{{ d.fingerprint }}">
-                                {{ d.fingerprint|truncatechars:20 }}
-                            </a>
-                        </td>
+    <!-- Bulk delete form wraps the entire table + bar -->
+    <form id="bulk-form" method="post" action="{% url 'ict:device_bulk_delete' %}">
+        {% csrf_token %}
 
-                        <td>
-                            {% if d.vra %}
-                                <span class="assigned-pill vra">
-                                    <span class="role-tag">VRA</span>
-                                    {{ d.vra.name }}
-                                </span>
-                            {% elif d.clerk %}
-                                <span class="assigned-pill clerk">
-                                    <span class="role-tag">Clerk</span>
-                                    {{ d.clerk.name }}
-                                </span>
-                            {% else %}
-                                <span style="color: var(--text-muted); font-size: 12px;">Unassigned</span>
-                            {% endif %}
-                        </td>
+        <!-- Table Container -->
+        <div class="panel-card">
+            <div class="table-wrap">
+                {% if devices %}
+                <table class="data-table table-custom">
+                    <thead>
+                        <tr>
+                            <th class="checkbox-col">
+                                <input type="checkbox" id="select-all" title="Select all devices">
+                            </th>
+                            <th>Fingerprint</th>
+                            <th>Assigned To</th>
+                            <th>Platform</th>
+                            <th>Authorization</th>
+                            <th>Last Seen</th>
+                            <th style="text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in devices %}
+                        <tr data-device-id="{{ d.pk }}">
+                            <td class="checkbox-col">
+                                <input type="checkbox"
+                                       name="device_ids"
+                                       value="{{ d.pk }}"
+                                       class="row-checkbox">
+                            </td>
 
-                        <td>{{ d.platform|default:"—" }}</td>
+                            <td>
+                                <a href="{% url 'ict:device_detail' d.pk %}"
+                                   class="code-tag"
+                                   style="text-decoration: none;"
+                                   title="{{ d.fingerprint }}">
+                                    {{ d.fingerprint|truncatechars:20 }}
+                                </a>
+                            </td>
 
-                        <td>
-                            {% if d.is_burned %}
-                                <span class="status-pill authorized">
-                                    <span class="status-dot"></span> Authorized
-                                </span>
-                            {% else %}
-                                <span class="status-pill unauthorized">
-                                    <span class="status-dot"></span> Not Authorized
-                                </span>
-                            {% endif %}
-                        </td>
+                            <td>
+                                {% if d.vra %}
+                                    <span class="assigned-pill vra">
+                                        <span class="role-tag">VRA</span>
+                                        {{ d.vra.name }}
+                                    </span>
+                                {% elif d.clerk %}
+                                    <span class="assigned-pill clerk">
+                                        <span class="role-tag">Clerk</span>
+                                        {{ d.clerk.name }}
+                                    </span>
+                                {% else %}
+                                    <span style="color: var(--text-muted); font-size: 12px;">Unassigned</span>
+                                {% endif %}
+                            </td>
 
-                        <td style="font-size: 12px; color: var(--text-muted);">
-                            {{ d.last_seen|date:"M d, H:i" }}
-                        </td>
+                            <td>{{ d.platform|default:"?" }}</td>
 
-                        <td style="text-align: right;">
-    <div class="action-btns action-group">
-        <a href="{% url 'ict:device_detail' d.pk %}"
-           class="action-btn"
-           title="View Details">
-            <i class="bi bi-eye"></i>
-        </a>
+                            <td>
+                                {% if d.is_burned %}
+                                    <span class="status-pill authorized">
+                                        <span class="status-dot"></span> Authorized
+                                    </span>
+                                {% else %}
+                                    <span class="status-pill unauthorized">
+                                        <span class="status-dot"></span> Not Authorized
+                                    </span>
+                                {% endif %}
+                            </td>
 
-        {% if d.is_burned %}
-            <form method="post"
-                  action="{% url 'ict:device_revoke' d.pk %}"
-                  style="display:inline;"
-                  onsubmit="return confirm('Revoke authorization for this device?');">
-                {% csrf_token %}
-                <button type="submit"
-                        class="action-btn danger"
-                        title="Revoke Authorization">
-                    <i class="bi bi-shield-x"></i>
-                </button>
-            </form>
-        {% else %}
-            <form method="post"
-                  action="{% url 'ict:device_authorize' d.pk %}"
-                  style="display:inline;"
-                  onsubmit="return confirm('Authorize this device?');">
-                {% csrf_token %}
-                <button type="submit"
-                        class="action-btn success"
-                        title="Authorize Device">
-                    <i class="bi bi-shield-check"></i>
-                </button>
-            </form>
-        {% endif %}
+                            <td style="font-size: 12px; color: var(--text-muted);">
+                                {{ d.last_seen|date:"M d, H:i" }}
+                            </td>
 
-        <form method="post"
-              action="{% url 'ict:device_delete' d.pk %}"
-              style="display:inline;"
-              onsubmit="return confirm('Permanently delete device {{ d.fingerprint|slice:':12'|escapejs }}…? This cannot be undone.');">
-            {% csrf_token %}
-            <button type="submit"
-                    class="action-btn danger"
-                    title="Delete Device">
-                <i class="bi bi-trash"></i>
-            </button>
-        </form>
-    </div>
-</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <div class="empty-dense">
-                <i class="bi bi-phone"></i>
-                <p>No registered devices found matching criteria</p>
+                            <td style="text-align: right;">
+                                <div class="action-btns action-group">
+                                    <a href="{% url 'ict:device_detail' d.pk %}"
+                                       class="action-btn"
+                                       title="View Details">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+
+                                    {% if d.is_burned %}
+                                        <button type="button"
+                                                class="action-btn danger"
+                                                title="Revoke Authorization"
+                                                onclick="submitSingle('{% url 'ict:device_revoke' d.pk %}', 'Revoke authorization for this device?')">
+                                            <i class="bi bi-shield-x"></i>
+                                        </button>
+                                    {% else %}
+                                        <button type="button"
+                                                class="action-btn success"
+                                                title="Authorize Device"
+                                                onclick="submitSingle('{% url 'ict:device_authorize' d.pk %}', 'Authorize this device?')">
+                                            <i class="bi bi-shield-check"></i>
+                                        </button>
+                                    {% endif %}
+
+                                    <button type="button"
+                                            class="action-btn danger"
+                                            title="Delete Device"
+                                            onclick="submitSingle('{% url 'ict:device_delete' d.pk %}', 'Permanently delete device {{ d.fingerprint|slice:':12'|escapejs }}? This cannot be undone.')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-dense">
+                    <i class="bi bi-phone"></i>
+                    <p>No registered devices found matching criteria</p>
+                </div>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
-    </div>
+
+        <!-- Sticky bulk action bar -->
+        <div class="bulk-bar" id="bulk-bar">
+            <span class="count"><span id="bulk-count">0</span> selected</span>
+            <span class="divider"></span>
+            <button type="submit"
+                    class="bulk-btn danger"
+                    id="bulk-delete-btn"
+                    onclick="return confirmBulkDelete();">
+                <i class="bi bi-trash"></i> Delete Selected
+            </button>
+            <button type="button" class="bulk-btn ghost" id="bulk-clear">
+                Clear
+            </button>
+        </div>
+    </form>
 </div>
+
+<!-- Hidden helper form for the per-row single-action buttons -->
+<form id="single-action-form" method="post" style="display: none;">
+    {% csrf_token %}
+</form>
+
+<script>
+(function () {
+    const selectAll  = document.getElementById('select-all');
+    const rowBoxes   = Array.from(document.querySelectorAll('.row-checkbox'));
+    const bulkBar    = document.getElementById('bulk-bar');
+    const bulkCount  = document.getElementById('bulk-count');
+    const clearBtn   = document.getElementById('bulk-clear');
+    const bulkForm   = document.getElementById('bulk-form');
+
+    if (!bulkBar) return;
+
+    function refresh() {
+        const checked = rowBoxes.filter(b => b.checked);
+
+        // Highlight selected rows
+        rowBoxes.forEach(b => {
+            b.closest('tr').classList.toggle('selected', b.checked);
+        });
+
+        bulkCount.textContent = checked.length;
+        bulkBar.classList.toggle('visible', checked.length > 0);
+
+        // Sync "select all" state (indeterminate when partial)
+        if (selectAll) {
+            selectAll.checked = checked.length === rowBoxes.length && rowBoxes.length > 0;
+            selectAll.indeterminate = checked.length > 0 && checked.length < rowBoxes.length;
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', () => {
+            rowBoxes.forEach(b => b.checked = selectAll.checked);
+            refresh();
+        });
+    }
+
+    rowBoxes.forEach(b => b.addEventListener('change', refresh));
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            rowBoxes.forEach(b => b.checked = false);
+            if (selectAll) selectAll.checked = false;
+            refresh();
+        });
+    }
+
+    window.confirmBulkDelete = function () {
+        const n = rowBoxes.filter(b => b.checked).length;
+        if (n === 0) return false;
+        return confirm(`Permanently delete ${n} selected device${n === 1 ? '' : 's'}? This cannot be undone.`);
+    };
+
+    // Disable the delete button while submitting to prevent double-clicks
+    bulkForm.addEventListener('submit', () => {
+        const btn = document.getElementById('bulk-delete-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Deleting…';
+        }
+    });
+
+    // Per-row action helper: post to a one-off form so it doesn't
+    // collide with the bulk form's checkboxes.
+    window.submitSingle = function (actionUrl, message) {
+        if (message && !confirm(message)) return;
+        const f = document.getElementById('single-action-form');
+        f.action = actionUrl;
+        f.submit();
+    };
+
+    refresh();
+})();
+</script>
 {% endblock %}

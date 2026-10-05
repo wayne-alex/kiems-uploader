@@ -510,7 +510,104 @@ def device_delete(request, pk):
 
     return redirect("ict:device_detail", pk=device.pk)
 
+@ict_required
+@require_POST
+def device_bulk_delete(request):
+    """
+    Delete multiple devices at once from the ICT devices list.
 
+    POST body:
+        device_ids : list of Device PKs (from checkboxes named device_ids)
+
+    Safety:
+      - Only devices belonging to the officer's constituency are touched.
+      - Any device ID that isn't in scope is silently skipped (not an error).
+      - Same unlink logic as single-delete: clears VRA/Clerk device_token
+        when it still points at the fingerprint being deleted.
+      - Audit-logged as a single DELETE entry with the count.
+    """
+    c = request.constituency
+
+    raw_ids = request.POST.getlist("device_ids")
+    if not raw_ids:
+        messages.warning(request, "No devices selected.")
+        return redirect("ict:device_list")
+
+    # Normalise to ints, drop anything bogus
+    device_ids = []
+    for raw in raw_ids:
+        try:
+            device_ids.append(int(raw))
+        except (ValueError, TypeError):
+            continue
+
+    if not device_ids:
+        messages.warning(request, "No valid devices selected.")
+        return redirect("ict:device_list")
+
+    # Scope to the officer's constituency only
+    devices = list(
+        Device.objects
+        .filter(
+            Q(vra__ward__constituency=c) | Q(clerk__ward__constituency=c),
+            pk__in=device_ids,
+        )
+        .distinct()
+        .select_related("vra", "clerk")
+    )
+
+    if not devices:
+        messages.warning(request, "None of the selected devices belong to your constituency.")
+        return redirect("ict:device_list")
+
+    deleted_count = 0
+    fingerprints = []
+
+    for device in devices:
+        fingerprint = device.fingerprint
+
+        # Unlink VRA if it points at this fingerprint
+        if device.vra_id and device.vra.device_token == fingerprint:
+            device.vra.device_token = None
+            device.vra.save(update_fields=["device_token"])
+        if device.vra_id and device.vra.device_fingerprint == fingerprint:
+            device.vra.device_fingerprint = None
+            device.vra.save(update_fields=["device_fingerprint"])
+
+        # Unlink Clerk if it points at this fingerprint
+        if device.clerk_id and device.clerk.device_token == fingerprint:
+            device.clerk.device_token = None
+            device.clerk.save(update_fields=["device_token"])
+        if device.clerk_id and device.clerk.device_fingerprint == fingerprint:
+            device.clerk.device_fingerprint = None
+            device.clerk.save(update_fields=["device_fingerprint"])
+
+        DeviceBurnLog.objects.filter(device=device).delete()
+        fingerprints.append(fingerprint[:12])
+        device.delete()
+        deleted_count += 1
+
+    # One audit entry covering the whole batch
+    AuditLog.objects.create(
+        actor=request.user,
+        constituency=c,
+        action="DELETE",
+        model_name="Device",
+        object_id="bulk",
+        object_repr=f"{deleted_count} device(s)",
+        description=(
+            f"Bulk-deleted {deleted_count} device(s): "
+            + ", ".join(fingerprints[:10])
+            + ("…" if len(fingerprints) > 10 else "")
+        ),
+        ip_address=request.META.get("REMOTE_ADDR"),
+    )
+
+    messages.success(
+        request,
+        f"{deleted_count} device{'s' if deleted_count != 1 else ''} deleted."
+    )
+    return redirect("ict:device_list")
 # ---------- Daily Entries ----------
 
 @ict_required
@@ -1741,155 +1838,6 @@ def ict_login(request):
 # SYSTEM STATUS
 # ============================================================
 
-@ict_required
-def system_status(request):
-    """
-    System status dashboard:
-      - Today's per-constituency report state
-      - WhatsApp group status per constituency
-      - Cron heartbeat freshness
-      - Any FAILED / stuck-SENDING states (last 14 days)
-      - Recent send history
-    """
-    today = timezone.localdate()
-    fourteen_days_ago = today - timedelta(days=14)
-
-    if request.user.is_superuser:
-        constituencies = Constituency.objects.filter(active=True).order_by("name")
-    else:
-        constituencies = Constituency.objects.filter(
-            id=request.constituency.id, active=True
-        ).order_by("name")
-
-    visible_ids = list(constituencies.values_list("id", flat=True))
-
-    todays_states = {
-        s.constituency_id: s
-        for s in DailyReportState.objects.filter(
-            report_date=today, constituency_id__in=visible_ids
-        )
-    }
-
-    # First active group per constituency (alphabetically); missing if none.
-    groups_by_constituency = {}
-    for g in (
-            WhatsAppGroup.objects
-            .filter(constituency_id__in=visible_ids, is_active=True)
-            .order_by("name")
-    ):
-        if g.constituency_id not in groups_by_constituency:
-            groups_by_constituency[g.constituency_id] = g
-
-    active_phase = Phase.objects.filter(active=True).first()
-
-    ward_totals = dict(
-        Ward.objects
-        .filter(constituency_id__in=visible_ids, active=True)
-        .values("constituency_id")
-        .annotate(n=Count("id"))
-        .values_list("constituency_id", "n")
-    )
-
-    kit_totals = dict(
-        KIEMSKit.objects
-        .filter(ward__constituency_id__in=visible_ids, ward__active=True, status=True)
-        .values("ward__constituency_id")
-        .annotate(n=Count("id"))
-        .values_list("ward__constituency_id", "n")
-    )
-
-    submitted_kits_today = {}
-    if active_phase:
-        submitted_kits_today = dict(
-            DailyKIEMSEntry.objects
-            .filter(
-                ward__constituency_id__in=visible_ids,
-                phase=active_phase,
-                entry_date=today,
-                entry_type="REGISTRATION",
-            )
-            .values("ward__constituency_id")
-            .annotate(n=Count("kiems_kit_id", distinct=True))
-            .values_list("ward__constituency_id", "n")
-        )
-
-    today_rows = []
-    for c in constituencies:
-        state = todays_states.get(c.id)
-        group = groups_by_constituency.get(c.id)
-
-        total_wards = state.total_wards if state else ward_totals.get(c.id, 0)
-        submitted_wards = state.submitted_wards if state else 0
-
-        total_kits = kit_totals.get(c.id, 0)
-        submitted_kits = min(submitted_kits_today.get(c.id, 0), total_kits) if total_kits else 0
-
-        ward_pct = int((submitted_wards / total_wards) * 100) if total_wards else 0
-        kit_pct = int((submitted_kits / total_kits) * 100) if total_kits else 0
-
-        today_rows.append({
-            "constituency": c,
-            "state": state,
-            "total_wards": total_wards,
-            "submitted_wards": submitted_wards,
-            "ward_progress_pct": ward_pct,
-            "total_kits": total_kits,
-            "submitted_kits": submitted_kits,
-            "kit_progress_pct": kit_pct,
-            "has_group": group is not None,
-            "group_name": group.name if group else "",
-            "group_id": group.group_id if group else "",
-        })
-
-    problem_states = list(
-        DailyReportState.objects
-        .filter(
-            report_date__gte=fourteen_days_ago,
-            constituency_id__in=visible_ids,
-            status__in=["FAILED", "SENDING"],
-        )
-        .select_related("constituency")
-        .order_by("-report_date")[:50]
-    )
-
-    history = list(
-        DailyReportState.objects
-        .filter(
-            report_date__gte=fourteen_days_ago,
-            constituency_id__in=visible_ids,
-            status__in=["SENT", "FAILED"],
-        )
-        .select_related("constituency")
-        .order_by("-sent_at", "-updated_at")[:100]
-    )
-
-    counts = {
-        "pending": sum(1 for r in today_rows if not r["state"] or r["state"].status == "PENDING"),
-        "ready": sum(1 for r in today_rows if r["state"] and r["state"].status == "READY"),
-        "sending": sum(1 for r in today_rows if r["state"] and r["state"].status == "SENDING"),
-        "sent": sum(1 for r in today_rows if r["state"] and r["state"].status == "SENT"),
-        "failed": sum(1 for r in today_rows if r["state"] and r["state"].status == "FAILED"),
-    }
-
-    heartbeat = CronHeartbeat.objects.filter(name="send_daily_reports").first()
-    heartbeat_stale = (
-        True if not heartbeat
-        else (timezone.now() - heartbeat.last_run_at).total_seconds() > 600
-    )
-
-    context = {
-        "constituency": request.constituency,
-        "today": today,
-        "today_rows": today_rows,
-        "problem_states": problem_states,
-        "history": history,
-        "bot_online": _check_bot_health(),
-        "heartbeat": heartbeat,
-        "heartbeat_stale": heartbeat_stale,
-        "counts": counts,
-    }
-    return render(request, "ict/system_status.html", context)
-
 
 @ict_required
 @require_POST
@@ -3007,3 +2955,379 @@ def daily_report_preview(request):
         "report_text": text or "",
         "has_data": bool(text),
     })
+
+
+# ============================================================
+# SYSTEM STATUS  (kit-level visibility + override send)
+# ============================================================
+
+def _system_status_context(request):
+    """
+    Build the full data snapshot for the system status page.
+
+    Adds kit-level breakdown: for every constituency the officer can see,
+    list every active kit with its ward, whether it has reported today,
+    and if so, its M/F/total. Also computes per-ward progress and the
+    overall constituency progress.
+
+    Visible scope:
+      - superuser  -> every active constituency
+      - officer    -> only their own constituency
+    """
+    today = timezone.localdate()
+    fourteen_days_ago = today - timedelta(days=14)
+
+    if request.user.is_superuser:
+        constituencies = list(Constituency.objects.filter(active=True).order_by("name"))
+    else:
+        constituencies = list(
+            Constituency.objects.filter(
+                id=request.constituency.id, active=True
+            ).order_by("name")
+        )
+
+    visible_ids = [c.id for c in constituencies]
+    active_phase = Phase.objects.filter(active=True).first()
+
+    # ---- Today's report state per constituency (for the pipeline status pill)
+    todays_states = {
+        s.constituency_id: s
+        for s in DailyReportState.objects.filter(
+            report_date=today, constituency_id__in=visible_ids
+        )
+    }
+
+    # ---- WhatsApp group per constituency (first active one)
+    groups_by_constituency = {}
+    for g in (
+        WhatsAppGroup.objects
+        .filter(constituency_id__in=visible_ids, is_active=True)
+        .order_by("name")
+    ):
+        if g.constituency_id not in groups_by_constituency:
+            groups_by_constituency[g.constituency_id] = g
+
+    # ---- All active kits with their ward + today's entry (single query pass)
+    #      We pull every kit for every visible constituency in one go, then
+    #      attach today's REGISTRATION entry if any exists.
+    kits = list(
+        KIEMSKit.objects
+        .filter(
+            ward__constituency_id__in=visible_ids,
+            ward__active=True,
+            status=True,
+        )
+        .select_related("ward", "ward__constituency")
+        .order_by("ward__name", "kit_name")
+    )
+    kit_ids = [k.id for k in kits]
+
+    todays_entries = {}
+    if active_phase and kit_ids:
+        for e in (
+            DailyKIEMSEntry.objects
+            .filter(
+                kiems_kit_id__in=kit_ids,
+                phase=active_phase,
+                entry_date=today,
+                entry_type="REGISTRATION",
+            )
+            .select_related("vra")
+        ):
+            # Keep the latest entry per kit (defensive if dupes ever exist)
+            existing = todays_entries.get(e.kiems_kit_id)
+            if not existing or (e.edit_count or 0) >= (existing.edit_count or 0):
+                todays_entries[e.kiems_kit_id] = e
+
+    # ---- Build per-constituency rollup
+    today_rows = []
+    for c in constituencies:
+        state = todays_states.get(c.id)
+        group = groups_by_constituency.get(c.id)
+
+        c_kits = [k for k in kits if k.ward.constituency_id == c.id]
+
+        # Wards: derived from kits (more accurate than a separate query)
+        wards_in_c = {}
+        for k in c_kits:
+            wards_in_c.setdefault(k.ward_id, k.ward)
+
+        kit_rows = []
+        submitted_kits = 0
+        for k in c_kits:
+            entry = todays_entries.get(k.id)
+            submitted = entry is not None
+            if submitted:
+                submitted_kits += 1
+            kit_rows.append({
+                "kit": k,
+                "ward": k.ward,
+                "submitted": submitted,
+                "entry": entry,
+                "male": entry.registered_male if entry else None,
+                "female": entry.registered_female if entry else None,
+                "total": entry.total_registered if entry else None,
+                "transferred": entry.total_transferred if entry else None,
+                "vra_name": entry.vra.name if (entry and entry.vra_id) else None,
+                "submitted_at": entry.updated_at if entry else None,
+                "edit_count": entry.edit_count if entry else 0,
+            })
+
+        # Ward-level rollup for the same constituency
+        ward_rows = []
+        for w in sorted(wards_in_c.values(), key=lambda x: x.name):
+            w_kits = [r for r in kit_rows if r["ward"].id == w.id]
+            w_submitted = sum(1 for r in w_kits if r["submitted"])
+            w_total = len(w_kits)
+            ward_rows.append({
+                "ward": w,
+                "total_kits": w_total,
+                "submitted_kits": w_submitted,
+                "pending_kits": w_total - w_submitted,
+                "complete": w_total > 0 and w_submitted == w_total,
+                "pct": int(w_submitted / w_total * 100) if w_total else 0,
+                "pending": [r for r in w_kits if not r["submitted"]],
+            })
+
+        total_kits = len(c_kits)
+        total_wards = len(wards_in_c)
+        submitted_wards = sum(1 for w in ward_rows if w["complete"])
+        pending_kits_list = [r for r in kit_rows if not r["submitted"]]
+
+        ward_pct = int(submitted_wards / total_wards * 100) if total_wards else 0
+        kit_pct  = int(submitted_kits / total_kits * 100) if total_kits else 0
+
+        today_rows.append({
+            "constituency": c,
+            "state": state,
+            "status": state.status if state else "NO_ACTIVITY",
+            "status_label": state.get_status_display() if state else "No activity",
+            "ready_at": state.ready_at if state else None,
+            "sent_at": state.sent_at if state else None,
+            "total_wards": total_wards,
+            "submitted_wards": submitted_wards,
+            "ward_pct": ward_pct,
+            "total_kits": total_kits,
+            "submitted_kits": submitted_kits,
+            "kit_pct": kit_pct,
+            "pending_kits": pending_kits_list,
+            "kit_rows": kit_rows,
+            "ward_rows": ward_rows,
+            "has_group": group is not None,
+            "group_name": group.name if group else "",
+            "group_id": group.group_id if group else "",
+        })
+
+    # ---- Problem states (last 14 days)
+    problem_states = list(
+        DailyReportState.objects
+        .filter(
+            report_date__gte=fourteen_days_ago,
+            constituency_id__in=visible_ids,
+            status__in=["FAILED", "SENDING"],
+        )
+        .select_related("constituency")
+        .order_by("-report_date")[:50]
+    )
+
+    # ---- Send history
+    history = list(
+        DailyReportState.objects
+        .filter(
+            report_date__gte=fourteen_days_ago,
+            constituency_id__in=visible_ids,
+            status__in=["SENT", "FAILED"],
+        )
+        .select_related("constituency")
+        .order_by("-sent_at", "-updated_at")[:100]
+    )
+
+    counts = {
+        "pending": sum(1 for r in today_rows if r["status"] in ("PENDING", "NO_ACTIVITY")),
+        "ready":   sum(1 for r in today_rows if r["status"] == "READY"),
+        "sending": sum(1 for r in today_rows if r["status"] == "SENDING"),
+        "sent":    sum(1 for r in today_rows if r["status"] == "SENT"),
+        "failed":  sum(1 for r in today_rows if r["status"] == "FAILED"),
+    }
+
+    heartbeat = CronHeartbeat.objects.filter(name="send_daily_reports").first()
+    heartbeat_stale = (
+        True if not heartbeat
+        else (timezone.now() - heartbeat.last_run_at).total_seconds() > 600
+    )
+
+    return {
+        "constituency": request.constituency,
+        "today": today,
+        "active_phase": active_phase,
+        "today_rows": today_rows,
+        "problem_states": problem_states,
+        "history": history,
+        "bot_online": _check_bot_health(),
+        "heartbeat": heartbeat,
+        "heartbeat_stale": heartbeat_stale,
+        "counts": counts,
+        "is_superadmin_view": request.user.is_superuser,
+    }
+
+
+@ict_required
+def system_status(request):
+    """
+    System status dashboard with kit-level visibility.
+
+    Shows, per constituency:
+      - Every active kit, grouped by ward
+      - Which kits have submitted today (with M/F/Total + VRA)
+      - Which kits have NOT submitted today
+      - An override 'Send Now' action per constituency and per ward
+    """
+    ctx = _system_status_context(request)
+    return render(request, "ict/system_status.html", ctx)
+
+
+@ict_required
+@require_POST
+def system_status_send_override(request, constituency_id):
+    """
+    Officer/SuperAdmin triggers the daily report for a constituency
+    even when not all kits have reported.
+
+    We rebuild the report text from whatever entries exist right now
+    and send it straight to the constituency's WhatsApp group. The
+    DailyReportState row is updated to SENT so the reconciler won't
+    fire a second copy.
+    """
+    from home.services.whatsapp import send_to_constituency
+    from home.services.daily_report import _build_grand_total_payload
+
+    # Scope: officer can only override their own constituency
+    if request.user.is_superuser:
+        c = get_object_or_404(Constituency, pk=constituency_id)
+    else:
+        c = get_object_or_404(Constituency, pk=constituency_id, id=request.constituency.id)
+
+    report_date = _coerce_date(request.POST.get("date"))
+
+    # Ensure there's at least one entry to report, else there's nothing to send
+    has_any = DailyKIEMSEntry.objects.filter(
+        ward__constituency=c,
+        entry_date=report_date,
+        entry_type="REGISTRATION",
+    ).exists()
+    if not has_any:
+        messages.warning(request, f"No registrations on file for {c.name} on {report_date}.")
+        return redirect("ict:system_status")
+
+    # Get or create the state; mark SENDING under a lock
+    state, _ = DailyReportState.objects.get_or_create(
+        constituency=c,
+        report_date=report_date,
+        defaults={
+            "total_wards": Ward.objects.filter(constituency=c, active=True).count(),
+            "submitted_wards": 0,
+        },
+    )
+
+    # Build the payload from current DB state
+    message, data_hash = _build_grand_total_payload(state)
+    if not message:
+        messages.warning(request, "Nothing to send — the report came out empty.")
+        return redirect("ict:system_status")
+
+    ok, err, group_id = send_to_constituency(c, message)
+
+    if ok:
+        state.status = "SENT"
+        state.sent_at = timezone.now()
+        state.message_hash = data_hash
+        state.last_error = ""
+        state.locked_at = None
+        state.locked_by = ""
+        state.attempts = (state.attempts or 0) + 1
+        state.save()
+        _log(request, "SUBMIT", "DailyReportState", state,
+             f"Manual override send for {c.name} on {report_date}")
+        messages.success(
+            request,
+            f"Override sent to {c.name}"
+            + (f" ({group_id})" if group_id else "")
+            + "."
+        )
+    else:
+        state.status = "FAILED"
+        state.last_error = (err or "Unknown error") + (f" (group: {group_id})" if group_id else "")
+        state.attempts = (state.attempts or 0) + 1
+        state.save()
+        messages.error(request, f"Send failed: {err or 'unknown error'}")
+
+    return redirect("ict:system_status")
+
+
+@ict_required
+@require_POST
+def system_status_send_ward(request, ward_id):
+    """
+    Send a single-ward report as an override, even if the ward isn't
+    fully submitted. Useful when one kit is stuck and you want to
+    push what you have for that ward without waiting.
+    """
+    from home.services.whatsapp import send_to_constituency
+
+    # Scope
+    if request.user.is_superuser:
+        ward = get_object_or_404(Ward, pk=ward_id)
+        c = ward.constituency
+    else:
+        ward = get_object_or_404(Ward, pk=ward_id, constituency=request.constituency)
+        c = ward.constituency
+
+    report_date = _coerce_date(request.POST.get("date"))
+
+    qs = (
+        DailyKIEMSEntry.objects
+        .filter(
+            ward=ward,
+            entry_date=report_date,
+            entry_type="REGISTRATION",
+        )
+        .select_related("kiems_kit", "vra")
+    )
+    if not qs.exists():
+        messages.warning(request, f"No registrations for {ward.name} on {report_date}.")
+        return redirect("ict:system_status")
+
+    totals = qs.aggregate(
+        male=Sum("registered_male"),
+        female=Sum("registered_female"),
+        total=Sum("total_registered"),
+        transferred=Sum("total_transferred"),
+    )
+
+    msg = f"*{ward.name.upper()} WARD* — {report_date.strftime('%d %b %Y')}\n"
+    msg += "_Partial submission (override)_\n"
+    msg += "--------------------------\n"
+    for e in qs.order_by("kiems_kit__kit_name"):
+        msg += (
+            f"{e.kiems_kit.kit_name}: "
+            f"M:{e.registered_male} F:{e.registered_female} "
+            f"= {e.total_registered}\n"
+        )
+    msg += "--------------------------\n"
+    msg += (
+        f"*TOTAL:* M:{totals['male'] or 0} F:{totals['female'] or 0} "
+        f"= *{totals['total'] or 0}*"
+    )
+    if totals["transferred"]:
+        msg += f"\nTransferred: {totals['transferred']}"
+
+    ok, err, group_id = send_to_constituency(c, msg)
+
+    if ok:
+        _log(request, "SUBMIT", "Ward", ward,
+             f"Manual ward override sent for {ward.name} on {report_date}")
+        messages.success(request, f"{ward.name} ward report sent.")
+    else:
+        messages.error(request, f"Send failed: {err or 'unknown error'}")
+
+    return redirect("ict:system_status")

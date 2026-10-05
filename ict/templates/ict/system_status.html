@@ -11,17 +11,12 @@
         display: flex; align-items: center; justify-content: space-between;
         gap: 12px; flex-wrap: wrap;
     }
-    .status-title h2 {
-        font-size: 20px; font-weight: 700; letter-spacing: -0.3px;
-    }
+    .status-title h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
     .status-title p {
         font-size: 12px; color: var(--text-muted);
         font-weight: 500; margin-top: 2px;
     }
-
-    .header-actions {
-        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    }
+    .header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
     .health-pill {
         display: inline-flex; align-items: center; gap: 6px;
@@ -29,25 +24,11 @@
         font-size: 12px; font-weight: 700;
         background: var(--surface); border: 1px solid var(--border);
     }
-    .health-pill.online {
-        color: var(--success); border-color: rgba(31,157,85,0.3);
-        background: var(--success-soft);
-    }
-    .health-pill.offline {
-        color: var(--danger); border-color: rgba(229,72,77,0.3);
-        background: var(--danger-soft);
-    }
-    .health-pill.warn {
-        color: var(--warning); border-color: rgba(181,117,10,0.3);
-        background: var(--warning-soft);
-    }
-    .health-dot {
-        width: 7px; height: 7px; border-radius: 50%;
-        background: currentColor;
-    }
-    .health-pill.online .health-dot {
-        animation: pulse-green 1.8s infinite;
-    }
+    .health-pill.online  { color: var(--success); border-color: rgba(31,157,85,0.3); background: var(--success-soft); }
+    .health-pill.offline { color: var(--danger);  border-color: rgba(229,72,77,0.3); background: var(--danger-soft); }
+    .health-pill.warn    { color: var(--warning); border-color: rgba(181,117,10,0.3); background: var(--warning-soft); }
+    .health-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .health-pill.online .health-dot { animation: pulse-green 1.8s infinite; }
     @keyframes pulse-green {
         0%   { box-shadow: 0 0 0 0 rgba(31,157,85,0.7); }
         70%  { box-shadow: 0 0 0 6px rgba(31,157,85,0); }
@@ -56,8 +37,7 @@
 
     /* ---------- Count Cards ---------- */
     .status-counts {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
         gap: 10px;
     }
     .count-card {
@@ -95,29 +75,67 @@
         display: flex; align-items: center; gap: 8px;
     }
     .panel-card-title i { color: var(--text-muted); font-size: 14px; }
-    .panel-card-title .sub {
-        font-size: 11px; color: var(--text-muted); font-weight: 500;
-    }
-
+    .panel-card-title .sub { font-size: 11px; color: var(--text-muted); font-weight: 500; }
     .panel-body-scroll { overflow-x: auto; }
 
-    /* ---------- Table ---------- */
-    .table-custom { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .table-custom th {
-        text-align: left; padding: 9px 14px;
-        font-size: 10.5px; font-weight: 700; text-transform: uppercase;
-        letter-spacing: 0.5px; color: var(--text-muted);
-        background: var(--surface-alt); border-bottom: 1px solid var(--border);
-        white-space: nowrap;
+    /* ---------- Constituency block ---------- */
+    .const-block {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius-md); box-shadow: var(--shadow-xs);
+        overflow: hidden;
     }
-    .table-custom td {
-        padding: 11px 14px; border-bottom: 1px solid var(--border);
-        color: var(--text); vertical-align: middle;
+    .const-head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 16px; cursor: pointer; user-select: none;
+        background: var(--surface); gap: 10px; flex-wrap: wrap;
+        border-bottom: 1px solid var(--border);
     }
-    .table-custom tbody tr:last-child td { border-bottom: none; }
-    .table-custom tbody tr:hover td { background: var(--surface-alt); }
+    .const-head:hover { background: var(--surface-alt); }
+    .const-head-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .const-name { font-weight: 700; font-size: 14px; }
+    .const-head-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
-    /* ---------- Status Pill ---------- */
+    .chevron {
+        transition: transform 0.2s ease;
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+    .const-block.collapsed .chevron { transform: rotate(-90deg); }
+    .const-block.collapsed .const-body { display: none; }
+
+    /* ---------- Summary chips ---------- */
+    .chip {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 9px; border-radius: 12px;
+        font-size: 11px; font-weight: 700;
+        background: var(--surface-alt); color: var(--text-muted);
+        border: 1px solid var(--border);
+    }
+    .chip.ok    { background: var(--success-soft); color: var(--success); border-color: transparent; }
+    .chip.warn  { background: var(--warning-soft); color: var(--warning); border-color: transparent; }
+    .chip.dang  { background: var(--danger-soft);  color: var(--danger);  border-color: transparent; }
+    .chip.info  { background: var(--info-soft);    color: var(--info);    border-color: transparent; }
+
+    /* ---------- Progress bar ---------- */
+    .progress-track {
+        height: 6px; background: var(--surface-alt);
+        border-radius: 4px; overflow: hidden; min-width: 110px;
+        flex: 1;
+    }
+    .progress-bar {
+        height: 100%; background: var(--primary);
+        border-radius: 4px; transition: width 0.35s ease;
+    }
+    .progress-bar.ok   { background: var(--success); }
+    .progress-bar.warn { background: var(--warning); }
+    .progress-row {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 11px; color: var(--text-muted);
+        min-width: 170px;
+    }
+    .progress-row strong { color: var(--text); font-weight: 700; }
+
+    /* ---------- Status pill ---------- */
     .status-pill {
         display: inline-flex; align-items: center; gap: 5px;
         padding: 3px 10px; border-radius: 12px;
@@ -131,83 +149,90 @@
     .status-pill.SENT    { background: var(--success-soft); color: var(--success); }
     .status-pill.FAILED  { background: var(--danger-soft);  color: var(--danger); }
     .status-pill.none    { background: var(--surface-alt);  color: var(--text-muted); }
+    .status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+    .status-pill.SENDING .status-dot { animation: pulse-green 1.5s infinite; }
 
-    .status-dot {
-        width: 5px; height: 5px; border-radius: 50%;
-        background: currentColor;
+    /* ---------- Tables ---------- */
+    .table-custom { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .table-custom th {
+        text-align: left; padding: 9px 14px;
+        font-size: 10px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.5px; color: var(--text-muted);
+        background: var(--surface-alt); border-bottom: 1px solid var(--border);
+        white-space: nowrap;
     }
-    .status-pill.SENDING .status-dot {
-        animation: pulse-green 1.5s infinite;
+    .table-custom td {
+        padding: 10px 14px; border-bottom: 1px solid var(--border);
+        color: var(--text); vertical-align: middle;
     }
+    .table-custom tbody tr:last-child td { border-bottom: none; }
+    .table-custom tbody tr:hover td { background: var(--surface-alt); }
 
-    /* ---------- Progress Bars ---------- */
-    .progress-wrap {
-        display: flex; flex-direction: column; gap: 3px; min-width: 150px;
+    .ward-heading {
+        background: var(--surface-alt);
+        font-size: 11px; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.4px; color: var(--text-muted);
+        padding: 8px 14px;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 10px; flex-wrap: wrap;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
     }
-    .progress-row {
-        display: flex; align-items: center; gap: 8px;
-    }
-    .progress-track {
-        flex: 1; height: 6px; background: var(--surface-alt);
-        border-radius: 4px; overflow: hidden; min-width: 90px;
-    }
-    .progress-bar {
-        height: 100%; background: var(--primary);
-        border-radius: 4px; transition: width 0.35s ease;
-    }
-    .progress-bar.warn { background: var(--warning); }
-    .progress-bar.ok   { background: var(--success); }
-    .progress-label {
-        font-size: 11px; color: var(--text-muted);
-        font-weight: 600; white-space: nowrap;
-    }
-    .progress-label strong { color: var(--text); font-weight: 700; }
+    .ward-heading .left { display: flex; align-items: center; gap: 10px; }
+    .ward-heading .right { display: flex; align-items: center; gap: 8px; }
 
-    /* ---------- Misc ---------- */
-    .code-tag {
-        font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
-        background: var(--surface-alt); padding: 2px 6px;
-        border-radius: 4px; border: 1px solid var(--border);
-        color: var(--text-muted);
-    }
-    .const-name {
+    /* ---------- Kit status cell ---------- */
+    .kit-status {
         display: inline-flex; align-items: center; gap: 6px;
-        font-weight: 700; color: var(--text);
+        font-size: 11.5px; font-weight: 700;
     }
-    .error-snippet {
-        font-size: 11.5px; color: var(--text-muted);
-        max-width: 340px; display: inline-block; overflow: hidden;
-        text-overflow: ellipsis; white-space: nowrap;
-        vertical-align: middle;
+    .kit-status .dot {
+        width: 8px; height: 8px; border-radius: 50%;
     }
-    .empty-dense {
-        padding: 32px 16px; color: var(--text-muted);
-        font-size: 12.5px; text-align: center;
+    .kit-status.submitted .dot { background: var(--success); }
+    .kit-status.pending   .dot { background: var(--danger); animation: pulse-red 1.5s infinite; }
+    @keyframes pulse-red {
+        0%   { box-shadow: 0 0 0 0 rgba(229,72,77,0.5); }
+        70%  { box-shadow: 0 0 0 5px rgba(229,72,77,0); }
+        100% { box-shadow: 0 0 0 0 rgba(229,72,77,0); }
     }
-    .empty-dense i {
-        font-size: 26px; display: block; margin-bottom: 6px; opacity: 0.4;
-    }
+    .kit-status.submitted { color: var(--success); }
+    .kit-status.pending   { color: var(--danger); }
 
-    /* ---------- Row Actions ---------- */
-    .row-actions {
-        display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap;
-    }
+    /* ---------- Buttons ---------- */
     .btn-tiny {
         display: inline-flex; align-items: center; gap: 4px;
         padding: 5px 10px; border-radius: 6px;
         font-size: 11.5px; font-weight: 600;
         text-decoration: none; border: none; cursor: pointer;
         background: var(--surface-alt); color: var(--text);
-        transition: all 0.15s ease;
-        white-space: nowrap;
+        transition: all 0.15s ease; white-space: nowrap;
     }
     .btn-tiny:hover { background: var(--primary-soft); color: var(--primary-hover); }
     .btn-tiny.primary { background: var(--primary); color: #fff; }
     .btn-tiny.primary:hover { background: var(--primary-hover); color: #fff; }
+    .btn-tiny.primary:disabled {
+        background: var(--surface-alt); color: var(--text-faint);
+        cursor: not-allowed; opacity: 0.7;
+    }
     .btn-tiny.danger { background: var(--danger-soft); color: var(--danger); }
     .btn-tiny.danger:hover { background: var(--danger); color: #fff; }
+    .btn-tiny.ghost {
+        background: transparent; border: 1px solid var(--border);
+        color: var(--text-muted);
+    }
+    .btn-tiny.ghost:hover { background: var(--surface-alt); color: var(--text); }
 
-    /* ---------- Auto Refresh ---------- */
+    .row-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+
+    /* ---------- Empty ---------- */
+    .empty-dense {
+        padding: 32px 16px; color: var(--text-muted);
+        font-size: 12.5px; text-align: center;
+    }
+    .empty-dense i { font-size: 26px; display: block; margin-bottom: 6px; opacity: 0.4; }
+
+    /* ---------- Auto-refresh pill ---------- */
     .auto-refresh-pill {
         display: inline-flex; align-items: center; gap: 6px;
         font-size: 11px; color: var(--text-muted);
@@ -218,6 +243,27 @@
         width: 6px; height: 6px; border-radius: 50%;
         background: var(--info);
         animation: pulse-green 1.8s infinite;
+    }
+
+    /* ---------- Filter toggle ---------- */
+    .kit-filter {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 11.5px; color: var(--text-muted); font-weight: 600;
+        cursor: pointer; user-select: none;
+    }
+    .kit-filter input { accent-color: var(--primary); cursor: pointer; }
+
+    .error-snippet {
+        font-size: 11.5px; color: var(--text-muted);
+        max-width: 340px; display: inline-block; overflow: hidden;
+        text-overflow: ellipsis; white-space: nowrap;
+        vertical-align: middle;
+    }
+    .code-tag {
+        font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+        background: var(--surface-alt); padding: 2px 6px;
+        border-radius: 4px; border: 1px solid var(--border);
+        color: var(--text-muted);
     }
 </style>
 {% endblock %}
@@ -233,18 +279,16 @@
         </div>
 
         <div class="header-actions">
-            <span class="auto-refresh-pill" id="autoRefreshPill" title="Auto-refresh every 30s">
+            <span class="auto-refresh-pill" id="autoRefreshPill" title="Auto-refresh every 60s">
                 <span class="dot"></span>
-                Auto-refresh 30s
+                Auto-refresh 60s
             </span>
 
-            <!-- Bot health -->
             <span class="health-pill {% if bot_online %}online{% else %}offline{% endif %}">
                 <span class="health-dot"></span>
                 Bot {% if bot_online %}Online{% else %}Offline{% endif %}
             </span>
 
-            <!-- Cron heartbeat -->
             {% if heartbeat %}
                 <span class="health-pill {% if heartbeat_stale %}warn{% else %}online{% endif %}"
                       title="Last run: {{ heartbeat.last_run_at|date:'H:i:s' }} ({{ heartbeat.total_runs }} total)">
@@ -258,17 +302,6 @@
                     Cron not running
                 </span>
             {% endif %}
-
-            <a href="{% url 'ict:system_health_report_download' %}"
-               class="btn btn-outline btn-sm">
-                <i class="bi bi-file-earmark-pdf"></i> Health Report
-            </a>
-
-            <a href="{% url 'ict:system_health_report_preview' %}"
-               target="_blank"
-               class="btn btn-outline btn-sm">
-                <i class="bi bi-eye"></i> Preview
-            </a>
 
             <form method="post" action="{% url 'ict:system_status_run_tick' %}" style="display:inline;">
                 {% csrf_token %}
@@ -305,147 +338,244 @@
         </div>
     </div>
 
-    <!-- ============= TODAY GRID ============= -->
-    <div class="panel-card">
-        <div class="panel-card-head">
-            <div class="panel-card-title">
-                <i class="bi bi-calendar-check"></i>
-                Today &mdash; {{ today|date:"d M Y" }}
+    <!-- ============= CONSTITUENCIES ============= -->
+    {% if today_rows %}
+        {% for row in today_rows %}
+        <div class="const-block" data-const-id="{{ row.constituency.pk }}">
+
+            <!-- Header / toggle -->
+            <div class="const-head" onclick="toggleConst({{ row.constituency.pk }});">
+                <div class="const-head-left">
+                    <i class="bi bi-chevron-down chevron"></i>
+                    <span class="const-name">{{ row.constituency.name }}</span>
+
+                    {% if row.state %}
+                        <span class="status-pill {{ row.state.status }}">
+                            <span class="status-dot"></span>
+                            {{ row.state.get_status_display|default:row.state.status }}
+                        </span>
+                    {% else %}
+                        <span class="status-pill none">
+                            <span class="status-dot"></span> No activity
+                        </span>
+                    {% endif %}
+
+                    {% if row.has_group %}
+                        <span class="chip ok" title="{{ row.group_name }}">
+                            <i class="bi bi-whatsapp"></i> Group OK
+                        </span>
+                    {% else %}
+                        <span class="chip dang">
+                            <i class="bi bi-exclamation-triangle"></i> No Group
+                        </span>
+                    {% endif %}
+                </div>
+
+                <div class="const-head-right" onclick="event.stopPropagation();">
+
+                    <!-- Progress -->
+                    <div class="progress-row" title="Wards submitted">
+                        <div class="progress-track">
+                            <div class="progress-bar
+                                {% if row.ward_pct >= 100 %}ok{% elif row.ward_pct < 50 %}warn{% endif %}"
+                                 style="width: {{ row.ward_pct }}%;"></div>
+                        </div>
+                        <span>Wards <strong>{{ row.submitted_wards }}/{{ row.total_wards }}</strong></span>
+                    </div>
+
+                    <div class="progress-row" title="Kits submitted">
+                        <div class="progress-track">
+                            <div class="progress-bar
+                                {% if row.kit_pct >= 100 %}ok{% elif row.kit_pct < 50 %}warn{% endif %}"
+                                 style="width: {{ row.kit_pct }}%;"></div>
+                        </div>
+                        <span>Kits <strong>{{ row.submitted_kits }}/{{ row.total_kits }}</strong></span>
+                    </div>
+
+                    {% if row.pending_kits %}
+                        <span class="chip dang">
+                            <i class="bi bi-hourglass-split"></i>
+                            {{ row.pending_kits|length }} kit{{ row.pending_kits|length|pluralize }} pending
+                        </span>
+                    {% else %}
+                        <span class="chip ok">
+                            <i class="bi bi-check-circle"></i> All kits in
+                        </span>
+                    {% endif %}
+
+                    <!-- Override send -->
+                    <form method="post"
+                          action="{% url 'ict:system_status_send_override' row.constituency.pk %}"
+                          style="display:inline;"
+                          onsubmit="event.stopPropagation(); return confirm('Send the daily report for {{ row.constituency.name|escapejs }} now, even though not all kits have submitted?');">
+                        {% csrf_token %}
+                        <input type="hidden" name="date" value="{{ today|date:'Y-m-d' }}">
+                        <button type="submit"
+                                class="btn-tiny primary"
+                                {% if row.submitted_kits == 0 %}disabled title="Nothing has been reported yet"{% else %}title="Send now, even if incomplete"{% endif %}>
+                            <i class="bi bi-send"></i> Send Now
+                        </button>
+                    </form>
+                </div>
             </div>
-            <span class="sub">
-                {{ today_rows|length }} constituenc{{ today_rows|length|pluralize:"y,ies" }}
-            </span>
-        </div>
 
-        {% if today_rows %}
-        <div class="panel-body-scroll">
-            <table class="table-custom">
-                <thead>
-                    <tr>
-                        <th>Constituency</th>
-                        <th>Progress</th>
-                        <th>Group</th>
-                        <th>Status</th>
-                        <th>Ready At</th>
-                        <th>Sent At</th>
-                        <th style="text-align:right;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in today_rows %}
-                    <tr>
-                        <td>
-                            <span class="const-name">{{ row.constituency.name }}</span>
-                            {% if row.constituency.code %}
-                                <span class="code-tag">{{ row.constituency.code }}</span>
-                            {% endif %}
-                        </td>
+            <!-- Body -->
+            <div class="const-body">
 
-                        <!-- Dual progress: Wards + Kits -->
-                        <td>
-                            <div class="progress-wrap">
-                                <div class="progress-row">
-                                    <div class="progress-track">
-                                        <div class="progress-bar
-                                            {% if row.ward_progress_pct >= 100 %}ok{% elif row.ward_progress_pct < 50 %}warn{% endif %}"
-                                             style="width: {{ row.ward_progress_pct }}%;"></div>
+                <!-- Per-ward summary + per-ward override -->
+                <div class="panel-body-scroll">
+                    <table class="table-custom">
+                        <thead>
+                            <tr>
+                                <th>Ward</th>
+                                <th>Progress</th>
+                                <th>Pending Kits</th>
+                                <th style="text-align:right;">Ward Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for w in row.ward_rows %}
+                            <tr>
+                                <td>
+                                    <strong>{{ w.ward.name }}</strong>
+                                    {% if w.complete %}
+                                        <span class="chip ok" style="margin-left:6px;">
+                                            <i class="bi bi-check"></i> Complete
+                                        </span>
+                                    {% else %}
+                                        <span class="chip warn" style="margin-left:6px;">
+                                            {{ w.pending_kits }} pending
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="progress-row">
+                                        <div class="progress-track">
+                                            <div class="progress-bar
+                                                {% if w.pct >= 100 %}ok{% elif w.pct < 50 %}warn{% endif %}"
+                                                 style="width: {{ w.pct }}%;"></div>
+                                        </div>
+                                        <span><strong>{{ w.submitted_kits }}/{{ w.total_kits }}</strong></span>
                                     </div>
-                                    <span class="progress-label">
-                                        Wards <strong>{{ row.submitted_wards }}/{{ row.total_wards }}</strong>
-                                    </span>
-                                </div>
-
-                                {% if row.total_kits %}
-                                <div class="progress-row">
-                                    <div class="progress-track">
-                                        <div class="progress-bar
-                                            {% if row.kit_progress_pct >= 100 %}ok{% elif row.kit_progress_pct < 50 %}warn{% endif %}"
-                                             style="width: {{ row.kit_progress_pct }}%;"></div>
+                                </td>
+                                <td>
+                                    {% if w.pending %}
+                                        {% for r in w.pending %}
+                                            <span class="chip dang" style="margin-right:4px;">
+                                                {{ r.kit.kit_name }}
+                                            </span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span style="color: var(--text-muted); font-size:11.5px;">&mdash;</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="row-actions">
+                                        <form method="post"
+                                              action="{% url 'ict:system_status_send_ward' w.ward.pk %}"
+                                              style="display:inline;"
+                                              onsubmit="return confirm('Send ONLY the {{ w.ward.name|escapejs }} ward report?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="date" value="{{ today|date:'Y-m-d' }}">
+                                            <button type="submit"
+                                                    class="btn-tiny ghost"
+                                                    {% if w.submitted_kits == 0 %}disabled title="Nothing reported in this ward"{% else %}title="Send this ward's partial report"{% endif %}>
+                                                <i class="bi bi-send"></i> Send Ward
+                                            </button>
+                                        </form>
                                     </div>
-                                    <span class="progress-label">
-                                        Kits <strong>{{ row.submitted_kits }}/{{ row.total_kits }}</strong>
-                                    </span>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </td>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
 
-                        <!-- WhatsApp group -->
-                        <td>
-                            {% if row.has_group %}
-                                <span class="status-pill SENT" title="{{ row.group_name }}">
-                                    <span class="status-dot"></span> Group OK
-                                </span>
-                            {% else %}
-                                <span class="status-pill FAILED">
-                                    <span class="status-dot"></span> No Group
-                                </span>
-                            {% endif %}
-                        </td>
+                <!-- Full kit list -->
+                <div class="panel-card-head" style="border-top: 1px solid var(--border);">
+                    <div class="panel-card-title">
+                        <i class="bi bi-list-check"></i>
+                        Kit-level submission
+                        <span class="sub">
+                            ({{ row.submitted_kits }}/{{ row.total_kits }} submitted today)
+                        </span>
+                    </div>
+                    <label class="kit-filter">
+                        <input type="checkbox"
+                               class="only-pending-toggle"
+                               data-const-id="{{ row.constituency.pk }}">
+                        Show only pending kits
+                    </label>
+                </div>
 
-                        <!-- Pipeline status -->
-                        <td>
-                            {% if row.state %}
-                                <span class="status-pill {{ row.state.status }}">
-                                    <span class="status-dot"></span>
-                                    {{ row.state.get_status_display|default:row.state.status }}
-                                </span>
-                            {% else %}
-                                <span class="status-pill none">
-                                    <span class="status-dot"></span> No activity
-                                </span>
-                            {% endif %}
-                        </td>
-
-                        <td style="font-size: 12px; color: var(--text-muted);">
-                            {% if row.state and row.state.ready_at %}
-                                {{ row.state.ready_at|date:"H:i:s" }}
-                            {% else %}&mdash;{% endif %}
-                        </td>
-
-                        <td style="font-size: 12px; color: var(--text-muted);">
-                            {% if row.state and row.state.sent_at %}
-                                {{ row.state.sent_at|date:"H:i:s" }}
-                            {% else %}&mdash;{% endif %}
-                        </td>
-
-                        <td>
-                            <div class="row-actions">
-                                {% if row.state and row.state.status == "FAILED" %}
-                                <form method="post"
-                                      action="{% url 'ict:system_status_retry' row.state.pk %}"
-                                      style="display:inline;">
-                                    {% csrf_token %}
-                                    <button type="submit"
-                                            class="btn-tiny danger"
-                                            onclick="return confirm('Retry this failed report?');">
-                                        <i class="bi bi-arrow-repeat"></i> Retry
-                                    </button>
-                                </form>
-                                {% endif %}
-
-                                <form method="post"
-                                      action="{% url 'ict:system_status_reevaluate' row.constituency.pk today|date:'Y-m-d' %}"
-                                      style="display:inline;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn-tiny" title="Re-evaluate now">
-                                        <i class="bi bi-arrow-clockwise"></i> Re-eval
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                <div class="panel-body-scroll">
+                    <table class="table-custom kit-table" data-const-id="{{ row.constituency.pk }}">
+                        <thead>
+                            <tr>
+                                <th>Ward</th>
+                                <th>Kit</th>
+                                <th>Status</th>
+                                <th>Male</th>
+                                <th>Female</th>
+                                <th>Total</th>
+                                <th>Transferred</th>
+                                <th>VRA</th>
+                                <th>Submitted At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for k in row.kit_rows %}
+                            <tr class="kit-row {% if k.submitted %}submitted{% else %}pending{% endif %}"
+                                data-submitted="{% if k.submitted %}1{% else %}0{% endif %}">
+                                <td>{{ k.ward.name }}</td>
+                                <td><strong>{{ k.kit.kit_name }}</strong></td>
+                                <td>
+                                    {% if k.submitted %}
+                                        <span class="kit-status submitted">
+                                            <span class="dot"></span> Submitted
+                                        </span>
+                                    {% else %}
+                                        <span class="kit-status pending">
+                                            <span class="dot"></span> Not Submitted
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>{% if k.submitted %}{{ k.male }}{% else %}&mdash;{% endif %}</td>
+                                <td>{% if k.submitted %}{{ k.female }}{% else %}&mdash;{% endif %}</td>
+                                <td>
+                                    {% if k.submitted %}
+                                        <strong>{{ k.total }}</strong>
+                                    {% else %}&mdash;{% endif %}
+                                </td>
+                                <td>{% if k.submitted and k.transferred %}{{ k.transferred }}{% else %}&mdash;{% endif %}</td>
+                                <td>
+                                    {% if k.vra_name %}
+                                        <span style="font-size:11.5px;">{{ k.vra_name }}</span>
+                                    {% else %}
+                                        <span style="color: var(--text-muted);">&mdash;</span>
+                                    {% endif %}
+                                </td>
+                                <td style="font-size: 11.5px; color: var(--text-muted);">
+                                    {% if k.submitted_at %}
+                                        {{ k.submitted_at|date:"H:i:s" }}
+                                    {% else %}&mdash;{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-        {% else %}
-        <div class="empty-dense">
-            <i class="bi bi-inbox"></i>
-            No constituencies configured
+        {% endfor %}
+    {% else %}
+        <div class="panel-card">
+            <div class="empty-dense">
+                <i class="bi bi-inbox"></i>
+                No constituencies configured
+            </div>
         </div>
-        {% endif %}
-    </div>
+    {% endif %}
 
     <!-- ============= PROBLEM STATES ============= -->
     {% if problem_states %}
@@ -487,9 +617,7 @@
                                 <span class="error-snippet" title="{{ s.last_error }}">
                                     {{ s.last_error|truncatechars:90 }}
                                 </span>
-                            {% else %}
-                                <span style="color: var(--text-faint);">&mdash;</span>
-                            {% endif %}
+                            {% else %}&mdash;{% endif %}
                         </td>
                         <td>
                             <div class="row-actions">
@@ -551,9 +679,7 @@
                             {{ s.submitted_wards }}/{{ s.total_wards }}
                         </td>
                         <td style="font-size: 12px; color: var(--text-muted);">
-                            {% if s.sent_at %}
-                                {{ s.sent_at|date:"d M, H:i" }}
-                            {% else %}&mdash;{% endif %}
+                            {% if s.sent_at %}{{ s.sent_at|date:"d M, H:i" }}{% else %}&mdash;{% endif %}
                         </td>
                         <td>
                             {% if s.message_hash %}
@@ -580,25 +706,70 @@
 
 {% block extra_js %}
 <script>
-    // Auto-refresh every 30s; pause when tab hidden or a form field is focused.
-    (function () {
-        const REFRESH_MS = 30000;
-        let userInteracting = false;
+(function () {
+    // ---------- Auto-refresh (60s) ----------
+    const REFRESH_MS = 60000;
+    let userInteracting = false;
 
-        document.addEventListener("focusin", (e) => {
-            if (e.target.matches("input, select, textarea, button")) {
-                userInteracting = true;
-            }
-        });
-        document.addEventListener("focusout", () => {
-            userInteracting = false;
-        });
+    document.addEventListener("focusin", (e) => {
+        if (e.target.matches("input, select, textarea, button")) {
+            userInteracting = true;
+        }
+    });
+    document.addEventListener("focusout", () => { userInteracting = false; });
 
-        setInterval(() => {
-            if (document.hidden) return;
-            if (userInteracting) return;
-            window.location.reload();
-        }, REFRESH_MS);
-    })();
+    setInterval(() => {
+        if (document.hidden) return;
+        if (userInteracting) return;
+        window.location.reload();
+    }, REFRESH_MS);
+
+    // ---------- Persist collapse state ----------
+    const STORAGE_KEY = "ict.system_status.collapsed";
+
+    function getCollapsed() {
+        try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
+        catch { return {}; }
+    }
+    function saveCollapsed(obj) {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(obj)); } catch {}
+    }
+
+    window.toggleConst = function (id) {
+        const block = document.querySelector(`.const-block[data-const-id="${id}"]`);
+        if (!block) return;
+        block.classList.toggle("collapsed");
+
+        const collapsed = getCollapsed();
+        if (block.classList.contains("collapsed")) {
+            collapsed[id] = 1;
+        } else {
+            delete collapsed[id];
+        }
+        saveCollapsed(collapsed);
+    };
+
+    // Apply collapsed state on load
+    const collapsed = getCollapsed();
+    Object.keys(collapsed).forEach(id => {
+        const block = document.querySelector(`.const-block[data-const-id="${id}"]`);
+        if (block) block.classList.add("collapsed");
+    });
+
+    // ---------- "Show only pending" filter ----------
+    document.querySelectorAll(".only-pending-toggle").forEach(toggle => {
+        const constId = toggle.dataset.constId;
+        const table  = document.querySelector(`.kit-table[data-const-id="${constId}"]`);
+        if (!table) return;
+
+        toggle.addEventListener("change", () => {
+            const onlyPending = toggle.checked;
+            table.querySelectorAll(".kit-row").forEach(row => {
+                const submitted = row.dataset.submitted === "1";
+                row.style.display = (onlyPending && submitted) ? "none" : "";
+            });
+        });
+    });
+})();
 </script>
 {% endblock %}
