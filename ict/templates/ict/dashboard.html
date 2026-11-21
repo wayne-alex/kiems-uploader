@@ -16,10 +16,10 @@
     }
     .dashboard-title-group p { font-size: 12.5px; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
 
-    /* ---------- KPI grid: 2 cols phone, 3 tablet, 6 desktop ---------- */
+    /* ---------- KPI grid: 2 cols phone, 3 tablet, 5 desktop ---------- */
     .kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     @media (min-width: 600px)  { .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; } }
-    @media (min-width: 1200px) { .kpi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+    @media (min-width: 1200px) { .kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 
     .kpi-card {
         background: var(--surface); border-radius: var(--radius-md);
@@ -61,14 +61,12 @@
     @media (min-width: 1100px) {
         .dashboard-grid { grid-template-columns: minmax(0, 2.2fr) minmax(280px, 1fr); }
     }
-    /* On phones/tablets show the totals before the chart */
     .col-side { order: -1; }
     @media (min-width: 1100px) { .col-side { order: 0; } }
 
-    /* Tablet: side column becomes a 2-up row */
     @media (min-width: 640px) and (max-width: 1099px) {
-        .col-side { flex-direction: row; align-items: stretch; }
-        .col-side > .panel { flex: 1 1 0; min-width: 0; }
+        .col-side { flex-direction: row; align-items: stretch; flex-wrap: wrap; }
+        .col-side > .panel { flex: 1 1 calc(50% - 8px); min-width: 240px; }
     }
 
     .panel {
@@ -127,6 +125,14 @@
     .total-grand-chip .lbl { font-size: 11px; font-weight: 700; color: var(--teal-800); text-transform: uppercase; letter-spacing: 0.4px; }
     .total-grand-chip .val { font-size: 22px; font-weight: 800; color: var(--teal-700); }
 
+    /* Form A remaining chip variant */
+    .total-grand-chip.warn {
+        background: var(--warning-soft);
+        border-color: rgba(181, 117, 10, 0.4);
+    }
+    .total-grand-chip.warn .lbl { color: var(--warning); }
+    .total-grand-chip.warn .val { color: var(--warning); }
+
     /* ---------- Activity ---------- */
     .activity-feed { display: flex; flex-direction: column; }
     .activity-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
@@ -148,11 +154,17 @@
             <h2>Dashboard Overview</h2>
             <p>{{ constituency.name }} Constituency Operations</p>
         </div>
-        <a href="{% url 'ict:entry_list' %}" class="btn btn-primary btn-sm">
-            <i class="bi bi-journal-text"></i> View Entries
-        </a>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a href="{% url 'ict:form_a_list' %}" class="btn btn-outline btn-sm">
+                <i class="bi bi-journal-text"></i> Form A
+            </a>
+            <a href="{% url 'ict:entry_list' %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-journal-check"></i> View Entries
+            </a>
+        </div>
     </div>
 
+    {# ── KPI grid — 5 + 5 on desktop ── #}
     <div class="kpi-grid">
         <div class="kpi-card teal">
             <div class="kpi-head"><span class="kpi-label">Wards</span><div class="kpi-icon"><i class="bi bi-geo-alt"></i></div></div>
@@ -178,11 +190,27 @@
             <div class="kpi-head"><span class="kpi-label">Burned</span><div class="kpi-icon"><i class="bi bi-shield-x"></i></div></div>
             <div class="kpi-value">{{ burned_device_count|default:0 }}</div>
         </div>
+        <div class="kpi-card teal">
+            <div class="kpi-head"><span class="kpi-label">Form A Receipts</span><div class="kpi-icon"><i class="bi bi-journal-text"></i></div></div>
+            <div class="kpi-value">{{ form_a_receipt_count|default:0 }}</div>
+        </div>
+        <div class="kpi-card green">
+            <div class="kpi-head"><span class="kpi-label">Forms Received</span><div class="kpi-icon"><i class="bi bi-inboxes"></i></div></div>
+            <div class="kpi-value">{{ form_a_received|default:0 }}</div>
+        </div>
+        <div class="kpi-card red">
+            <div class="kpi-head"><span class="kpi-label">Spoiled</span><div class="kpi-icon"><i class="bi bi-file-earmark-x"></i></div></div>
+            <div class="kpi-value">{{ form_a_spoiled|default:0 }}</div>
+        </div>
+        <div class="kpi-card amber">
+            <div class="kpi-head"><span class="kpi-label">Forms Left</span><div class="kpi-icon"><i class="bi bi-file-earmark-check"></i></div></div>
+            <div class="kpi-value">{{ form_a_remaining|default:0 }}</div>
+        </div>
     </div>
 
     <div class="dashboard-grid">
 
-        <!-- Main column -->
+        {# ── Main column ── #}
         <div class="dashboard-col">
             <div class="panel">
                 <div class="panel-header">
@@ -231,8 +259,60 @@
             </div>
         </div>
 
-        <!-- Side column -->
+        {# ── Side column ── #}
         <div class="dashboard-col col-side">
+
+            {# ── Form A inventory ── #}
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title"><i class="bi bi-journal-text"></i> Form A Inventory</div>
+                    <a href="{% url 'ict:form_a_list' %}" class="btn btn-ghost btn-sm">Manage</a>
+                </div>
+                <div class="panel-body">
+                    <div class="totals-box">
+                        <div class="total-chip">
+                            <div class="total-chip-label">Used</div>
+                            <div class="total-chip-val">{{ form_a_used|default:0 }}</div>
+                        </div>
+                        <div class="total-chip">
+                            <div class="total-chip-label">Spoiled</div>
+                            <div class="total-chip-val">{{ form_a_spoiled|default:0 }}</div>
+                        </div>
+                    </div>
+                    <div class="total-grand-chip warn">
+                        <span class="lbl">Remaining</span>
+                        <span class="val">{{ form_a_remaining|default:0 }}</span>
+                    </div>
+                </div>
+            </div>
+
+            {# ── Form A by ward ── #}
+            {% if form_a_by_ward %}
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title"><i class="bi bi-geo"></i> Form A by Ward</div>
+                </div>
+                <div class="panel-body" style="padding-top: 6px; padding-bottom: 10px;">
+                    <div class="activity-feed">
+                        {% for w in form_a_by_ward %}
+                        <div class="activity-item">
+                            <div class="activity-dot"></div>
+                            <div class="activity-content">
+                                <div><strong>{{ w.ward_name }}</strong></div>
+                                <div class="activity-meta">
+                                    {{ w.received|default:0 }} received
+                                    · {{ w.remaining|default:0 }} left
+                                    · {{ w.receipts|default:0 }} receipt{{ w.receipts|pluralize }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {# ── Cumulative breakdown ── #}
             <div class="panel">
                 <div class="panel-header">
                     <div class="panel-title"><i class="bi bi-pie-chart"></i> Cumulative Breakdown</div>
@@ -255,6 +335,7 @@
                 </div>
             </div>
 
+            {# ── Recent activity ── #}
             <div class="panel">
                 <div class="panel-header">
                     <div class="panel-title"><i class="bi bi-activity"></i> Recent Activity</div>
@@ -328,7 +409,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // Phones: horizontal bars so ward names stay readable
     function applyLayout() {
         const horizontal = phone.matches;
         chart.options.indexAxis = horizontal ? 'y' : 'x';
@@ -337,7 +417,6 @@ document.addEventListener("DOMContentLoaded", function () {
         chart.options.scales.x.beginAtZero = horizontal;
         chart.options.scales.y.beginAtZero = !horizontal;
         chart.options.scales.x.ticks.maxRotation = horizontal ? 0 : 45;
-        // Give horizontal charts room: ~34px per bar
         el.parentElement.style.height = horizontal
             ? Math.max(200, labels.length * 34 + 40) + 'px'
             : '';

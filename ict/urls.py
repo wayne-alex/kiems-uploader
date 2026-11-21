@@ -93,4 +93,22 @@ urlpatterns = [
     # ict/urls.py
     path("movement/report/preview/", views.movement_report_preview, name="movement_report_preview"),
     path("movement/report/download/", views.movement_report_download, name="movement_report_download"),
+
+    # ── Form A / Acknowledgment ──
+    path("forms/", views.form_a_list, name="form_a_list"),
+    path("forms/receive/", views.form_a_receive, name="form_a_receive"),
+    path("forms/spoilages/", views.form_a_spoilages, name="form_a_spoilages"),
+    path("forms/<uuid:receipt_id>/", views.form_a_detail, name="form_a_detail"),
+    path("forms/<uuid:receipt_id>/edit/", views.form_a_edit, name="form_a_edit"),
+    path("forms/<uuid:receipt_id>/archive/", views.form_a_archive, name="form_a_archive"),
+    path(
+        "forms/<uuid:receipt_id>/allocate/",
+        views.form_a_allocate_ict,
+        name="form_a_allocate_ict",
+    ),
+    path(
+        "forms/allocations/<uuid:allocation_id>/delete/",
+        views.form_a_allocation_delete_ict,
+        name="form_a_allocation_delete_ict",
+    ),
 ]

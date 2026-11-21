@@ -4,6 +4,9 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
 
+from api.models import ref
+
+
 class County(models.Model):
     name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=20, blank=True)
@@ -14,6 +17,8 @@ class County(models.Model):
 
     def __str__(self):
         return self.name
+
+
 class Constituency(models.Model):
     name = models.CharField(max_length=150, unique=True)
     county = models.ForeignKey(
@@ -51,6 +56,44 @@ class Ward(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class RegistrationCentre(models.Model):
+    """
+    IEBC registration centre — the canonical polling station list.
+    Populated from the national stations register (one import per phase).
+    """
+    code = models.CharField(
+        max_length=6, db_index=True,
+        help_text="4-digit centre code within the ward",
+    )
+    full_code = models.CharField(
+        max_length=20, unique=True, db_index=True,
+        help_text="County-Constituency-Ward-Centre, e.g. '016-082-0408-015'",
+    )
+    name = models.CharField(max_length=200, db_index=True)
+    ward = models.ForeignKey(
+        ref("Ward"), on_delete=models.PROTECT, related_name="registration_centres",
+    )
+
+    # Optional — filled in later via map picking or supervisor editing
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+
+    # Usage tracking — filled by daily entry / movement upsert
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["ward__constituency__county__name", "ward__name", "name"]
+        indexes = [
+            models.Index(fields=["ward", "name"]),
+        ]
+
+    def __str__(self):
+        return f"{self.full_code} — {self.name} ({self.ward.name})"
 
 
 class VRA(models.Model):
@@ -646,3 +689,61 @@ class CronHeartbeat(models.Model):
 
     def __str__(self):
         return f"{self.name} @ {self.last_run_at:%Y-%m-%d %H:%M:%S}"
+
+class OutgoingWhatsAppMessage(models.Model):
+    """A queued WhatsApp message. Enqueued synchronously during request
+    handling (fast), drained in the background (slow).
+
+    Status state machine:
+      QUEUED    → just enqueued, waiting for a drain tick
+      SENDING   → currently being sent (locked with a timestamp)
+      SENT      → delivered to the bot (2xx from bot /send)
+      FAILED    → transient error, will retry up to MAX_ATTEMPTS
+      GAVE_UP   → permanent failure or max retries hit
+    """
+    STATUS_QUEUED = "QUEUED"
+    STATUS_SENDING = "SENDING"
+    STATUS_SENT = "SENT"
+    STATUS_FAILED = "FAILED"
+    STATUS_GAVE_UP = "GAVE_UP"
+    STATUS_CHOICES = [
+        (STATUS_QUEUED, "Queued"),
+        (STATUS_SENDING, "Sending"),
+        (STATUS_SENT, "Sent"),
+        (STATUS_FAILED, "Failed (retrying)"),
+        (STATUS_GAVE_UP, "Gave up"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    constituency = models.ForeignKey(
+        ref("Constituency"), on_delete=models.CASCADE,
+        related_name="outgoing_whatsapp",
+    )
+    group_id = models.CharField(max_length=120, blank=True, db_index=True)
+    message = models.TextField()
+
+    # Optional context for debugging / display
+    kind = models.CharField(max_length=40, blank=True, db_index=True)
+    # e.g. "entry.submit", "movement.save", "grand.report"
+
+    status = models.CharField(
+        max_length=12, choices=STATUS_CHOICES,
+        default=STATUS_QUEUED, db_index=True,
+    )
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    next_attempt_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "next_attempt_at"]),
+            models.Index(fields=["constituency", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.status}] {self.constituency_id} · {self.message[:60]}"

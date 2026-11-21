@@ -1,0 +1,93 @@
+{% extends "ict/base.html" %}
+
+{% block title %}Record Form A receipt{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Record receipt</h2>
+    <p>Note the booklets or loose forms delivered to the office.</p>
+  </div>
+  <a href="{% url 'ict:form_a_list' %}" class="btn btn-outline">
+    <i class="bi bi-arrow-left"></i> Back
+  </a>
+</div>
+
+<form method="post" class="form-card">
+  {% csrf_token %}
+
+  <div class="form-row">
+    <label>Type *</label>
+    {{ form.form_type }}
+  </div>
+
+  <div class="form-row">
+    <label>Ward *</label>
+    {{ form.ward }}
+  </div>
+
+  <div class="form-row">
+    <label>Phase *</label>
+    {{ form.phase }}
+  </div>
+
+  <div id="ackFields" style="display:none;">
+    <div class="form-row">
+      <label>Booklets received *</label>
+      {{ form.booklet_count }}
+      <div class="help-text">Each booklet contains 50 forms.</div>
+      {% if form.booklet_count.errors %}<ul class="errorlist">{% for e in form.booklet_count.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+    <div class="form-row">
+      <label>Serial start *</label>
+      {{ form.serial_start }}
+    </div>
+    <div class="form-row">
+      <label>Serial end *</label>
+      {{ form.serial_end }}
+    </div>
+  </div>
+
+  <div id="formaFields">
+    <div class="form-row">
+      <label>Number of forms *</label>
+      {{ form.form_count }}
+    </div>
+    <div class="form-row">
+      <label>Serial start <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label>
+      {{ form.serial_start }}
+    </div>
+    <div class="form-row">
+      <label>Serial end <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label>
+      {{ form.serial_end }}
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label>Note <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label>
+    {{ form.note }}
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Record receipt</button>
+    <a href="{% url 'ict:form_a_list' %}" class="btn btn-outline">Cancel</a>
+  </div>
+</form>
+
+<script>
+  const typeSel = document.getElementById("id_form_type");
+  const ackFields = document.getElementById("ackFields");
+  const formaFields = document.getElementById("formaFields");
+
+  function syncFields() {
+    const isAck = typeSel.value === "ACKNOWLEDGMENT";
+    ackFields.style.display = isAck ? "block" : "none";
+    formaFields.style.display = isAck ? "none" : "block";
+    // The Django form widget re-uses ids — we keep both, but disable the hidden set
+    ackFields.querySelectorAll("input").forEach(i => i.disabled = !isAck);
+    formaFields.querySelectorAll("input").forEach(i => i.disabled = isAck);
+  }
+  typeSel.addEventListener("change", syncFields);
+  syncFields();
+</script>
+{% endblock %}

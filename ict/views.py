@@ -5,25 +5,25 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import openpyxl
 import requests
-from django.urls import reverse
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout, login as auth_login
 from django.db import IntegrityError
-from django.db.models import Q, Sum, Count
-from django.http import HttpResponse, JsonResponse
+from django.db.models import Q, Sum, Count, Value, IntegerField
+from django.db.models.functions import Coalesce
+from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
-from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
+from api.models import FormASpoilage, FormAReceipt, FormAAllocation, FormAUsage
 from home.models import (
     VRA, Clerk, Device, DeviceBurnLog, AuditLog, WhatsAppSetting, Phase,
     Ward, KIEMSKit, DailyKIEMSEntry, Constituency, WhatsAppGroup,
@@ -35,10 +35,12 @@ from home.services.daily_report import (
     reevaluate_constituency_report,
     run_daily_report_tick, build_daily_report_text,
 )
+from home.services.form_a_sync import sync_form_a_for_entry
 from .decorators import ict_required
 from .forms import (
     WardForm, VRAForm, ClerkForm, KIEMSKitForm,
-    DailyEntryOfficeForm, WhatsAppSettingForm, ICTOfficerLoginForm, DailyEntryCreateForm,
+    DailyEntryOfficeForm, WhatsAppSettingForm, ICTOfficerLoginForm, DailyEntryCreateForm, FormAReceiptEditForm,
+    FormAReceiptForm,
 )
 
 logger = logging.getLogger(__name__)
@@ -105,6 +107,7 @@ def dashboard(request):
     c = request.constituency
     today = timezone.now().date()
 
+    # ── Static counts (single queries, cheap) ──
     ward_qs = Ward.objects.filter(constituency=c)
     vra_qs = VRA.objects.filter(ward__constituency=c)
     clerk_qs = Clerk.objects.filter(ward__constituency=c)
@@ -127,6 +130,64 @@ def dashboard(request):
         .order_by("-total")[:10]
     )
 
+    # ── Form A summary — one annotated query ──
+    # Compute used/spoiled via subquery aggregation, so we don't hit the
+    # property accessor per row (which fires 2 queries each).
+    form_a_qs = (
+        FormAReceipt.objects
+        .filter(ward__constituency=c, is_archived=False)
+        .annotate(
+            _used=Coalesce(
+                Sum("usages__forms_used",
+                    filter=Q(usages__kind=FormAUsage.KIND_USED)),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+            _spoiled_serial=Count("spoilages", distinct=True),
+            _spoiled_count=Coalesce(
+                Sum("usages__forms_used",
+                    filter=Q(usages__kind=FormAUsage.KIND_SPOILED)),
+                Value(0),
+                output_field=IntegerField(),
+            ),
+        )
+    )
+
+    # Single pass to compute totals — no extra queries
+    fa_received = 0
+    fa_used = 0
+    fa_spoiled = 0
+    for r in form_a_qs:
+        fa_received += r.form_count
+        fa_used += r._used
+        fa_spoiled += int(r._spoiled_serial) + int(r._spoiled_count)
+
+    fa_remaining = fa_received - fa_used - fa_spoiled
+
+    # Form A per ward — derived from the same annotated queryset
+    ward_totals = {}
+    for r in form_a_qs:
+        w = ward_totals.setdefault(
+            r.ward_id,
+            {"ward_name": r.ward.name, "receipts": 0, "received": 0, "used": 0, "spoiled": 0},
+        )
+        w["receipts"] += 1
+        w["received"] += r.form_count
+        w["used"] += r._used
+        w["spoiled"] += int(r._spoiled_serial) + int(r._spoiled_count)
+
+    form_a_by_ward = sorted(
+        (
+            {
+                **v,
+                "remaining": v["received"] - v["used"] - v["spoiled"],
+            }
+            for v in ward_totals.values()
+        ),
+        key=lambda x: x["received"],
+        reverse=True,
+    )[:5]
+
     context = {
         "constituency": c,
         "ward_count": ward_qs.count(),
@@ -141,6 +202,14 @@ def dashboard(request):
         "recent_audit": AuditLog.objects.filter(constituency=c)[:8],
         "recent_entries": todays.select_related("ward", "vra", "kiems_kit")[:10],
         "unread_notification_count": 0,
+
+        # ── Form A ──
+        "form_a_receipt_count": form_a_qs.count(),
+        "form_a_received": fa_received,
+        "form_a_used": fa_used,
+        "form_a_spoiled": fa_spoiled,
+        "form_a_remaining": fa_remaining,
+        "form_a_by_ward": form_a_by_ward,
     }
     return render(request, "ict/dashboard.html", context)
 
@@ -321,6 +390,7 @@ def kit_list(request):
         .prefetch_related("assigned_clerks")
     )
     return render(request, "ict/kits/list.html", {"kits": kits, "constituency": c})
+
 
 @ict_required
 def kit_create(request):
@@ -510,6 +580,7 @@ def device_delete(request, pk):
 
     return redirect("ict:device_detail", pk=device.pk)
 
+
 @ict_required
 @require_POST
 def device_bulk_delete(request):
@@ -596,9 +667,9 @@ def device_bulk_delete(request):
         object_id="bulk",
         object_repr=f"{deleted_count} device(s)",
         description=(
-            f"Bulk-deleted {deleted_count} device(s): "
-            + ", ".join(fingerprints[:10])
-            + ("…" if len(fingerprints) > 10 else "")
+                f"Bulk-deleted {deleted_count} device(s): "
+                + ", ".join(fingerprints[:10])
+                + ("…" if len(fingerprints) > 10 else "")
         ),
         ip_address=request.META.get("REMOTE_ADDR"),
     )
@@ -608,6 +679,8 @@ def device_bulk_delete(request):
         f"{deleted_count} device{'s' if deleted_count != 1 else ''} deleted."
     )
     return redirect("ict:device_list")
+
+
 # ---------- Daily Entries ----------
 
 @ict_required
@@ -760,7 +833,10 @@ def entry_create(request):
 
 @ict_required
 def entry_edit(request, pk):
-    """Office edit of an existing REGISTRATION entry."""
+    """Office edit of an existing REGISTRATION entry.
+
+    Reconciles the Form A usage against the change (delta-aware).
+    """
     c = request.constituency
     entry = get_object_or_404(
         DailyKIEMSEntry,
@@ -768,7 +844,11 @@ def entry_edit(request, pk):
         ward__constituency=c,
         entry_type="REGISTRATION",
     )
+
     if request.method == "POST":
+        # Capture the previous total BEFORE the form is saved
+        previous_total = int(entry.total_registered or 0)
+
         form = DailyEntryOfficeForm(request.POST, instance=entry)
         if form.is_valid():
             entry = form.save(commit=False)
@@ -776,30 +856,71 @@ def entry_edit(request, pk):
             entry.office_updated_at = timezone.now()
             entry.edit_count += 1
             entry.save()
-            _log(request, "EDIT", "DailyKIEMSEntry", entry,
-                 f"Office update on {entry.entry_date}")
+
+            # Reconcile Form A against the edit
+            try:
+                result = sync_form_a_for_entry(entry, previous_total)
+                if not result.ok and result.warning:
+                    messages.warning(request, f"Form A note: {result.warning}")
+            except Exception as e:
+                logger.exception("Form A sync failed on entry_edit")
+                messages.warning(
+                    request,
+                    f"Entry saved, but Form A reconciliation failed: {e}",
+                )
+
+            _log(
+                request, "EDIT", "DailyKIEMSEntry", entry,
+                f"Office update on {entry.entry_date}",
+            )
             messages.success(request, "Entry updated.")
             return redirect("ict:entry_list")
     else:
         form = DailyEntryOfficeForm(instance=entry)
+
     return render(request, "ict/entries/form.html", {
-        "form": form, "entry": entry, "constituency": c,
+        "form": form,
+        "entry": entry,
+        "constituency": c,
     })
+
 
 @ict_required
 @require_POST
 def entry_delete(request, pk):
-    """Permanently delete a single REGISTRATION entry."""
+    """Permanently delete a REGISTRATION entry, reversing its Form A usage."""
     c = request.constituency
     entry = get_object_or_404(
-        DailyKIEMSEntry, pk=pk, ward__constituency=c, entry_type="REGISTRATION"
+        DailyKIEMSEntry,
+        pk=pk,
+        ward__constituency=c,
+        entry_type="REGISTRATION",
     )
 
-    description = f"Deleted entry {entry.entry_date} - {entry.ward.name} - {entry.kiems_kit.kit_name}"
-    entry_date, ward = entry.entry_date, entry.ward
+    previous_total = int(entry.total_registered or 0)
+    entry_date = entry.entry_date
+    ward = entry.ward
+
+    # Reverse Form A usage BEFORE deleting the row.
+    # We mutate the in-memory entry (not saved) so the delta computes as
+    # (0 - previous_total), which the service interprets as a full reversal.
+    entry.total_registered = 0
+    entry.registered_male = 0
+    entry.registered_female = 0
+    try:
+        sync_form_a_for_entry(entry, previous_total)
+    except Exception:
+        logger.exception("Form A sync failed on entry_delete")
+
+    description = (
+        f"Deleted entry {entry_date} - {ward.name} - "
+        f"{entry.kiems_kit.kit_name}"
+    )
     entry.delete()
 
-    _log(request, "DELETE", "DailyKIEMSEntry", f"deleted-{pk}", description)
+    _log(
+        request, "DELETE", "DailyKIEMSEntry", f"deleted-{pk}", description,
+    )
 
     try:
         reevaluate_constituency_report(ward.constituency, entry_date)
@@ -808,8 +929,6 @@ def entry_delete(request, pk):
 
     messages.success(request, "Entry deleted.")
     return redirect("ict:entry_list")
-
-
 
 
 # ==================== EXPORTS ====================
@@ -1421,7 +1540,7 @@ def whatsapp_bot_status(request):
     """Live bot status."""
     try:
         r = requests.get(f"{_bot_url()}/status", timeout=5,
-                          headers={"Content-Type": "application/json"})
+                         headers={"Content-Type": "application/json"})
         if r.status_code == 200:
             data = r.json()
             qr = data.get("qr") if data.get("hasQr") else None
@@ -1452,7 +1571,7 @@ def whatsapp_bot_status(request):
         }, status=503)
     except Exception as e:
         return JsonResponse({"success": False, "isReady": False,
-                              "status": "error", "error": str(e)}, status=500)
+                             "status": "error", "error": str(e)}, status=500)
 
 
 @ict_required
@@ -1466,7 +1585,7 @@ def whatsapp_groups_live(request):
 
     try:
         s = requests.get(f"{_bot_url()}/status", timeout=3,
-                          headers={"Content-Type": "application/json"})
+                         headers={"Content-Type": "application/json"})
         if s.status_code != 200 or not s.json().get("isReady"):
             return JsonResponse({
                 "success": False, "data": [],
@@ -1474,7 +1593,7 @@ def whatsapp_groups_live(request):
             }, status=503)
 
         r = requests.get(f"{_bot_url()}/groups", timeout=10,
-                          headers={"Content-Type": "application/json"})
+                         headers={"Content-Type": "application/json"})
         if r.status_code != 200:
             return JsonResponse({
                 "success": False, "data": [],
@@ -1788,7 +1907,7 @@ def audit_log_list(request):
         "logs": qs[:500],
         "actions": AuditLog.ACTIONS,
         "model_names": AuditLog.objects.filter(constituency=c)
-        .values_list("model_name", flat=True).distinct(),
+                  .values_list("model_name", flat=True).distinct(),
         "constituency": c,
         "selected_action": action,
         "selected_model": model_name,
@@ -2147,9 +2266,6 @@ def cron_send_reports(request):
     return JsonResponse({"ok": True, "summary": summary})
 
 
-
-
-
 @ict_required
 def movement_ward_detail(request, ward_id):
     """All schedules for one ward on a given date (default: tomorrow)."""
@@ -2437,6 +2553,7 @@ def _movement_report_reportlab(request, ctx):
     doc.build(story)
     return response
 
+
 @ict_required
 @require_POST
 def movement_delete(request, pk):
@@ -2630,7 +2747,7 @@ def _build_movement_workbook(constituency_name, dates, ward_blocks, venue_lookup
     thin = Side(style="thin")
     med = Side(style="medium")
 
-    FIXED = 2                       # WARD | KIT NUMBER
+    FIXED = 2  # WARD | KIT NUMBER
     first_date_col = FIXED + 1
     last_col = FIXED + len(dates)
 
@@ -2725,6 +2842,7 @@ def _build_movement_workbook(constituency_name, dates, ward_blocks, venue_lookup
 
     return wb
 
+
 def _parse_iso_date(value):
     """'YYYY-MM-DD' -> date, or None if empty/invalid."""
     try:
@@ -2758,9 +2876,9 @@ def movement_list(request):
     # ---- Date range (defaults to tomorrow; legacy ?date= still works)
     tomorrow = timezone.localdate() + timedelta(days=1)
     date_from = (
-        _parse_iso_date(request.GET.get("date_from"))
-        or _parse_iso_date(request.GET.get("date"))
-        or tomorrow
+            _parse_iso_date(request.GET.get("date_from"))
+            or _parse_iso_date(request.GET.get("date"))
+            or tomorrow
     )
     date_to = _parse_iso_date(request.GET.get("date_to")) or date_from
     if date_to < date_from:
@@ -2790,8 +2908,8 @@ def movement_list(request):
     missing_wards = list(
         wards.exclude(
             id__in=MovementSchedule.objects
-                    .filter(constituency=c, schedule_date=schedule_date)
-                    .values_list("ward_id", flat=True)
+            .filter(constituency=c, schedule_date=schedule_date)
+            .values_list("ward_id", flat=True)
         ).values("id", "name")
     )
 
@@ -2853,9 +2971,9 @@ def movement_export_excel(request):
     c = request.constituency
 
     start = (
-        _parse_iso_date(request.GET.get("date_from"))
-        or _parse_iso_date(request.GET.get("date"))
-        or timezone.localdate() + timedelta(days=1)
+            _parse_iso_date(request.GET.get("date_from"))
+            or _parse_iso_date(request.GET.get("date"))
+            or timezone.localdate() + timedelta(days=1)
     )
 
     qs = MovementSchedule.objects.filter(constituency=c, schedule_date__gte=start)
@@ -2863,10 +2981,10 @@ def movement_export_excel(request):
     end = _parse_iso_date(request.GET.get("date_to"))
     if end is None:
         end = (
-            qs.order_by("-schedule_date")
-            .values_list("schedule_date", flat=True)
-            .first()
-        ) or start
+                  qs.order_by("-schedule_date")
+                  .values_list("schedule_date", flat=True)
+                  .first()
+              ) or start
     if end < start:
         end = start
     end = min(end, start + timedelta(days=_MOVEMENT_XLSX_MAX_DAYS - 1))
@@ -3000,9 +3118,9 @@ def _system_status_context(request):
     # ---- WhatsApp group per constituency (first active one)
     groups_by_constituency = {}
     for g in (
-        WhatsAppGroup.objects
-        .filter(constituency_id__in=visible_ids, is_active=True)
-        .order_by("name")
+            WhatsAppGroup.objects
+                    .filter(constituency_id__in=visible_ids, is_active=True)
+                    .order_by("name")
     ):
         if g.constituency_id not in groups_by_constituency:
             groups_by_constituency[g.constituency_id] = g
@@ -3025,14 +3143,14 @@ def _system_status_context(request):
     todays_entries = {}
     if active_phase and kit_ids:
         for e in (
-            DailyKIEMSEntry.objects
-            .filter(
-                kiems_kit_id__in=kit_ids,
-                phase=active_phase,
-                entry_date=today,
-                entry_type="REGISTRATION",
-            )
-            .select_related("vra")
+                DailyKIEMSEntry.objects
+                        .filter(
+                    kiems_kit_id__in=kit_ids,
+                    phase=active_phase,
+                    entry_date=today,
+                    entry_type="REGISTRATION",
+                )
+                        .select_related("vra")
         ):
             # Keep the latest entry per kit (defensive if dupes ever exist)
             existing = todays_entries.get(e.kiems_kit_id)
@@ -3095,7 +3213,7 @@ def _system_status_context(request):
         pending_kits_list = [r for r in kit_rows if not r["submitted"]]
 
         ward_pct = int(submitted_wards / total_wards * 100) if total_wards else 0
-        kit_pct  = int(submitted_kits / total_kits * 100) if total_kits else 0
+        kit_pct = int(submitted_kits / total_kits * 100) if total_kits else 0
 
         today_rows.append({
             "constituency": c,
@@ -3144,10 +3262,10 @@ def _system_status_context(request):
 
     counts = {
         "pending": sum(1 for r in today_rows if r["status"] in ("PENDING", "NO_ACTIVITY")),
-        "ready":   sum(1 for r in today_rows if r["status"] == "READY"),
+        "ready": sum(1 for r in today_rows if r["status"] == "READY"),
         "sending": sum(1 for r in today_rows if r["status"] == "SENDING"),
-        "sent":    sum(1 for r in today_rows if r["status"] == "SENT"),
-        "failed":  sum(1 for r in today_rows if r["status"] == "FAILED"),
+        "sent": sum(1 for r in today_rows if r["status"] == "SENT"),
+        "failed": sum(1 for r in today_rows if r["status"] == "FAILED"),
     }
 
     heartbeat = CronHeartbeat.objects.filter(name="send_daily_reports").first()
@@ -3331,3 +3449,363 @@ def system_status_send_ward(request, ward_id):
         messages.error(request, f"Send failed: {err or 'unknown error'}")
 
     return redirect("ict:system_status")
+
+
+# ============================================================
+# FORM A / ACKNOWLEDGMENT MANAGEMENT
+# ============================================================
+
+@ict_required
+def form_a_list(request):
+    """Filterable list of receipts + a recent-spoilages panel below."""
+    c = request.constituency
+
+    ward_id = request.GET.get("ward")
+    form_type = request.GET.get("type")
+    archived = request.GET.get("archived") == "1"
+
+    receipts = (
+        FormAReceipt.objects
+        .filter(ward__constituency=c, is_archived=archived)
+        .select_related("ward", "phase", "received_by")
+    )
+    if ward_id:
+        receipts = receipts.filter(ward_id=ward_id)
+    if form_type in dict(FormAReceipt.TYPE_CHOICES):
+        receipts = receipts.filter(form_type=form_type)
+
+    rows = []
+    for r in receipts.order_by("-received_at"):
+        rows.append({
+            "receipt": r,
+            "used": r.used_count,
+            "spoiled": r.spoiled_count,
+            "remaining": r.remaining,
+        })
+
+    spoilages = (
+        FormASpoilage.objects
+        .filter(ward__constituency=c)
+        .select_related("receipt", "ward", "vra", "device")
+        .order_by("-entry_date", "-created_at")[:30]
+    )
+
+    totals = {
+        "received": sum(r["receipt"].form_count for r in rows),
+        "used": sum(r["used"] for r in rows),
+        "spoiled": sum(r["spoiled"] for r in rows),
+        "remaining": sum(r["remaining"] for r in rows),
+    }
+
+    return render(request, "ict/forms/list.html", {
+        "constituency": c,
+        "rows": rows,
+        "spoilages": spoilages,
+        "wards": Ward.objects.filter(constituency=c, active=True).order_by("name"),
+        "totals": totals,
+        "selected_ward": ward_id,
+        "selected_type": form_type,
+        "show_archived": archived,
+    })
+
+
+@ict_required
+def form_a_receive(request):
+    """Create a new receipt (FORM_A or ACK)."""
+    c = request.constituency
+
+    if request.method == "POST":
+        form = FormAReceiptForm(request.POST, constituency=c)
+        if form.is_valid():
+            receipt = form.save(commit=False)
+            receipt.received_by = request.user
+            receipt.save()
+            _log(request, "CREATE", "FormAReceipt", receipt,
+                 f"Received {receipt.form_count} {receipt.get_form_type_display()} for {receipt.ward.name}")
+            messages.success(
+                request,
+                f"Recorded {receipt.form_count} {receipt.get_form_type_display()} "
+                f"for {receipt.ward.name}."
+            )
+            return redirect("ict:form_a_detail", receipt_id=receipt.id)
+    else:
+        form = FormAReceiptForm(constituency=c)
+
+    return render(request, "ict/forms/receive.html", {
+        "constituency": c,
+        "form": form,
+    })
+
+
+@ict_required
+def form_a_detail(request, receipt_id):
+    c = request.constituency
+    receipt = get_object_or_404(
+        FormAReceipt.objects.select_related("ward", "phase", "received_by"),
+        pk=receipt_id,
+        ward__constituency=c,
+    )
+
+    usages = (
+        receipt.usages
+        .select_related("kiems_kit", "vra", "device")
+        .order_by("-entry_date", "-created_at")
+    )
+    spoilages = (
+        receipt.spoilages
+        .select_related("vra", "device", "kiems_kit")
+        .order_by("-entry_date", "-created_at")
+    )
+    allocations = (
+        receipt.allocations
+        .select_related("kiems_kit", "vra", "device")
+        .order_by("-created_at")
+    )
+
+    # Kits in this receipt's ward that aren't already fully allocated
+    # (still shown so the officer can *edit* a previous allocation)
+    ward_kits = (
+        KIEMSKit.objects
+        .filter(ward=receipt.ward, status=True)
+        .order_by("kit_name")
+    )
+
+    return render(request, "ict/forms/detail.html", {
+        "constituency": c,
+        "receipt": receipt,
+        "usages": usages,
+        "spoilages": spoilages,
+        "allocations": allocations,
+        "ward_kits": ward_kits,
+        "used": receipt.used_count,
+        "spoiled": receipt.spoiled_count,
+        "allocated": receipt.allocated_count,
+        "remaining": receipt.remaining,
+    })
+
+
+@ict_required
+def form_a_edit(request, receipt_id):
+    """Edit an existing receipt. Blocked once used/spoiled > 0."""
+    c = request.constituency
+    receipt = get_object_or_404(
+        FormAReceipt, pk=receipt_id, ward__constituency=c
+    )
+
+    if receipt.used_count > 0 or receipt.spoiled_count > 0:
+        messages.error(
+            request,
+            "This receipt already has usage or spoilages. "
+            "Archive it and record a corrected one instead."
+        )
+        return redirect("ict:form_a_detail", receipt_id=receipt.id)
+
+    if request.method == "POST":
+        form = FormAReceiptEditForm(request.POST, instance=receipt)
+        if form.is_valid():
+            form.save()
+            _log(request, "UPDATE", "FormAReceipt", receipt,
+                 f"Edited {receipt.get_form_type_display()} for {receipt.ward.name}")
+            messages.success(request, "Receipt updated.")
+            return redirect("ict:form_a_detail", receipt_id=receipt.id)
+    else:
+        form = FormAReceiptEditForm(instance=receipt)
+
+    return render(request, "ict/forms/edit.html", {
+        "constituency": c,
+        "receipt": receipt,
+        "form": form,
+    })
+
+
+@ict_required
+@require_POST
+def form_a_archive(request, receipt_id):
+    """Toggle archived flag."""
+    c = request.constituency
+    receipt = get_object_or_404(FormAReceipt, pk=receipt_id, ward__constituency=c)
+    receipt.is_archived = not receipt.is_archived
+    receipt.save(update_fields=["is_archived"])
+    _log(request, "UPDATE", "FormAReceipt", receipt,
+         f"{'Archived' if receipt.is_archived else 'Restored'} receipt")
+    messages.success(
+        request,
+        f"Receipt {'archived' if receipt.is_archived else 'restored'}."
+    )
+    return redirect("ict:form_a_list")
+
+
+@ict_required
+def form_a_spoilages(request):
+    """All spoilages across the constituency, filterable by date/ward."""
+    c = request.constituency
+
+    ward_id = request.GET.get("ward")
+    date_from = request.GET.get("from")
+    date_to = request.GET.get("to")
+
+    qs = (
+        FormASpoilage.objects
+        .filter(ward__constituency=c)
+        .select_related("receipt", "ward", "vra", "device")
+    )
+    if ward_id:
+        qs = qs.filter(ward_id=ward_id)
+    if date_from:
+        try:
+            qs = qs.filter(entry_date__gte=datetime.strptime(date_from, "%Y-%m-%d").date())
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            qs = qs.filter(entry_date__lte=datetime.strptime(date_to, "%Y-%m-%d").date())
+        except ValueError:
+            pass
+
+    return render(request, "ict/forms/spoilages.html", {
+        "constituency": c,
+        "spoilages": qs.order_by("-entry_date", "-created_at")[:500],
+        "wards": Ward.objects.filter(constituency=c, active=True).order_by("name"),
+        "selected_ward": ward_id,
+        "date_from": date_from or "",
+        "date_to": date_to or "",
+    })
+
+
+@ict_required
+@require_POST
+def form_a_allocate_ict(request, receipt_id):
+    """ICT officer allocates forms from a receipt to a kit.
+
+    POST body:
+      kit_id            : KIEMSKit.pk
+      forms_allocated   : int (must be multiple of 50 for ACK receipts)
+      note              : optional
+      vra_id            : optional (which VRA the booklet was handed to)
+
+    Capacity rule:
+      other_allocated + this_kit_previous + form_a_spoiled + new_value
+        <= receipt.form_count
+
+    Coalesces with the existing allocation on (receipt, kit) — repeat
+    submissions update the same row.
+    """
+    c = request.constituency
+
+    receipt = get_object_or_404(
+        FormAReceipt.objects.select_related("ward", "phase"),
+        pk=receipt_id,
+        ward__constituency=c,
+    )
+
+    if receipt.is_archived:
+        messages.error(request, "This receipt is archived. Restore it before editing.")
+        return redirect("ict:form_a_detail", receipt_id=receipt.id)
+
+    kit_id = request.POST.get("kit_id")
+    forms_raw = request.POST.get("forms_allocated")
+    note = (request.POST.get("note") or "").strip()
+    vra_id = request.POST.get("vra_id") or None
+
+    if not kit_id or forms_raw is None:
+        messages.error(request, "Kit and forms count are required.")
+        return redirect("ict:form_a_detail", receipt_id=receipt.id)
+
+    kit = KIEMSKit.objects.filter(pk=kit_id, ward=receipt.ward).first()
+    if not kit:
+        messages.error(request, "That kit is not in this receipt's ward.")
+        return redirect("ict:form_a_detail", receipt_id=receipt.id)
+
+    try:
+        forms = int(forms_raw)
+    except (TypeError, ValueError):
+        messages.error(request, "Forms count must be an integer.")
+        return redirect("ict:form_a_detail", receipt_id=receipt.id)
+
+    if forms < 1:
+        messages.error(request, "Forms count must be at least 1.")
+        return redirect("ict:form_a_detail", receipt_id=receipt.id)
+
+    if receipt.form_type == FormAReceipt.ACK and forms % 50 != 0:
+        messages.error(
+            request,
+            f"Acknowledgment allocations must be multiples of 50 (got {forms}).",
+        )
+        return redirect("ict:form_a_detail", receipt_id=receipt.id)
+
+    vra = None
+    if vra_id:
+        vra = VRA.objects.filter(pk=vra_id, ward=receipt.ward).first()
+
+    existing = FormAAllocation.objects.filter(receipt=receipt, kiems_kit=kit).first()
+    previous = existing.forms_allocated if existing else 0
+
+    other_allocated = (
+            receipt.allocations
+            .exclude(kiems_kit=kit)
+            .aggregate(s=Sum("forms_allocated"))["s"] or 0
+    )
+    already_committed = other_allocated + previous + receipt.spoiled_count
+
+    if already_committed - previous + forms > receipt.form_count:
+        available = receipt.form_count - other_allocated - receipt.spoiled_count
+        messages.error(
+            request,
+            f"Cannot allocate {forms}. Only {available} forms available "
+            f"on this receipt (excluding other kits' allocations and spoilages).",
+        )
+        return redirect("ict:form_a_detail", receipt_id=receipt.id)
+
+    allocation, created = FormAAllocation.objects.update_or_create(
+        receipt=receipt,
+        kiems_kit=kit,
+        defaults={
+            "vra": vra,
+            "forms_allocated": forms,
+            "note": note,
+        },
+    )
+
+    _log(
+        request,
+        "CREATE" if created else "UPDATE",
+        "FormAAllocation",
+        allocation,
+        (
+            f"{'Allocated' if created else 'Updated'} "
+            f"{forms} forms to {kit.kit_name} on receipt {receipt.id}"
+        ),
+    )
+    messages.success(
+        request,
+        f"{'Allocated' if created else 'Updated'} {forms} forms to {kit.kit_name}.",
+    )
+    return redirect("ict:form_a_detail", receipt_id=receipt.id)
+
+
+@ict_required
+@require_POST
+def form_a_allocation_delete_ict(request, allocation_id):
+    """Delete a single allocation row. Frees the forms for re-allocation."""
+    c = request.constituency
+
+    allocation = get_object_or_404(
+        FormAAllocation.objects.select_related("receipt", "kiems_kit"),
+        pk=allocation_id,
+        receipt__ward__constituency=c,
+    )
+    receipt_id = allocation.receipt_id
+    kit_name = allocation.kiems_kit.kit_name
+    forms = allocation.forms_allocated
+
+    allocation.delete()
+
+    _log(
+        request,
+        "DELETE",
+        "FormAAllocation",
+        f"deleted-{allocation_id}",
+        f"Removed {forms} forms from {kit_name} on receipt {receipt_id}",
+    )
+    messages.success(request, f"Removed {forms} forms from {kit_name}.")
+    return redirect("ict:form_a_detail", receipt_id=receipt_id)

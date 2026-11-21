@@ -1,25 +1,17 @@
-"""
-URL configuration for kiems project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
+
+from api import views as api_views
+from api.views_iebc_proxy import iebc_proxy
 
 urlpatterns = [
+    re_path(r"^iebc-proxy(?:/(?P<path>.*))?$", iebc_proxy, name="iebc_proxy"),
     path('admin/', admin.site.urls),
     path('', include('home.urls')),
     path('superadmin/', include('superadmin.urls')),
     path('ict/', include('ict.urls')),
+    path("kiems/submit-entries/", api_views.submit_entries, name="api_submit_entries"),
+    path("movement/save/", api_views.movement_save, name="api_movement_save"),
+    path("api/csrf/", api_views.csrf, name="api_csrf"),
+    path('api/', include('api.urls')),
 ]

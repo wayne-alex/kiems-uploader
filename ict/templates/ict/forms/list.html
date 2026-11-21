@@ -1,0 +1,159 @@
+{% extends "ict/base.html" %}
+
+{% block title %}Form A management{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Form A &amp; Acknowledgment</h2>
+    <p>Booklet receipts, usage and spoilages across all wards.</p>
+  </div>
+  <a href="{% url 'ict:form_a_receive' %}" class="btn btn-primary">
+    <i class="bi bi-plus-lg"></i> Record receipt
+  </a>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card"><div class="label">Received</div><div class="value">{{ totals.received }}</div></div>
+  <div class="stat-card green"><div class="label">Used</div><div class="value">{{ totals.used }}</div></div>
+  <div class="stat-card red"><div class="label">Spoiled</div><div class="value">{{ totals.spoiled }}</div></div>
+  <div class="stat-card orange"><div class="label">Remaining</div><div class="value">{{ totals.remaining }}</div></div>
+</div>
+
+<form method="get" class="filters">
+  <div class="field">
+    <label>Ward</label>
+    <select name="ward" class="form-control">
+      <option value="">All wards</option>
+      {% for w in wards %}
+        <option value="{{ w.id }}" {% if selected_ward == w.id|stringformat:"s" %}selected{% endif %}>{{ w.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label>Type</label>
+    <select name="type" class="form-control">
+      <option value="">All types</option>
+      <option value="FORM_A" {% if selected_type == 'FORM_A' %}selected{% endif %}>Form A</option>
+      <option value="ACKNOWLEDGMENT" {% if selected_type == 'ACKNOWLEDGMENT' %}selected{% endif %}>Acknowledgment</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Status</label>
+    <select name="archived" class="form-control">
+      <option value="0" {% if not show_archived %}selected{% endif %}>Active</option>
+      <option value="1" {% if show_archived %}selected{% endif %}>Archived</option>
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary">Filter</button>
+  <a href="{% url 'ict:form_a_list' %}" class="btn btn-outline">Reset</a>
+</form>
+
+<div class="table-wrap">
+  <div class="list-header">
+    <h3>Receipts</h3>
+    <span style="font-size:12px;color:var(--text-muted);">{{ rows|length }} record{{ rows|length|pluralize }}</span>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Ward</th>
+        <th>Serials</th>
+        <th style="text-align:right;">Received</th>
+        <th style="text-align:right;">Used</th>
+        <th style="text-align:right;">Spoiled</th>
+        <th style="text-align:right;">Remaining</th>
+        <th>Received at</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        {% with r=row.receipt %}
+        <tr>
+          <td>
+            {% if r.form_type == 'ACKNOWLEDGMENT' %}
+              <span class="badge badge-orange">Ack · {{ r.booklet_count }}×50</span>
+            {% else %}
+              <span class="badge badge-blue">Form A</span>
+            {% endif %}
+          </td>
+          <td>{{ r.ward.name }}</td>
+          <td style="font-family:monospace;font-size:12px;">
+            {{ r.serial_start|default:"—" }} → {{ r.serial_end|default:"—" }}
+          </td>
+          <td style="text-align:right;"><b>{{ r.form_count }}</b></td>
+          <td style="text-align:right;">{{ row.used }}</td>
+          <td style="text-align:right;color:var(--danger);">{{ row.spoiled }}</td>
+          <td style="text-align:right;">
+            {% if row.remaining == 0 %}
+              <span class="badge badge-red">0</span>
+            {% else %}
+              <b>{{ row.remaining }}</b>
+            {% endif %}
+          </td>
+          <td style="font-size:12px;color:var(--text-muted);">{{ r.received_at|date:"d M Y H:i" }}</td>
+          <td>
+            <div class="action-btns">
+              <a href="{% url 'ict:form_a_detail' r.id %}" title="View"><i class="bi bi-eye"></i></a>
+              <a href="{% url 'ict:form_a_edit' r.id %}" title="Edit"><i class="bi bi-pencil"></i></a>
+              <form method="post" action="{% url 'ict:form_a_archive' r.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" title="{% if r.is_archived %}Restore{% else %}Archive{% endif %}">
+                  <i class="bi bi-{% if r.is_archived %}arrow-counterclockwise{% else %}archive{% endif %}"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endwith %}
+      {% empty %}
+        <tr><td colspan="9">
+          <div class="empty-state">
+            <i class="bi bi-inbox"></i>
+            <p>No receipts yet.</p>
+            <a href="{% url 'ict:form_a_receive' %}" class="btn btn-primary">Record the first receipt</a>
+          </div>
+        </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<section style="margin-top:32px;">
+  <div class="list-header" style="background:transparent;border:none;padding:0 0 12px;">
+    <h3>Recent spoilages</h3>
+    <a href="{% url 'ict:form_a_spoilages' %}" class="btn btn-ghost btn-sm">View all →</a>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Ward</th>
+          <th>Serial</th>
+          <th>Reason</th>
+          <th>Reported by</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in spoilages %}
+        <tr>
+          <td>{{ s.entry_date|date:"d M Y" }}</td>
+          <td>{{ s.ward.name }}</td>
+          <td style="font-family:monospace;">{{ s.serial_number }}</td>
+          <td><span class="badge badge-orange">{{ s.get_reason_display }}</span></td>
+          <td style="font-size:12px;color:var(--text-muted);">
+            {{ s.vra.name|default:"—" }}
+            {% if s.device %}<br><small>{{ s.device.fingerprint|slice:":8" }}</small>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">No spoilages reported.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

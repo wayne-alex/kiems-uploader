@@ -1,0 +1,70 @@
+{% extends "ict/base.html" %}
+
+{% block title %}Edit receipt{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>Edit receipt</h2>
+    <p>
+      {% if receipt.form_type == 'ACKNOWLEDGMENT' %}Acknowledgment{% else %}Form A{% endif %}
+      · {{ receipt.ward.name }}
+    </p>
+  </div>
+  <a href="{% url 'ict:form_a_detail' receipt.id %}" class="btn btn-outline">
+    <i class="bi bi-arrow-left"></i> Back
+  </a>
+</div>
+
+{% if receipt.used_count > 0 or receipt.spoiled_count > 0 %}
+  <div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <span>This receipt already has usage or spoilages. To correct it, archive it and create a new one.</span>
+  </div>
+{% endif %}
+
+<form method="post" class="form-card">
+  {% csrf_token %}
+
+  <div class="form-row">
+    <label>Ward</label>
+    <input type="text" class="form-control" value="{{ receipt.ward.name }}" disabled>
+  </div>
+
+  <div class="form-row">
+    <label>Phase</label>
+    <input type="text" class="form-control" value="{{ receipt.phase.name }}" disabled>
+  </div>
+
+  {% if receipt.form_type == 'ACKNOWLEDGMENT' %}
+    <div class="form-row">
+      <label>Booklets *</label>
+      {{ form.booklet_count }}
+    </div>
+  {% else %}
+    <div class="form-row">
+      <label>Number of forms *</label>
+      {{ form.form_count }}
+    </div>
+  {% endif %}
+
+  <div class="form-row">
+    <label>Serial start</label>
+    {{ form.serial_start }}
+  </div>
+  <div class="form-row">
+    <label>Serial end</label>
+    {{ form.serial_end }}
+  </div>
+
+  <div class="form-row">
+    <label>Note</label>
+    {{ form.note }}
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">Save changes</button>
+    <a href="{% url 'ict:form_a_detail' receipt.id %}" class="btn btn-outline">Cancel</a>
+  </div>
+</form>
+{% endblock %}

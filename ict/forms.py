@@ -1,10 +1,10 @@
 from django import forms
 from django.contrib.auth import authenticate
 
+from api.models import FormAReceipt
 from home.models import (
     Ward, VRA, Clerk, KIEMSKit, DailyKIEMSEntry,
-    WhatsAppGroup, WhatsAppSetting, Phase,
-)
+    WhatsAppGroup, WhatsAppSetting, Phase, )
 
 
 class WardForm(forms.ModelForm):
@@ -95,6 +95,7 @@ class WhatsAppSettingForm(forms.ModelForm):
             self.fields["default_group"].queryset = WhatsAppGroup.objects.filter(
                 constituency=constituency, is_active=True
             ) | WhatsAppGroup.objects.filter(constituency__isnull=True, is_active=True)
+
 
 class ICTOfficerLoginForm(forms.Form):
     username = forms.CharField(
@@ -243,4 +244,109 @@ class DailyEntryCreateForm(forms.ModelForm):
                 raise forms.ValidationError(
                     "A registration already exists for this kit, VRA, and date."
                 )
+        return cleaned
+
+
+class FormAReceiptForm(forms.ModelForm):
+    """Single form for both FORM_A and ACK receipts. The template
+    toggles the visible fields based on `form_type`."""
+
+    class Meta:
+        model = FormAReceipt
+        fields = [
+            "form_type", "ward", "phase",
+            "form_count", "booklet_count",
+            "serial_start", "serial_end", "note",
+        ]
+        widgets = {
+            "note": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, constituency=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if constituency:
+            self.fields["ward"].queryset = Ward.objects.filter(
+                constituency=constituency, active=True
+            ).order_by("name")
+        self.fields["phase"].queryset = Phase.objects.filter(active=True).order_by("-start_date")
+
+        # Mark serial fields optional at the model level; we enforce per-type
+        self.fields["serial_start"].required = False
+        self.fields["serial_end"].required = False
+        self.fields["booklet_count"].required = False
+        self.fields["form_count"].required = False
+
+        for f in self.fields.values():
+            f.widget.attrs.setdefault("class", "form-control")
+
+    def clean(self):
+        cleaned = super().clean()
+        form_type = cleaned.get("form_type")
+
+        if form_type == FormAReceipt.ACK:
+            bc = cleaned.get("booklet_count")
+            if not bc or bc < 1:
+                self.add_error("booklet_count", "Booklet count must be at least 1.")
+            elif cleaned.get("form_count") and cleaned["form_count"] != bc * 50:
+                # normalize — we compute form_count from booklet_count
+                cleaned["form_count"] = bc * 50
+            else:
+                cleaned["form_count"] = bc * 50
+
+            if not cleaned.get("serial_start") or not cleaned.get("serial_end"):
+                self.add_error("serial_start", "Serial numbers are required for acknowledgments.")
+        else:
+            fc = cleaned.get("form_count")
+            if not fc or fc < 1:
+                self.add_error("form_count", "Form count must be at least 1.")
+
+            s, e = cleaned.get("serial_start"), cleaned.get("serial_end")
+            if bool(s) ^ bool(e):
+                self.add_error("serial_end", "Provide both serial numbers or neither.")
+            cleaned["booklet_count"] = None
+
+        return cleaned
+
+
+class FormAReceiptEditForm(forms.ModelForm):
+    """Editable fields after creation. form_type is immutable here."""
+
+    class Meta:
+        model = FormAReceipt
+        fields = ["form_count", "booklet_count", "serial_start", "serial_end", "note"]
+        widgets = {
+            "note": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["serial_start"].required = False
+        self.fields["serial_end"].required = False
+        self.fields["booklet_count"].required = False
+        for f in self.fields.values():
+            f.widget.attrs.setdefault("class", "form-control")
+
+    def clean(self):
+        cleaned = super().clean()
+        receipt = self.instance
+
+        if receipt.form_type == FormAReceipt.ACK:
+            bc = cleaned.get("booklet_count")
+            if not bc or bc < 1:
+                self.add_error("booklet_count", "Booklet count must be at least 1.")
+            else:
+                cleaned["form_count"] = bc * 50
+
+            if not cleaned.get("serial_start") or not cleaned.get("serial_end"):
+                self.add_error("serial_start", "Serial numbers are required for acknowledgments.")
+        else:
+            fc = cleaned.get("form_count")
+            if not fc or fc < 1:
+                self.add_error("form_count", "Form count must be at least 1.")
+            cleaned["booklet_count"] = None
+
+            s, e = cleaned.get("serial_start"), cleaned.get("serial_end")
+            if bool(s) ^ bool(e):
+                self.add_error("serial_end", "Provide both serial numbers or neither.")
+
         return cleaned

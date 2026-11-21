@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 from dotenv import load_dotenv
 
@@ -31,7 +32,7 @@ SECRET_KEY = 'django-insecure-f#jp2g-7cod-*_a9h((lnz#wy#)m_-&5=)*h9s4en_t&_*-amo
 DEBUG = os.getenv('DEBUG') == 'True'
 MOVEMENT_REQUIRE_BOUND_DEVICE = os.getenv('MOVEMENT_REQUIRE_BOUND_DEVICE') == 'True'
 
-ALLOWED_HOSTS = ['.vercel.app', '127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['.vercel.app', '127.0.0.1', 'localhost', '*']
 LOGIN_URL = 'superadmin:login'
 LOGIN_REDIRECT_URL = 'superadmin:dashboard'
 LOGOUT_REDIRECT_URL = 'superadmin:login'
@@ -53,6 +54,9 @@ INSTALLED_APPS = [
     'crispy_forms',
     'crispy_bootstrap5',
     'chartjs', 'corsheaders',
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'api',
 ]
 
 MIDDLEWARE = [
@@ -159,8 +163,15 @@ TIME_ZONE = 'Africa/Nairobi'
 USE_TZ = True
 PWA_URL = 'https://kiems-pwa.vercel.app'
 
-
-CORS_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", 'https://kiems-pwa.vercel.app',   'https://kiems-uploader.vercel.app',     ]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost",
+    "https://localhost",
+    "capacitor://localhost",
+    "https://kiems-pwa.vercel.app",
+    "https://kiems-uploader.vercel.app",
+]
 CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", 'https://*.vercel.app', "http://127.0.0.1:5173", ]
@@ -169,3 +180,32 @@ CSRF_COOKIE_SAMESITE = 'None'
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SAMESITE = 'None'
 SESSION_COOKIE_SECURE = True
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'api.authentication.ConstituencyJWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),  # Short-lived for security
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),  # Long-lived so biometrics work
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': False,
+}
+
+# IEBC Proxy
+IEBC_PROXY_ENABLED = True
+IEBC_UPSTREAM = "https://verify.iebc.or.ke/"
+IEBC_PROXY_TIMEOUT = 20
+IEBC_PROXY_UA = (
+    "Mozilla/5.0 (Linux; Android 13; Pixel 7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0 Mobile Safari/537.36"
+)
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 8 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 8 * 1024 * 1024  
