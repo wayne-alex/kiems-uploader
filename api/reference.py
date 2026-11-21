@@ -1,20 +1,10 @@
-# api/reference.py
-"""
-Static reference content for the Training and Help tiles.
-
-Each doc: { slug, title, category, body_markdown, updated }
-Categories: "training" | "help"
-
-Edit this file to change content; the app fetches it via /api/reference/.
-"""
-
 REFERENCE = {
     # ── TRAINING ────────────────────────────────────────
     "training-count": {
         "slug": "training-count",
         "title": "How to count voters",
         "category": "training",
-        "updated": "2026-11-07",
+        "updated": "2026-11-21",
         "summary": "Male/female breakdown, when to enter 0, what transferred means.",
         "body_markdown": """
 ## The basic rule
@@ -30,26 +20,18 @@ the kit.
 
 ## What "transferred" means
 
-A **transferred** voter is someone who moved their registration from
-another station to yours. They count toward your total for the day.
-Tick "transferred" if that's what happened.
+A **transferred** voter is someone who moved their registration/polling station from
+another station to another. 
 
-The office enters this number from their side — you just tell them
-verbally if a voter mentions it.
+The office enters this number from their side as transfer can only occur in the office.
 
 ## What "updated" and "deleted" mean
 
 **Updated**: a voter changed their details (name spelling, ID number).
-Does not change the count.
 
 **Deleted**: a voter was removed from the register (death, official
-deletion). Also does not change the count.
+deletion).
 
-## The tally sheet
-
-If you're keeping paper tallies, they should match what you type.
-If they don't match, re-count before submitting. The app will
-verify against the kit's cumulative screen.
 
 ## If you get it wrong
 
@@ -59,67 +41,11 @@ ICT officer if you realise you made a mistake the next day.
 """,
     },
 
-    "training-verify": {
-        "slug": "training-verify",
-        "title": "Verify kits with confidence",
-        "category": "training",
-        "updated": "2026-11-07",
-        "summary": "What the cumulative screen is, what drift means, when to proceed.",
-        "body_markdown": """
-## What the verification does
-
-The kit's screen shows a **cumulative total** — the number of
-registrations that kit has processed since it was commissioned.
-Not today's number. The total ever.
-
-Your app knows how many registrations have already been reported
-for that kit. Verification compares what the kit is showing now
-against what we expect it to show — if everything you've entered
-so far was correct.
-
-## Three results, three actions
-
-**✓ Matches our records**
-You're good. The number on the kit is what we expected. Proceed.
-
-**⚠ Small drift** (a few votes off)
-Likely a typo somewhere, or a missing day. Re-check the kit
-screen. If it's correct, add a short note ("kit screen replaced
-after power cut") and proceed. Small drift is fine.
-
-**✗ Big drift** (large difference)
-Stop. Something is wrong. Re-check the kit screen carefully.
-If the number really is that different, add a note explaining
-what you see and proceed. The office will follow up.
-
-## When to verify
-
-Verify **every kit, every day**, right after you enter the daily
-counts. It takes 30 seconds and catches most data-entry errors.
-
-## If a verify returns "No baseline"
-
-First time that kit has been verified today. Nothing to compare
-against yet. Proceed — future verifications will use today's
-baseline.
-
-## What "drift" doesn't mean
-
-It doesn't mean anything is broken. It usually means one of:
-- Yesterday's count was entered wrong
-- A voter was transferred but not recorded
-- The kit screen shows a different starting baseline
-
-In all three cases, the correct action is: write a note,
-proceed, tell your ICT officer.
-""",
-    },
-
     "training-movement": {
         "slug": "training-movement",
         "title": "Plan movement correctly",
         "category": "training",
-        "updated": "2026-11-07",
+        "updated": "2026-11-21",
         "summary": "What a movement plan is, why it's for tomorrow, how it reaches ICT.",
         "body_markdown": """
 ## What movement planning is
@@ -236,10 +162,10 @@ intentional — the office needs to know about problems fast.
         "body_markdown": """
 ## Order of escalation
 
-1. **Your ward ICT officer** — first call for anything routine
-2. **Your constituency ICT officer** — if the ward officer is
+1. **Your ward VRA officer** — first call for anything routine
+2. **Your constituency ICT officer** — if the ward VRA is
    unavailable for more than 30 minutes
-3. **The national helpdesk** — only if both above are unreachable
+3. **Your constituency RO ** — only if both above are unreachable
 
 ## Phone vs WhatsApp
 
@@ -294,9 +220,8 @@ someone else.
 Most kit problems are fixable in the field.
 
 ### Kit won't turn on
-1. Check the power button (sometimes labelled "PWR" or shown as
-   a circle with a line)
-2. Hold it for **3 full seconds**
+1. Check the power button (When the kiems kit is upright i.e the fingerprint is on the top right corner,the top left first button )
+2. Hold it for **10 full seconds**
 3. If nothing, check the battery is seated
 4. Plug it into power for 5 minutes, try again
 
@@ -304,18 +229,6 @@ Most kit problems are fixable in the field.
 1. Hold the power button for **10 seconds** to force restart
 2. Wait 30 seconds for boot
 3. If it boots to the same screen, unplug and replug the battery
-
-### Printer jams
-1. Open the printer compartment (usually a flip-up cover)
-2. Remove the paper roll
-3. Look for torn paper stuck in the feed
-4. Use a pen to gently rotate the feed roller to clear
-5. Re-seat the paper roll with the loose end facing **up**
-
-### Kit doesn't recognise voter IDs
-1. Check the kit is showing "READY" not "ERROR"
-2. Clean the fingerprint scanner with a soft cloth
-3. If still failing, restart the kit
 
 ## When to file a fault
 
@@ -396,10 +309,10 @@ No. Everything works offline:
 - Registration (queues and syncs)
 - Movement (queues and syncs)
 - Incidents (queues and syncs)
-- Reports, Announcements, Training, Help (all cached)
+- Reports, Announcements, Training, Help
 
 The only things that need internet are Voter Lookup (opens IEBC
-website) and first-time login/binding.
+website) and first-time login.
 
 ## How do I know my data reached the office?
 
@@ -447,13 +360,10 @@ high-priority.
 and the software it runs. Yours is one of many.
 
 ## VRA
-**Voter Registration Assistant.** You. Field staff who register
-voters at the station.
+**Voter Registration Assistant.** You. Field staff who manages a particular ward.
 
-## Clerk
-Ward Clerk or Assistant Clerk. Also field staff, but on a
-different career track. Sometimes you'll see "clerk" mentioned in
-the app; it means a role similar to yours.
+## VRC
+**Voter Registration Clerk.**Also field staff, A person with the Kiems kit who registers voters in aparticular ward or station
 
 ## CAW
 **County Assembly Ward.** The smallest electoral unit. One or more
@@ -464,8 +374,7 @@ A geographic and electoral unit within a constituency. Each ward
 has its own voter register.
 
 ## Constituency
-A cluster of wards. Each constituency has its own ICT officer and
-its own WhatsApp coordination group.
+A cluster of wards. Each constituency has its own ICT officer and RO.
 
 ## County
 A cluster of constituencies. Kenya has 47 counties.
