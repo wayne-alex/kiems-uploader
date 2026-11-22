@@ -1,6 +1,7 @@
 import os
 from datetime import timedelta
 
+from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
 
 # Load environment variables from the .env file
@@ -174,6 +175,12 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_CREDENTIALS = True
 
+# Allow the custom Idempotency-Key header sent by the PWA on submit-entries.
+# default_headers keeps the standard ones (authorization, content-type, etc.)
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "idempotency-key",
+]
+
 CSRF_TRUSTED_ORIGINS = ["http://localhost:5173", 'https://*.vercel.app', "http://127.0.0.1:5173", ]
 
 CSRF_COOKIE_SAMESITE = 'None'
@@ -208,4 +215,4 @@ IEBC_PROXY_UA = (
 )
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 8 * 1024 * 1024
-FILE_UPLOAD_MAX_MEMORY_SIZE = 8 * 1024 * 1024  
+FILE_UPLOAD_MAX_MEMORY_SIZE = 8 * 1024 * 1024
