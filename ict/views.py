@@ -2283,6 +2283,42 @@ def cron_send_reports(request):
 
     return JsonResponse({"ok": True, "summary": summary})
 
+@csrf_exempt
+@require_GET
+def cron_drain_whatsapp(request):
+    """
+    Called every minute by cron-job.org to send queued WhatsApp messages.
+    Request must include: Authorization: Bearer <CRON_SECRET>
+    """
+    secret = os.environ.get("CRON_SECRET", "").strip()
+    if not secret:
+        logger.error("CRON_SECRET not configured")
+        return JsonResponse({"ok": False, "error": "Server misconfigured"}, status=500)
+
+    auth = request.headers.get("Authorization", "")
+    if not hmac.compare_digest(auth, f"Bearer {secret}"):
+        logger.warning("Unauthorized cron attempt from %s", request.META.get("REMOTE_ADDR"))
+        return JsonResponse({"ok": False, "error": "Unauthorized"}, status=401)
+
+    from home.services.whatsapp_queue import drain_whatsapp_queue  # adjust to your module path
+
+    hb, _ = CronHeartbeat.objects.get_or_create(name="drain_whatsapp_queue")
+
+    try:
+        summary = drain_whatsapp_queue(limit=10)
+    except Exception as e:
+        logger.exception("WhatsApp drain failed")
+        hb.consecutive_failures += 1
+        hb.last_summary = {"error": str(e)}
+        hb.save(update_fields=["consecutive_failures", "last_summary"])
+        return JsonResponse({"ok": False, "error": str(e)}, status=500)
+
+    hb.total_runs += 1
+    hb.consecutive_failures = 0
+    hb.last_summary = summary
+    hb.save()
+
+    return JsonResponse({"ok": True, "summary": summary})   
 
 @ict_required
 def movement_ward_detail(request, ward_id):

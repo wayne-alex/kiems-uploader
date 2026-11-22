@@ -73,6 +73,7 @@ urlpatterns = [
 
     #     Cron Job
     path("cron/send-reports/", views.cron_send_reports, name="cron_send_reports"),
+    path("cron/drain-whatsapp/", views.cron_drain_whatsapp, name="cron_drain_whatsapp"),
 
     # Movement Schedule (ICT)
     path("movement/", views.movement_list, name="movement_list"),

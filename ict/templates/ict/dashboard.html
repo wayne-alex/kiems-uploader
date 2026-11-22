@@ -334,31 +334,6 @@
                     </div>
                 </div>
             </div>
-
-            {# ── Recent activity ── #}
-            <div class="panel">
-                <div class="panel-header">
-                    <div class="panel-title"><i class="bi bi-activity"></i> Recent Activity</div>
-                </div>
-                <div class="panel-body" style="padding-top: 8px; padding-bottom: 12px;">
-                    <div class="activity-feed">
-                        {% for log in recent_audit %}
-                        <div class="activity-item">
-                            <div class="activity-dot"></div>
-                            <div class="activity-content">
-                                <div><strong>{{ log.get_action_display }}</strong> &bull; {{ log.model_name }}</div>
-                                <div class="activity-meta">
-                                    {{ log.created_at|date:"M d, H:i" }}
-                                    {% if log.actor %}by {{ log.actor.username }}{% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        {% empty %}
-                        <div class="empty-dense">No recent activity</div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>
