@@ -2300,7 +2300,7 @@ def cron_drain_whatsapp(request):
         logger.warning("Unauthorized cron attempt from %s", request.META.get("REMOTE_ADDR"))
         return JsonResponse({"ok": False, "error": "Unauthorized"}, status=401)
 
-    from home.services.whatsapp_queue import drain_whatsapp_queue  # adjust to your module path
+    from home.services.whatsapp_queue import drain_whatsapp_queue
 
     hb, _ = CronHeartbeat.objects.get_or_create(name="drain_whatsapp_queue")
 
