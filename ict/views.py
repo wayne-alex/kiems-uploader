@@ -2283,6 +2283,8 @@ def cron_send_reports(request):
 
     return JsonResponse({"ok": True, "summary": summary})
 
+
+#
 @csrf_exempt
 @require_GET
 def cron_drain_whatsapp(request):

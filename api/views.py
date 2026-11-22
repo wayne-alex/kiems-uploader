@@ -110,7 +110,7 @@ def _resolve_phase(entry_date, explicit_id=None):
 @csrf_exempt
 @require_POST
 def submit_entries(request):
-    """POST /api/kiems/submit-entries/
+    """POST /api/kiems/submit-entries/1
 
     Idempotency: clients send `Idempotency-Key`. Replays return the stored
     response without re-writing.
