@@ -12,7 +12,7 @@ import requests
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout, login as auth_login
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Q, Sum, Count, Value, IntegerField
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
@@ -581,6 +581,38 @@ def device_delete(request, pk):
     return redirect("ict:device_detail", pk=device.pk)
 
 
+def _unlink_staff_for_device(device):
+    """
+    Clear VRA/Clerk device_token (nullable -> None) and device_fingerprint
+    (non-nullable -> '') when they still match the device's fingerprint.
+    """
+    fingerprint = device.fingerprint
+
+    if device.vra_id:
+        vra = device.vra
+        vra_fields = []
+        if vra.device_token == fingerprint:
+            vra.device_token = None
+            vra_fields.append("device_token")
+        if vra.device_fingerprint == fingerprint:
+            vra.device_fingerprint = ""
+            vra_fields.append("device_fingerprint")
+        if vra_fields:
+            vra.save(update_fields=vra_fields)
+
+    if device.clerk_id:
+        clerk = device.clerk
+        clerk_fields = []
+        if clerk.device_token == fingerprint:
+            clerk.device_token = None
+            clerk_fields.append("device_token")
+        if clerk.device_fingerprint == fingerprint:
+            clerk.device_fingerprint = ""
+            clerk_fields.append("device_fingerprint")
+        if clerk_fields:
+            clerk.save(update_fields=clerk_fields)
+
+
 @ict_required
 @require_POST
 def device_bulk_delete(request):
@@ -591,11 +623,11 @@ def device_bulk_delete(request):
         device_ids : list of Device PKs (from checkboxes named device_ids)
 
     Safety:
-      - Only devices belonging to the officer's constituency are touched.
-      - Any device ID that isn't in scope is silently skipped (not an error).
-      - Same unlink logic as single-delete: clears VRA/Clerk device_token
-        when it still points at the fingerprint being deleted.
-      - Audit-logged as a single DELETE entry with the count.
+    - Only devices belonging to the officer's constituency are touched.
+    - Any device ID that isn't in scope is silently skipped (not an error).
+    - Same unlink logic as single-delete: clears VRA/Clerk device_token (None)
+      and device_fingerprint ('') when they still point at the deleted fingerprint.
+    - Audit-logged as a single DELETE entry with the count.
     """
     c = request.constituency
 
@@ -634,45 +666,31 @@ def device_bulk_delete(request):
     deleted_count = 0
     fingerprints = []
 
-    for device in devices:
-        fingerprint = device.fingerprint
+    with transaction.atomic():
+        for device in devices:
+            fingerprint = device.fingerprint
+            _unlink_staff_for_device(device)
 
-        # Unlink VRA if it points at this fingerprint
-        if device.vra_id and device.vra.device_token == fingerprint:
-            device.vra.device_token = None
-            device.vra.save(update_fields=["device_token"])
-        if device.vra_id and device.vra.device_fingerprint == fingerprint:
-            device.vra.device_fingerprint = None
-            device.vra.save(update_fields=["device_fingerprint"])
+            DeviceBurnLog.objects.filter(device=device).delete()
+            fingerprints.append(fingerprint[:12])
+            device.delete()
+            deleted_count += 1
 
-        # Unlink Clerk if it points at this fingerprint
-        if device.clerk_id and device.clerk.device_token == fingerprint:
-            device.clerk.device_token = None
-            device.clerk.save(update_fields=["device_token"])
-        if device.clerk_id and device.clerk.device_fingerprint == fingerprint:
-            device.clerk.device_fingerprint = None
-            device.clerk.save(update_fields=["device_fingerprint"])
-
-        DeviceBurnLog.objects.filter(device=device).delete()
-        fingerprints.append(fingerprint[:12])
-        device.delete()
-        deleted_count += 1
-
-    # One audit entry covering the whole batch
-    AuditLog.objects.create(
-        actor=request.user,
-        constituency=c,
-        action="DELETE",
-        model_name="Device",
-        object_id="bulk",
-        object_repr=f"{deleted_count} device(s)",
-        description=(
-                f"Bulk-deleted {deleted_count} device(s): "
-                + ", ".join(fingerprints[:10])
-                + ("…" if len(fingerprints) > 10 else "")
-        ),
-        ip_address=request.META.get("REMOTE_ADDR"),
-    )
+        # One audit entry covering the whole batch
+        AuditLog.objects.create(
+            actor=request.user,
+            constituency=c,
+            action="DELETE",
+            model_name="Device",
+            object_id="bulk",
+            object_repr=f"{deleted_count} device(s)",
+            description=(
+                    f"Bulk-deleted {deleted_count} device(s): "
+                    + ", ".join(fingerprints[:10])
+                    + ("..." if len(fingerprints) > 10 else "")
+            ),
+            ip_address=request.META.get("REMOTE_ADDR"),
+        )
 
     messages.success(
         request,

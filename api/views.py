@@ -11,7 +11,6 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
-from home.services.form_a_sync import sync_form_a_for_entry
 
 from home.models import (
     DailyKIEMSEntry,
@@ -23,6 +22,7 @@ from home.models import (
     Ward,
     RegistrationCentre,
 )
+from home.services.form_a_sync import sync_form_a_for_entry
 from home.services.whatsapp_queue import enqueue_whatsapp, drain_async
 from .models import (
     Announcement,
@@ -1357,6 +1357,129 @@ def form_a_kits_for_ward(request):
 
 
 @require_GET
+def form_a_kits_ledger(request):
+    """GET /api/form-a/kits-ledger/?fingerprint=
+
+    Per-kit Form A + Acknowledgment balance for the VRA's ward.
+
+    For each active kit, returns:
+      - allocated  : SUM(FormAAllocation.forms_allocated)
+      - used       : SUM(FormAUsage where kind=USED)
+      - spoiled    : COUNT(spoilages) + SUM(FormAUsage where kind=SPOILED)
+      - left       : allocated - used - spoiled
+
+    Also returns the ward's unallocated pool (forms received but not
+    assigned to any kit), so the screen can show:
+      "Pool: 150 forms unassigned"
+    """
+    fp = request.GET.get("fingerprint")
+    if not fp:
+        return JsonResponse({"ok": False, "error": "fingerprint required"}, status=400)
+
+    device = _resolve_device(fp)
+    if not device:
+        return JsonResponse({"ok": False, "error": "Device not registered."}, status=403)
+    if not device.is_burned:
+        return JsonResponse({"ok": False, "error": "Device not authorized."}, status=403)
+
+    vra = _resolve_vra(fp)
+    if not vra or not vra.ward_id:
+        return JsonResponse({"ok": False, "error": "VRA not bound to a ward."}, status=404)
+
+    ward = vra.ward
+    phase = _resolve_phase(timezone.localdate())
+    if not phase:
+        return JsonResponse({"ok": False, "error": "No active phase."}, status=409)
+
+    kits = list(
+        KIEMSKit.objects
+        .filter(ward=ward, status=True)
+        .order_by("kit_name")
+    )
+
+    # Bulk aggregate — three group-bys, one query each
+    allocated_by_kit = dict(
+        FormAAllocation.objects
+        .filter(
+            receipt__ward=ward, receipt__phase=phase,
+            receipt__is_archived=False,
+            kiems_kit__in=kits,
+        )
+        .values_list("kiems_kit_id")
+        .annotate(total=Sum("forms_allocated"))
+    )
+
+    used_by_kit = dict(
+        FormAUsage.objects
+        .filter(
+            ward=ward, phase=phase,
+            kind=FormAUsage.KIND_USED,
+            kiems_kit__in=kits,
+        )
+        .values_list("kiems_kit_id")
+        .annotate(total=Sum("forms_used"))
+    )
+
+    spoiled_count_by_kit = dict(
+        FormASpoilage.objects
+        .filter(ward=ward, phase=phase, kiems_kit__in=kits)
+        .values_list("kiems_kit_id")
+        .annotate(total=Count("id"))
+    )
+    spoiled_usage_by_kit = dict(
+        FormAUsage.objects
+        .filter(
+            ward=ward, phase=phase,
+            kind=FormAUsage.KIND_SPOILED,
+            kiems_kit__in=kits,
+        )
+        .values_list("kiems_kit_id")
+        .annotate(total=Sum("forms_used"))
+    )
+
+    rows = []
+    for kit in kits:
+        allocated = allocated_by_kit.get(kit.id, 0) or 0
+        used = used_by_kit.get(kit.id, 0) or 0
+        spoiled = (spoiled_count_by_kit.get(kit.id, 0) or 0) \
+                  + (spoiled_usage_by_kit.get(kit.id, 0) or 0)
+        left = max(0, allocated - used - spoiled)
+        rows.append({
+            "kit_id": kit.id,
+            "kit_name": kit.kit_name,
+            "serial_no": kit.serial_no,
+            "allocated": allocated,
+            "used": used,
+            "spoiled": spoiled,
+            "left": left,
+        })
+
+    # Ward-level unallocated pool: forms received but not on any kit
+    total_received = (
+            FormAReceipt.objects
+            .filter(ward=ward, phase=phase, is_archived=False)
+            .aggregate(s=Sum("form_count"))["s"] or 0
+    )
+    total_allocated = sum(allocated_by_kit.values()) or 0
+    total_spoiled_ward = (
+        FormASpoilage.objects.filter(ward=ward, phase=phase).count()
+    )
+    pool = max(0, total_received - total_allocated - total_spoiled_ward)
+
+    return JsonResponse({
+        "ok": True,
+        "ward_id": ward.id,
+        "ward_name": ward.name,
+        "phase_id": phase.id,
+        "phase_name": phase.name,
+        "pool": pool,
+        "total_received": total_received,
+        "total_allocated": total_allocated,
+        "kits": rows,
+    })
+
+
+@require_GET
 def form_a_spoilages_mine(request):
     """GET /api/form-a/spoilages-mine/?fingerprint=&date=YYYY-MM-DD"""
     fp = request.GET.get("fingerprint")
@@ -1487,7 +1610,7 @@ def form_a_report_spoil(request):
 @csrf_exempt
 @require_POST
 def form_a_allocate(request):
-    """POST /api/form-a/allocate/ — VRA distributes booklets to a kit."""
+    """POST /api/form-a/allocate/ ? VRA distributes booklets to a kit."""
     payload = _json_body(request)
     fp = _fingerprint(request, payload)
 
@@ -1504,107 +1627,300 @@ def form_a_allocate(request):
             forms = int(forms)
         except (TypeError, ValueError):
             return _err("forms_allocated must be an integer.")
+
         if forms < 1:
             return _err("forms_allocated must be at least 1.")
 
-        receipt = FormAReceipt.objects.filter(pk=receipt_id, is_archived=False).first()
+        receipt = FormAReceipt.objects.filter(
+            pk=receipt_id,
+            is_archived=False
+        ).first()
+
         if not receipt:
             return _err("Receipt not found.", 404)
 
         vra = _resolve_vra(fp)
         if not vra or not vra.ward_id:
             return _err("VRA not resolved.", 403)
+
         if receipt.ward_id != vra.ward_id:
             return _err("Receipt belongs to another ward.", 403)
 
         device = _resolve_device(fp)
         if not device:
             return _err("Device not registered.", 403)
+
         if not device.is_burned:
             return _err("Device not authorized.", 403)
 
-        kit = KIEMSKit.objects.filter(pk=kit_id, ward_id=vra.ward_id, status=True).first()
+        kit = KIEMSKit.objects.filter(
+            pk=kit_id,
+            ward_id=vra.ward_id,
+            status=True
+        ).first()
+
         if not kit:
             return _err("Kit not found in your ward.", 404)
 
-        if receipt.form_type == FormAReceipt.ACK and forms % 50 != 0:
+        if (
+                receipt.form_type == FormAReceipt.ACK
+                and forms % 50 != 0
+        ):
             return _err(
                 f"Acknowledgment allocations must be multiples of 50 (got {forms}).",
                 409,
             )
 
-        existing_same_kit = FormAAllocation.objects.filter(
-            receipt=receipt, kiems_kit=kit,
-        ).first()
-        previous = existing_same_kit.forms_allocated if existing_same_kit else 0
+        with transaction.atomic():
 
-        other_allocated = (
-                receipt.allocations.exclude(kiems_kit=kit)
-                .aggregate(s=Sum("forms_allocated"))["s"] or 0
-        )
-        already_used = other_allocated + previous + receipt.spoiled_count
-
-        if already_used + forms > receipt.form_count:
-            available = receipt.form_count - other_allocated - previous - receipt.spoiled_count
-            return _err(
-                f"Only {available} forms available on this receipt "
-                f"(already {already_used} allocated/spoiled of {receipt.form_count}).",
-                409,
+            # Lock the receipt to prevent concurrent allocations
+            receipt = (
+                FormAReceipt.objects
+                .select_for_update()
+                .get(pk=receipt.pk)
             )
 
-        allocation, created = FormAAllocation.objects.update_or_create(
-            receipt=receipt,
-            kiems_kit=kit,
-            defaults={
-                "vra": vra,
-                "device": device,
-                "forms_allocated": forms,
-                "note": note,
-                "client_op_id": payload.get("op_id", ""),
-            },
-        )
+            # Lock and retrieve an existing allocation, if present
+            allocation = (
+                FormAAllocation.objects
+                .select_for_update()
+                .filter(
+                    receipt=receipt,
+                    kiems_kit=kit,
+                )
+                .first()
+            )
+
+            previous = (
+                allocation.forms_allocated
+                if allocation else 0
+            )
+
+            other_allocated = (
+                    receipt.allocations
+                    .exclude(kiems_kit=kit)
+                    .aggregate(s=Sum("forms_allocated"))["s"] or 0
+            )
+
+            already_used = (
+                    other_allocated
+                    + previous
+                    + receipt.spoiled_count
+            )
+
+            available = (
+                    receipt.form_count
+                    - other_allocated
+                    - previous
+                    - receipt.spoiled_count
+            )
+
+            if already_used + forms > receipt.form_count:
+                return _err(
+                    f"Only {available} forms available on this receipt "
+                    f"(already {already_used} allocated/spoiled "
+                    f"of {receipt.form_count}).",
+                    409,
+                )
+
+            if allocation:
+                # ADD to existing allocation instead of replacing it
+                allocation.forms_allocated += forms
+                allocation.vra = vra
+                allocation.device = device
+                allocation.note = note or allocation.note
+                allocation.client_op_id = payload.get("op_id", "")
+
+                allocation.save(update_fields=[
+                    "forms_allocated",
+                    "vra",
+                    "device",
+                    "note",
+                    "client_op_id",
+                    "updated_at",
+                ])
+
+                created = False
+
+            else:
+                allocation = FormAAllocation.objects.create(
+                    receipt=receipt,
+                    kiems_kit=kit,
+                    vra=vra,
+                    device=device,
+                    forms_allocated=forms,
+                    note=note,
+                    client_op_id=payload.get("op_id", ""),
+                )
+
+                created = True
+
         return _ok({
             "allocation_id": str(allocation.id),
             "created": created,
             "kit_name": kit.kit_name,
-            "forms_allocated": forms,
+            "forms_allocated": allocation.forms_allocated,
             "unallocated": receipt.unallocated,
         })
 
-    status, body, _ = with_idempotency(request, "form_a.allocate", do)
+    status, body, _ = with_idempotency(
+        request,
+        "form_a.allocate",
+        do
+    )
+
     return JsonResponse(body, status=status)
 
 
 @csrf_exempt
 @require_POST
 def form_a_deallocate(request):
-    """POST /api/form-a/deallocate/ — remove an allocation."""
+    """POST /api/form-a/deallocate/
+
+    Supports:
+      { fingerprint, allocation_id }
+      { fingerprint, receipt_id, kit_id }
+      { fingerprint, receipt_id, kit_id, allocation_amount }
+
+    If allocation_amount is omitted, the entire allocation is removed.
+    If allocation_amount is supplied, only that quantity is removed.
+    """
     payload = _json_body(request)
     fp = _fingerprint(request, payload)
 
     def do():
         allocation_id = payload.get("allocation_id")
-        if not allocation_id:
-            return _err("allocation_id is required.")
+        receipt_id = payload.get("receipt_id")
+        kit_id = payload.get("kit_id")
+        amount = payload.get("allocation_amount")
 
-        allocation = (
-            FormAAllocation.objects
-            .select_related("receipt", "kiems_kit")
-            .filter(pk=allocation_id)
-            .first()
-        )
+        # Find allocation using either identification method
+        if allocation_id:
+            allocation = (
+                FormAAllocation.objects
+                .select_related("receipt", "kiems_kit")
+                .filter(pk=allocation_id)
+                .first()
+            )
+
+        elif receipt_id and kit_id:
+            allocation = (
+                FormAAllocation.objects
+                .select_related("receipt", "kiems_kit")
+                .filter(
+                    receipt_id=receipt_id,
+                    kiems_kit_id=kit_id,
+                )
+                .first()
+            )
+
+        else:
+            return _err(
+                "Either allocation_id, or receipt_id + kit_id, is required."
+            )
+
         if not allocation:
             return _err("Allocation not found.", 404)
 
+        # Verify VRA belongs to the allocation's ward
         vra = _resolve_vra(fp)
+
         if not vra or allocation.receipt.ward_id != vra.ward_id:
             return _err("Not your ward.", 403)
 
-        kit_name = allocation.kiems_kit.kit_name
-        allocation.delete()
-        return _ok({"deleted": True, "kit_name": kit_name})
+        # Verify device authorization
+        device = _resolve_device(fp)
 
-    status, body, _ = with_idempotency(request, "form_a.deallocate", do)
+        if not device or not device.is_burned:
+            return _err("Device not authorized.", 403)
+
+        kit_name = allocation.kiems_kit.kit_name
+
+        # No amount supplied: preserve full-deallocation behaviour
+        if amount is None:
+            with transaction.atomic():
+                allocation = (
+                    FormAAllocation.objects
+                    .select_for_update()
+                    .filter(pk=allocation.pk)
+                    .first()
+                )
+
+                if not allocation:
+                    return _err("Allocation not found.", 404)
+
+                allocation.delete()
+
+            return _ok({
+                "deleted": True,
+                "kit_name": kit_name,
+            })
+
+        # Validate partial deallocation amount
+        try:
+            amount = int(amount)
+        except (TypeError, ValueError):
+            return _err("allocation_amount must be an integer.")
+
+        if amount < 1:
+            return _err("allocation_amount must be at least 1.")
+
+        # ACK booklets must always move in multiples of 50
+        if (
+                allocation.receipt.form_type == FormAReceipt.ACK
+                and amount % 50 != 0
+        ):
+            return _err(
+                "Acknowledgment deallocations must be multiples of 50.",
+                409,
+            )
+
+        with transaction.atomic():
+
+            allocation = (
+                FormAAllocation.objects
+                .select_for_update()
+                .filter(pk=allocation.pk)
+                .first()
+            )
+
+            if not allocation:
+                return _err("Allocation not found.", 404)
+
+            current_amount = allocation.forms_allocated
+
+            if amount > current_amount:
+                return _err(
+                    f"Cannot move {amount}; only "
+                    f"{current_amount} allocated.",
+                    409,
+                )
+
+            remaining = current_amount - amount
+
+            if remaining == 0:
+                allocation.delete()
+            else:
+                allocation.forms_allocated = remaining
+
+                allocation.save(update_fields=[
+                    "forms_allocated",
+                    "updated_at",
+                ])
+
+        return _ok({
+            "deleted": remaining == 0,
+            "kit_name": kit_name,
+            "moved": amount,
+            "remaining_allocated": remaining,
+        })
+
+    status, body, _ = with_idempotency(
+        request,
+        "form_a.deallocate",
+        do
+    )
+
     return JsonResponse(body, status=status)
 
 

@@ -17,6 +17,7 @@ urlpatterns = [
     path("form-a/receive/", views.form_a_receive, name="api_form_a_receive"),
     path("form-a/usage/", views.form_a_usage, name="api_form_a_usage"),
     path("form-a/spoil/", views.form_a_spoil, name="api_form_a_spoil"),
+    path("form-a/kits-ledger/", views.form_a_kits_ledger, name="api_form_a_kits_ledger"),
 
     # ── Incidents ──
     path("incidents/", views.submit_incident, name="api_submit_incident"),
