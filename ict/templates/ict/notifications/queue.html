@@ -1,0 +1,106 @@
+{% extends "ict/base.html" %}
+{% block title %}WhatsApp Queue{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>WhatsApp outbox</h2>
+    <p>Every message queued or sent from {{ constituency.name }}.</p>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <a href="{% url 'ict:dashboard' %}" class="btn btn-outline">
+      <i class="bi bi-arrow-left"></i> Back
+    </a>
+    <form method="post" action="{% url 'ict:whatsapp_queue_drain' %}" style="display:inline;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-play-fill"></i> Drain now
+      </button>
+    </form>
+  </div>
+</div>
+
+{# ── Status cards ── #}
+<div class="stat-grid" style="grid-template-columns:repeat(5,minmax(0,1fr));">
+  {% for card in status_cards %}
+  <a href="?status={{ card.key }}"
+     class="stat-card {{ card.tone }}"
+     style="text-decoration:none;color:inherit;{% if status_filter == card.key %}outline:2px solid var(--primary);outline-offset:-2px;{% endif %}">
+    <div class="label">{{ card.label }}</div>
+    <div class="value">{{ card.count }}</div>
+  </a>
+  {% endfor %}
+</div>
+
+{# ── Filter ── #}
+<form method="get" class="filters">
+  <div class="field">
+    <label>Status</label>
+    <select name="status" class="form-control">
+      <option value="">All</option>
+      {% for status, label in status_choices %}
+      <option value="{{ status }}" {% if status_filter == status %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn btn-primary">Filter</button>
+  <a href="{% url 'ict:whatsapp_queue' %}" class="btn btn-outline">Reset</a>
+</form>
+
+{# ── Table ── #}
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Kind</th>
+        <th>Status</th>
+        <th>Preview</th>
+        <th style="text-align:right;">Attempts</th>
+        <th>Last error</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in whatsapp_messages %}
+      <tr>
+        <td style="font-size:12px;color:var(--text-muted);">{{ m.created_at|date:"d M H:i" }}</td>
+        <td><code style="font-size:11px;">{{ m.kind|default:"—" }}</code></td>
+        <td>
+          {% if m.status == 'QUEUED' %}<span class="badge badge-blue">Queued</span>
+          {% elif m.status == 'SENDING' %}<span class="badge badge-orange">Sending</span>
+          {% elif m.status == 'SENT' %}<span class="badge badge-green">Sent</span>
+          {% elif m.status == 'FAILED' %}<span class="badge badge-orange">Retrying</span>
+          {% elif m.status == 'GAVE_UP' %}<span class="badge badge-red">Gave up</span>
+          {% endif %}
+        </td>
+        <td style="font-size:12.5px;max-width:340px;">{{ m.message|truncatechars:140 }}</td>
+        <td style="text-align:right;">{{ m.attempts }}</td>
+        <td style="font-size:11.5px;color:var(--danger);max-width:180px;">{{ m.last_error|default:"—" }}</td>
+        <td>
+          <div class="action-btns">
+            {% if m.status != 'SENT' and m.status != 'SENDING' %}
+            <form method="post" action="{% url 'ict:whatsapp_queue_retry' m.id %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" title="Retry"><i class="bi bi-arrow-clockwise"></i></button>
+            </form>
+            {% endif %}
+            {% if m.status != 'SENT' %}
+            <form method="post" action="{% url 'ict:whatsapp_queue_discard' m.id %}" style="display:inline;"
+                  onsubmit="return confirm('Discard permanently?');">
+              {% csrf_token %}
+              <button type="submit" class="danger" title="Discard"><i class="bi bi-x-lg"></i></button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">
+        No messages yet.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

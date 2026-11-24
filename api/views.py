@@ -250,17 +250,20 @@ def _submit_entries_impl(request):
                     "warning": f"Form A sync failed: {e}",
                 })
 
-    # ── Notify phase: queue WhatsApp, drain in background ──
+    # ?? Notify phase: queue WhatsApp, drain in background ??
     for entry in saved_entries:
         total = (entry.registered_male or 0) + (entry.registered_female or 0)
         if total <= 0:
             continue
         message = _format_entry_message(entry)
         if message:
+            dedupe_key = f"entry:{entry.ward.constituency_id}:{entry.kiems_kit_id}:{entry.entry_date}"
+
             enqueue_whatsapp(
                 constituency=entry.ward.constituency,
                 message=message,
                 kind="entry.submit",
+                dedupe_key=dedupe_key,
             )
 
     body = {"saved": len(saved_entries)}

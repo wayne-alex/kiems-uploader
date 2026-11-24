@@ -690,6 +690,7 @@ class CronHeartbeat(models.Model):
     def __str__(self):
         return f"{self.name} @ {self.last_run_at:%Y-%m-%d %H:%M:%S}"
 
+
 class OutgoingWhatsAppMessage(models.Model):
     """A queued WhatsApp message. Enqueued synchronously during request
     handling (fast), drained in the background (slow).
@@ -737,12 +738,15 @@ class OutgoingWhatsAppMessage(models.Model):
     locked_at = models.DateTimeField(null=True, blank=True)
     sent_at = models.DateTimeField(null=True, blank=True)
     next_attempt_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    dedupe_key = models.CharField(max_length=120, blank=True, db_index=True)
 
     class Meta:
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["status", "next_attempt_at"]),
             models.Index(fields=["constituency", "-created_at"]),
+            models.Index(fields=["constituency", "dedupe_key", "status"]),
+
         ]
 
     def __str__(self):

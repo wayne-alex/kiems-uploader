@@ -26,10 +26,14 @@ BOT_SEND_TIMEOUT = 8   # short — we're already off the hot path
 BACKOFF_SECONDS = [30, 120, 600, 3600, 14400]  # exponential-ish
 
 
-def enqueue_whatsapp(constituency, message, kind=""):
-    """Enqueue a message. Returns the row or None if group is missing.
+def enqueue_whatsapp(constituency, message, kind="", dedupe_key=""):
+    """
+    Enqueue a message. If `dedupe_key` is set and a QUEUED message with the
+    same (constituency, dedupe_key) exists, replace it. Returns the
+    surviving row (or None if no group).
 
-    This is intentionally fast: one INSERT, no network.
+    This is the fix for "old reports arriving after new ones" — the queue
+    always holds at most one pending message per dedupe_key.
     """
     if not constituency:
         return None
@@ -38,18 +42,35 @@ def enqueue_whatsapp(constituency, message, kind=""):
     if not group:
         logger.warning(
             "enqueue_whatsapp: no group for %s — dropping message",
-            constituency.name if hasattr(constituency, "name") else constituency,
+            getattr(constituency, "name", constituency),
         )
         return None
+
+    if dedupe_key:
+        # Drop any older QUEUED messages with the same key
+        superseded = OutgoingWhatsAppMessage.objects.filter(
+            constituency=constituency,
+            dedupe_key=dedupe_key,
+            status=OutgoingWhatsAppMessage.STATUS_QUEUED,
+        )
+        count = superseded.update(
+            status=OutgoingWhatsAppMessage.STATUS_GAVE_UP,
+            last_error="superseded by newer message",
+        )
+        if count:
+            logger.info(
+                "enqueue_whatsapp: superseded %d stale message(s) for %s/%s",
+                count, constituency.id, dedupe_key,
+            )
 
     return OutgoingWhatsAppMessage.objects.create(
         constituency=constituency,
         group_id=group.group_id,
         message=message,
         kind=kind,
+        dedupe_key=dedupe_key,
         status=OutgoingWhatsAppMessage.STATUS_QUEUED,
     )
-
 
 def _claim_pending(limit=25):
     """Claim QUEUED (or FAILED-with-due-time) messages by marking them SENDING."""

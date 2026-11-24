@@ -112,4 +112,9 @@ urlpatterns = [
         views.form_a_allocation_delete_ict,
         name="form_a_allocation_delete_ict",
     ),
+
+    path("notifications/queue/", views.whatsapp_queue_list, name="whatsapp_queue"),
+    path("notifications/queue/drain/", views.whatsapp_queue_drain, name="whatsapp_queue_drain"),
+    path("notifications/queue/<uuid:message_id>/retry/", views.whatsapp_queue_retry, name="whatsapp_queue_retry"),
+    path("notifications/queue/<uuid:message_id>/discard/", views.whatsapp_queue_discard, name="whatsapp_queue_discard"),
 ]

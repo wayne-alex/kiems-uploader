@@ -28,6 +28,7 @@ from home.models import (
     VRA, Clerk, Device, DeviceBurnLog, AuditLog, WhatsAppSetting, Phase,
     Ward, KIEMSKit, DailyKIEMSEntry, Constituency, WhatsAppGroup,
     CronHeartbeat, DailyReportState, MovementSchedule, MovementScheduleState, MovementScheduleLog,
+    OutgoingWhatsAppMessage,
 )
 from home.services.daily_report import (
     reap_stuck_sending_states,
@@ -36,6 +37,7 @@ from home.services.daily_report import (
     run_daily_report_tick, build_daily_report_text,
 )
 from home.services.form_a_sync import sync_form_a_for_entry
+from home.services.whatsapp_queue import drain_whatsapp_queue
 from .decorators import ict_required
 from .forms import (
     WardForm, VRAForm, ClerkForm, KIEMSKitForm,
@@ -1822,66 +1824,148 @@ def _format_constituency_report(constituency, date):
 def whatsapp_send_report(request):
     """
     Manually send a Ward or Constituency report to the officer's target group.
-    POST JSON: {report_type: 'ward'|'constituency', ward_id?: int, date?: 'YYYY-MM-DD'}
+
+    This does NOT call the WhatsApp bot synchronously. It queues the message
+    with a dedupe_key based on (constituency, date, report_type, [ward_id]).
+    If a matching message is already queued for the same key, it's replaced —
+    so double-clicks and overlapping cron fires can't produce duplicate reports.
+
+    POST body (JSON or form-encoded):
+      report_type : 'ward' | 'constituency'   (default: 'constituency')
+      date        : 'YYYY-MM-DD'              (default: today)
+      ward_id     : int                       (required when report_type='ward')
+
+    Response:
+      { success, queued_id, preview, message }
     """
+    from home.services.whatsapp_queue import enqueue_whatsapp, drain_async
+
     c = request.constituency
+
+    # ── Parse input ──────────────────────────────────────────
     try:
-        data = json.loads(request.body) if request.content_type == "application/json" else request.POST.dict()
+        data = (
+            json.loads(request.body)
+            if request.content_type == "application/json"
+            else request.POST.dict()
+        )
     except json.JSONDecodeError:
-        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+        return JsonResponse(
+            {"success": False, "error": "Invalid JSON body."},
+            status=400,
+        )
 
-    report_type = data.get("report_type", "constituency")
-    date_str = data.get("date")
-    ward_id = data.get("ward_id")
+    report_type = (data.get("report_type") or "constituency").strip().lower()
+    if report_type not in ("ward", "constituency"):
+        return JsonResponse(
+            {"success": False, "error": "report_type must be 'ward' or 'constituency'."},
+            status=400,
+        )
 
+    date_str = (data.get("date") or "").strip()
     if date_str:
         try:
             report_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:
-            report_date = timezone.now().date()
+            return JsonResponse(
+                {"success": False, "error": "date must be YYYY-MM-DD."},
+                status=400,
+            )
     else:
         report_date = timezone.now().date()
 
+    # ── Verify the officer has a target group ────────────────
     setting = WhatsAppSetting.objects.filter(user=request.user).first()
     if not setting or not setting.default_group:
-        return JsonResponse({
-            "success": False,
-            "error": "No target group selected. Pick one above first."
-        }, status=400)
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "No target group selected. Pick one above first.",
+            },
+            status=400,
+        )
 
+    # ── Build the message text ───────────────────────────────
     if report_type == "ward":
+        ward_id = data.get("ward_id")
         if not ward_id:
-            return JsonResponse({"success": False, "error": "ward_id required"}, status=400)
+            return JsonResponse(
+                {"success": False, "error": "ward_id is required for ward reports."},
+                status=400,
+            )
+
         ward = Ward.objects.filter(pk=ward_id, constituency=c).first()
         if not ward:
-            return JsonResponse({"success": False, "error": "Ward not found in your constituency"}, status=404)
-        message = _format_ward_report(ward, report_date)
-    else:
-        message = _format_constituency_report(c, report_date)
+            return JsonResponse(
+                {"success": False, "error": "Ward not found in your constituency."},
+                status=404,
+            )
 
-    try:
-        r = requests.post(
-            f"{_bot_url()}/send",
-            json={"groupId": setting.default_group.group_id, "message": message},
-            timeout=15,
-            headers={"Content-Type": "application/json"},
+        message = _format_ward_report(ward, report_date)
+        dedupe_key = f"ward-report:{c.id}:{ward.id}:{report_date.isoformat()}"
+        target_label = f"ward {ward.name}"
+
+    else:  # constituency
+        message = _format_constituency_report(c, report_date)
+        dedupe_key = f"daily-report:{c.id}:{report_date.isoformat()}"
+        target_label = c.name
+
+    if not message or not message.strip():
+        return JsonResponse(
+            {"success": False, "error": "Report is empty — nothing to send."},
+            status=400,
         )
-        if r.status_code == 200:
-            return JsonResponse({
-                "success": True,
-                "message": f"{report_type.title()} report sent to {setting.default_group.name}.",
-                "preview": message,
-            })
-        return JsonResponse({
-            "success": False,
-            "error": f"Bot returned {r.status_code}: {r.text[:200]}",
-        }, status=503)
-    except requests.exceptions.ConnectionError:
-        return JsonResponse({"success": False, "error": "Bot is offline"}, status=503)
-    except requests.exceptions.Timeout:
-        return JsonResponse({"success": False, "error": "Bot timed out"}, status=503)
-    except Exception as e:
-        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+    # ── Enqueue (dedupe-aware) ───────────────────────────────
+    try:
+        enqueued = enqueue_whatsapp(
+            constituency=c,
+            message=message,
+            kind=f"report.{report_type}",
+            dedupe_key=dedupe_key,
+        )
+    except Exception as exc:
+        logger.exception("whatsapp_send_report: enqueue failed")
+        return JsonResponse(
+            {"success": False, "error": f"Could not queue message: {exc}"},
+            status=500,
+        )
+
+    if not enqueued:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": (
+                    "No WhatsApp group is assigned to this constituency. "
+                    "Set one in Notifications first."
+                ),
+            },
+            status=400,
+        )
+
+    # ── Kick the drain immediately (no-op if bot is offline) ─
+    try:
+        drain_async(limit=5)
+    except Exception:
+        # Background thread failed to start — the periodic cron will
+        # pick this up on its next tick. Not fatal.
+        logger.warning("whatsapp_send_report: drain_async failed, will retry via cron")
+
+    return JsonResponse({
+        "success": True,
+        "message": (
+            f"{report_type.title()} report queued for {target_label}. "
+            f"Delivery to '{setting.default_group.name}' will start shortly."
+        ),
+        "queued_id": str(enqueued.id),
+        "preview": message,
+        "target_group": {
+            "id": setting.default_group.group_id,
+            "name": setting.default_group.name,
+        },
+        "dedupe_key": dedupe_key,
+        "report_date": report_date.isoformat(),
+    })
 
 
 @ict_required
@@ -2284,7 +2368,6 @@ def cron_send_reports(request):
     return JsonResponse({"ok": True, "summary": summary})
 
 
-#
 @csrf_exempt
 @require_GET
 def cron_drain_whatsapp(request):
@@ -2320,7 +2403,8 @@ def cron_drain_whatsapp(request):
     hb.last_summary = summary
     hb.save()
 
-    return JsonResponse({"ok": True, "summary": summary})   
+    return JsonResponse({"ok": True, "summary": summary})
+
 
 @ict_required
 def movement_ward_detail(request, ward_id):
@@ -3865,3 +3949,102 @@ def form_a_allocation_delete_ict(request, allocation_id):
     )
     messages.success(request, f"Removed {forms} forms from {kit_name}.")
     return redirect("ict:form_a_detail", receipt_id=receipt_id)
+
+
+@ict_required
+def whatsapp_queue_list(request):
+    """Show every recent outbound WhatsApp message + manual controls."""
+    from home.models import OutgoingWhatsAppMessage
+    from django.db.models import Count
+
+    c = request.constituency
+    status_filter = request.GET.get("status", "")
+
+    qs = (
+        OutgoingWhatsAppMessage.objects
+        .filter(constituency=c)
+        .order_by("-created_at")
+    )
+    if status_filter in dict(OutgoingWhatsAppMessage.STATUS_CHOICES):
+        qs = qs.filter(status=status_filter)
+
+    # ── Build per-status counts (fast, one group-by) ──
+    raw_counts = dict(
+        OutgoingWhatsAppMessage.objects
+        .filter(constituency=c)
+        .values_list("status")
+        .annotate(n=Count("id"))
+    )
+
+    # Build a list of (status_key, label, count, tone) in display order
+    TONES = {
+        "QUEUED": "blue",
+        "SENDING": "purple",
+        "SENT": "green",
+        "FAILED": "orange",
+        "GAVE_UP": "red",
+    }
+    status_cards = [
+        {
+            "key": status_key,
+            "label": label,
+            "count": raw_counts.get(status_key, 0),
+            "tone": TONES.get(status_key, "grey"),
+        }
+        for status_key, label in OutgoingWhatsAppMessage.STATUS_CHOICES
+    ]
+
+    return render(request, "ict/notifications/queue.html", {
+        "constituency": c,
+        "whatsapp_messages": qs[:200],
+        "status_cards": status_cards,
+        "status_filter": status_filter,
+        "status_choices": OutgoingWhatsAppMessage.STATUS_CHOICES,
+    })
+
+
+@ict_required
+@require_POST
+def whatsapp_queue_drain(request):
+    """Force a drain tick — useful when the cron is lagging or was missed."""
+    summary = drain_whatsapp_queue(limit=50)
+    messages.success(
+        request,
+        f"Drained: {summary['sent']} sent, {summary['failed']} failed, "
+        f"{summary['gave_up']} gave up (claimed {summary['claimed']}).",
+    )
+    return redirect("ict:whatsapp_queue")
+
+
+@ict_required
+@require_POST
+def whatsapp_queue_retry(request, message_id):
+    """Re-arm a GAVE_UP or FAILED message for the next drain tick."""
+    c = request.constituency
+    msg = get_object_or_404(
+        OutgoingWhatsAppMessage,
+        pk=message_id, constituency=c,
+    )
+    msg.status = OutgoingWhatsAppMessage.STATUS_QUEUED
+    msg.attempts = 0
+    msg.next_attempt_at = None
+    msg.last_error = ""
+    msg.save(update_fields=["status", "attempts", "next_attempt_at", "last_error"])
+    messages.success(request, "Message re-queued.")
+    return redirect("ict:whatsapp_queue")
+
+
+@ict_required
+@require_POST
+def whatsapp_queue_discard(request, message_id):
+    """Permanently discard a queued or failed message."""
+    c = request.constituency
+    msg = get_object_or_404(
+        OutgoingWhatsAppMessage,
+        pk=message_id, constituency=c,
+    )
+    msg.status = OutgoingWhatsAppMessage.STATUS_GAVE_UP
+    msg.last_error = "discarded by ICT officer"
+    msg.save(update_fields=["status", "last_error"])
+    messages.success(request, "Message discarded.")
+    return redirect("ict:whatsapp_queue")
