@@ -286,34 +286,22 @@ def _submit_entries_impl(request):
 
 def _format_entry_message(entry, is_update=False, previous_total=0):
     """WhatsApp text for a single registration entry."""
-    total = (entry.registered_male or 0) + (entry.registered_female or 0)
+    male = entry.registered_male or 0
+    female = entry.registered_female or 0
+    total = male + female
     if total == 0:
         return None
-    label = "UPDATED" if is_update else "CONFIRMED"
+
+    label = "UPDATED ✏️" if is_update else "CONFIRMED ✅"
     msg = f"{entry.ward.name.upper()} {label}\n"
-    msg += (
-        f"{entry.kiems_kit.kit_name}:"
-        f"Male:{entry.registered_male} Female:{entry.registered_female} ={total}"
-    )
+    msg += f"{entry.kiems_kit.kit_name}:Male:{male} Female:{female} ={total}"
+
     if is_update:
         msg += f"\n(Previous total: {previous_total})"
+
     if entry.total_transferred and entry.total_transferred > 0:
         msg += f"\nTransferred: {entry.total_transferred}"
-    return msg
 
-
-def _format_entry_message(entry):
-    """WhatsApp confirmation text for a single registration entry."""
-    total = (entry.registered_male or 0) + (entry.registered_female or 0)
-    if total == 0:
-        return None
-    msg = f"{entry.ward.name.upper()} CONFIRMED ✓\n"
-    msg += (
-        f"{entry.kiems_kit.kit_name}:"
-        f"Male:{entry.registered_male} Female:{entry.registered_female} ={total}"
-    )
-    if entry.total_transferred and entry.total_transferred > 0:
-        msg += f"\nTransferred: {entry.total_transferred}"
     return msg
 
 
