@@ -2,6 +2,7 @@ import hmac
 import io
 import json
 import logging
+import os
 import time
 from datetime import datetime, timedelta
 
@@ -2002,7 +2003,7 @@ logger = logging.getLogger(__name__)
 
 @require_http_methods(["GET", "POST"])
 def cron_crawl_iebc_news(request):
-    expected = getattr(settings, "CRON_SECRET", "")
+    expected = os.environ.get("CRON_SECRET", "").strip()
     auth = request.headers.get("Authorization", "")
     token = auth.removeprefix("Bearer ").strip()
 
