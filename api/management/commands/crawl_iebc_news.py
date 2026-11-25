@@ -1,16 +1,15 @@
-import httpx
 from datetime import date
+
+import httpx
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 from api.models import Announcement
 from api.parsers.iebc_news import parse_news_list, parse_news_detail
 
-
 LIST_URL = "https://www.iebc.or.ke/news/"
 UA = "IEBC-KIEMS-Field/2.0 (+crawler)"
 TIMEOUT = 20
-MAX_DETAILS_PER_RUN = 15   # cap so we don't hammer IEBC
+MAX_DETAILS_PER_RUN = 15  # cap so we don't hammer IEBC
 
 
 class Command(BaseCommand):
@@ -70,7 +69,7 @@ class Command(BaseCommand):
                             title = detail.get("title") or title
                             item["image_url"] = detail.get("image_url") or item["image_url"]
                             item["published_at"] = (
-                                detail.get("published_at") or item["published_at"]
+                                    detail.get("published_at") or item["published_at"]
                             )
                     except httpx.RequestError as e:
                         self.stderr.write(f"  detail fetch failed for {item['url']}: {e}")

@@ -218,8 +218,10 @@ class DailyKIEMSEntry(models.Model):
         ]
 
     def save(self, *args, **kwargs):
-        # Always recalculate total from male + female
         self.total_registered = self.registered_male + self.registered_female
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            kwargs["update_fields"] = set(update_fields) | {"total_registered"}
         super().save(*args, **kwargs)
 
     def __str__(self):

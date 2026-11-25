@@ -1,16 +1,20 @@
+import hmac
+import io
 import json
+import logging
 import time
 from datetime import datetime, timedelta
 
 import requests
 from django.conf import settings
 from django.core.cache import cache
+from django.core.management import call_command, CommandError
 from django.db import models, transaction
 from django.db.models import Sum, Count
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from home.models import (
     DailyKIEMSEntry,
@@ -22,6 +26,7 @@ from home.models import (
     Ward,
     RegistrationCentre,
 )
+from home.services.daily_report import reevaluate_constituency_report
 from home.services.form_a_sync import sync_form_a_for_entry
 from home.services.whatsapp_queue import enqueue_whatsapp, drain_async
 from .models import (
@@ -110,14 +115,10 @@ def _resolve_phase(entry_date, explicit_id=None):
 @csrf_exempt
 @require_POST
 def submit_entries(request):
-    """POST /api/kiems/submit-entries/1
+    """POST /api/kiems/submit-entries/
 
-    Idempotency: clients send `Idempotency-Key`. Replays return the stored
-    response without re-writing.
-
-    The write path is DB-only. WhatsApp notifications are queued
-    (OutgoingWhatsAppMessage) and drained in the background, so this view
-    returns in <50ms even when the bot is offline or slow.
+    DB-only write path. WhatsApp messages are queued and sent by the
+    every-minute cron (cron_drain_whatsapp).
     """
     _fingerprint(request)
 
@@ -127,20 +128,14 @@ def submit_entries(request):
     if replayed:
         body = {**body, "replayed": True}
 
-    # Fire-and-forget drain. Failures here must never affect the response.
-    try:
-        drain_async(limit=15)
-    except Exception:
-        pass
-
     return JsonResponse(body, status=status)
-
 
 def _submit_entries_impl(request):
     """The actual work for POST /kiems/submit-entries/.
 
     Returns (status_code, body_dict) for with_idempotency.
-    Form A reconciliation runs per entry inside the same transaction.
+    All validation happens BEFORE any write, so a bad row can never
+    leave earlier rows half-saved.
     """
     fingerprint = request.POST.get("fingerprint") or ""
     date_str = request.POST.get("date") or ""
@@ -182,7 +177,7 @@ def _submit_entries_impl(request):
     except ValueError:
         return _err("kit_id[] must be integers.")
 
-    kits = {k.pk: k for k in KIEMSKit.objects.filter(pk__in=kit_pks)}
+    kits = {k.pk: k for k in KIEMSKit.objects.select_related("ward__constituency").filter(pk__in=kit_pks)}
     missing = [pk for pk in kit_pks if pk not in kits]
     if missing:
         return _err(f"Unknown kit id(s): {missing}", 404)
@@ -191,24 +186,27 @@ def _submit_entries_impl(request):
         if kits[pk].ward_id != vra.ward_id:
             return _err(f"Kit {pk} does not belong to your ward.", 403)
 
-    # ── Commit phase: DB writes + Form A reconciliation, one transaction ──
-    saved_entries = []
+    # ---- Validate every row up front ----
+    rows = []
+    for kit_id, venue, m, f in zip(kit_pks, venues, males, females):
+        try:
+            male = int(m or 0)
+            female = int(f or 0)
+        except ValueError:
+            return _err(f"Non-numeric count for kit {kit_id}.")
+        if male < 0 or female < 0:
+            return _err(f"Negative count for kit {kit_id}.")
+        venue_clean = (venue or "").strip()
+        if not venue_clean:
+            return _err(f"Venue required for kit {kit_id}.")
+        rows.append((kit_id, venue_clean, male, female))
+
+    # ---- Commit phase: DB writes + Form A reconciliation, one transaction ----
+    saved = []  # (entry, created, previous_total)
     form_a_warnings = []
 
     with transaction.atomic():
-        for kit_id, venue, m, f in zip(kit_pks, venues, males, females):
-            try:
-                male = int(m or 0)
-                female = int(f or 0)
-            except ValueError:
-                return _err(f"Non-numeric count for kit {kit_id}.")
-            if male < 0 or female < 0:
-                return _err(f"Negative count for kit {kit_id}.")
-            venue_clean = (venue or "").strip()
-            if not venue_clean:
-                return _err(f"Venue required for kit {kit_id}.")
-
-            # Capture the *previous* total before update_or_create.
+        for kit_id, venue_clean, male, female in rows:
             existing = DailyKIEMSEntry.objects.filter(
                 kiems_kit_id=kit_id,
                 phase=phase,
@@ -217,7 +215,7 @@ def _submit_entries_impl(request):
             ).first()
             previous_total = existing.total_registered if existing else 0
 
-            obj, _created = DailyKIEMSEntry.objects.update_or_create(
+            obj, created = DailyKIEMSEntry.objects.update_or_create(
                 kiems_kit_id=kit_id,
                 phase=phase,
                 entry_date=entry_date,
@@ -228,13 +226,15 @@ def _submit_entries_impl(request):
                     "venue": venue_clean,
                     "registered_male": male,
                     "registered_female": female,
+                    "total_registered": male + female,
                 },
             )
-            saved_entries.append(obj)
+            saved.append((obj, created, previous_total))
 
-            # Reconcile against Form A (delta-aware, idempotent).
+            # Savepoint so a Form A DB error can't poison the outer transaction.
             try:
-                result = sync_form_a_for_entry(obj, previous_total, acting_vra=vra)
+                with transaction.atomic():
+                    result = sync_form_a_for_entry(obj, previous_total, acting_vra=vra)
                 if not result.ok and result.warning:
                     form_a_warnings.append({
                         "kit_id": kit_id,
@@ -242,23 +242,34 @@ def _submit_entries_impl(request):
                         "warning": result.warning,
                     })
             except Exception as e:
-                # Form A reconciliation must never block the primary write.
-                # The entry is already saved; surface the failure as a warning.
+                logger.exception("Form A sync failed for kit %s", kit_id)
                 form_a_warnings.append({
                     "kit_id": kit_id,
                     "kit_name": kits[kit_id].kit_name,
                     "warning": f"Form A sync failed: {e}",
                 })
 
-    # ?? Notify phase: queue WhatsApp, drain in background ??
-    for entry in saved_entries:
-        total = (entry.registered_male or 0) + (entry.registered_female or 0)
+    # ---- Re-evaluate the daily report state (never sends) ----
+    seen = set()
+    for entry, _created, _prev in saved:
+        c = entry.ward.constituency
+        if c and c.pk not in seen:
+            seen.add(c.pk)
+            try:
+                reevaluate_constituency_report(c, entry_date)
+            except Exception:
+                logger.exception("reevaluate failed for constituency %s", c.pk)
+
+    # ---- Notify phase: queue WhatsApp, drained in background ----
+    for entry, created, previous_total in saved:
+        total = entry.total_registered or 0
         if total <= 0:
             continue
-        message = _format_entry_message(entry)
+        message = _format_entry_message(
+            entry, is_update=not created, previous_total=previous_total,
+        )
         if message:
             dedupe_key = f"entry:{entry.ward.constituency_id}:{entry.kiems_kit_id}:{entry.entry_date}"
-
             enqueue_whatsapp(
                 constituency=entry.ward.constituency,
                 message=message,
@@ -266,10 +277,28 @@ def _submit_entries_impl(request):
                 dedupe_key=dedupe_key,
             )
 
-    body = {"saved": len(saved_entries)}
+    body = {"saved": len(saved)}
     if form_a_warnings:
         body["form_a_warnings"] = form_a_warnings
     return _ok(body)
+
+
+def _format_entry_message(entry, is_update=False, previous_total=0):
+    """WhatsApp text for a single registration entry."""
+    total = (entry.registered_male or 0) + (entry.registered_female or 0)
+    if total == 0:
+        return None
+    label = "UPDATED" if is_update else "CONFIRMED"
+    msg = f"{entry.ward.name.upper()} {label}\n"
+    msg += (
+        f"{entry.kiems_kit.kit_name}:"
+        f"Male:{entry.registered_male} Female:{entry.registered_female} ={total}"
+    )
+    if is_update:
+        msg += f"\n(Previous total: {previous_total})"
+    if entry.total_transferred and entry.total_transferred > 0:
+        msg += f"\nTransferred: {entry.total_transferred}"
+    return msg
 
 
 def _format_entry_message(entry):
@@ -1966,3 +1995,28 @@ def form_a_receipt_allocations(request, receipt_id):
             "created_at": a.created_at.isoformat(),
         } for a in allocations],
     })
+
+
+logger = logging.getLogger(__name__)
+
+
+@require_http_methods(["GET", "POST"])
+def cron_crawl_iebc_news(request):
+    expected = getattr(settings, "CRON_SECRET", "")
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+
+    if not expected or not hmac.compare_digest(token, expected):
+        return JsonResponse({"ok": False, "error": "unauthorized"}, status=401)
+
+    out, err = io.StringIO(), io.StringIO()
+    try:
+        call_command("crawl_iebc_news", max=5, stdout=out, stderr=err)
+    except CommandError as e:
+        logger.exception("crawl_iebc_news failed")
+        return JsonResponse({"ok": False, "error": str(e)}, status=500)
+    except Exception as e:
+        logger.exception("crawl_iebc_news crashed")
+        return JsonResponse({"ok": False, "error": str(e)}, status=500)
+
+    return JsonResponse({"ok": True, "output": out.getvalue()[-500:], "errors": err.getvalue()[-500:]})
