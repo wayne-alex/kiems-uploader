@@ -49,5 +49,5 @@ urlpatterns = [
     # ── Entry submit (fast path) ──
     path("kiems/submit-entries/", views.submit_entries, name="api_submit_entries"),
     path("movement/save/", views.movement_save, name="api_movement_save"),
-    path("api/cron/crawl-iebc-news/", views.cron_crawl_iebc_news),
+    path("cron/crawl-iebc-news/", views.cron_crawl_iebc_news),
 ]
